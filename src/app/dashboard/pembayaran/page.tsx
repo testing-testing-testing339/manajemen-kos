@@ -26,31 +26,73 @@ export default async function PembayaranPage() {
     .select('*, rooms(room_number, price, floors(branches(name)))')
     .order('payment_due_date', { ascending: true })
 
-  // Get all payments
+  // Get all payments - include tenant info where available
+  // Note: tenant_id can be null after tenant checkout, so we need to handle that
   let paymentsData = []
   let paymentsError = null
   try {
-    // Try with relation first
-    const result = await supabase
+    // First, get all payments (including those with null tenant_id)
+    const paymentsResult = await supabase
       .from('payments')
-      .select('*, profiles!payments_confirmed_by_fkey(full_name)')
+      .select('*')
       .order('created_at', { ascending: false })
     
-    if (result.error) {
-      // If relation fails, try without relation
-      if (result.error.code === 'PGRST116' || result.error.message?.includes('relation') || result.error.message?.includes('foreign key')) {
-        const simpleResult = await supabase
-          .from('payments')
-          .select('*')
-          .order('created_at', { ascending: false })
-        paymentsData = simpleResult.data || []
-        paymentsError = simpleResult.error
-      } else {
-        paymentsData = result.data || []
-        paymentsError = result.error
-      }
+    if (paymentsResult.error) {
+      paymentsData = []
+      paymentsError = paymentsResult.error
     } else {
-      paymentsData = result.data || []
+      paymentsData = paymentsResult.data || []
+      
+      // For payments with tenant_id, try to get tenant info
+      // We'll enrich the data in the component since Supabase doesn't support left joins easily
+      const paymentsWithTenantId = paymentsData.filter((p: any) => p.tenant_id)
+      
+      if (paymentsWithTenantId.length > 0) {
+        const tenantIds = paymentsWithTenantId.map((p: any) => p.tenant_id)
+        const { data: tenantsForPayments } = await supabase
+          .from('tenants')
+          .select('id, full_name, rooms(room_number, floors(branches(name)))')
+          .in('id', tenantIds)
+        
+        // Enrich payments with tenant data
+        if (tenantsForPayments) {
+          paymentsData = paymentsData.map((payment: any) => {
+            if (payment.tenant_id) {
+              const tenant = tenantsForPayments.find((t: any) => t.id === payment.tenant_id)
+              if (tenant) {
+                return { ...payment, tenants: tenant }
+              }
+            }
+            return payment
+          })
+        }
+      }
+      
+      // Try to get confirmed_by profile info
+      try {
+        const paymentsWithConfirmedBy = paymentsData.filter((p: any) => p.confirmed_by)
+        if (paymentsWithConfirmedBy.length > 0) {
+          const confirmedByIds = paymentsWithConfirmedBy.map((p: any) => p.confirmed_by).filter(Boolean)
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', confirmedByIds)
+          
+          if (profiles) {
+            paymentsData = paymentsData.map((payment: any) => {
+              if (payment.confirmed_by) {
+                const profile = profiles.find((p: any) => p.id === payment.confirmed_by)
+                if (profile) {
+                  return { ...payment, profiles: profile }
+                }
+              }
+              return payment
+            })
+          }
+        }
+      } catch (e) {
+        // Ignore profile fetch errors
+      }
     }
   } catch (error: any) {
     // If table doesn't exist or other error, try simple query

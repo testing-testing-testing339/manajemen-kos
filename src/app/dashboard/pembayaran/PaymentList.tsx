@@ -202,19 +202,24 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
       </div>
 
       {/* Pending Payments Section */}
-      {payments.filter((p: any) => p.status === 'pending').length > 0 && (
+      {payments.filter((p: any) => p.status === 'pending' || (p.status === undefined && p.confirmed_by === null)).length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Pembayaran Menunggu Konfirmasi</h2>
           <div className="space-y-3">
             {payments
               .filter((p: any) => p.status === 'pending' || (p.status === undefined && p.confirmed_by === null))
               .map((payment: any) => {
-                const tenant = tenants.find((t: any) => t.id === payment.tenant_id)
+                // Get tenant info from payment relation or from tenants list
+                const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
+                const tenantName = tenant?.full_name || (payment.tenant_id ? 'Tenant sudah checkout' : 'Unknown')
+                const roomInfo = tenant?.rooms ? `No. ${tenant.rooms.room_number} - ${tenant.rooms.floors?.branches?.name}` : 'Kamar tidak tersedia'
+                
                 return (
                   <div key={payment.id} className="flex items-center justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <div className="flex-1">
-                      <p className="font-semibold text-gray-900">{tenant?.full_name || 'Unknown'}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="font-semibold text-gray-900">{tenantName}</p>
+                      {tenant && <p className="text-xs text-gray-500">{roomInfo}</p>}
+                      <p className="text-sm text-gray-600 mt-1">
                         {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(payment.amount))}
                         {' • '}
                         {new Date(payment.payment_date).toLocaleDateString('id-ID')}
@@ -240,6 +245,76 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
           </div>
         </div>
       )}
+
+      {/* All Payments History Section - Including checkout tenants */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Riwayat Semua Pembayaran</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Menampilkan semua pembayaran termasuk dari penyewa yang sudah checkout
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Tanggal</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Nama Penghuni</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Kamar</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-700">Jumlah</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Metode</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Dikonfirmasi Oleh</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments
+                .filter((p: any) => p.status === 'confirmed' || (p.status === undefined && p.confirmed_by !== null))
+                .map((payment: any) => {
+                  // Get tenant info from payment relation or from tenants list
+                  const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
+                  const tenantName = tenant?.full_name || (payment.tenant_id ? 'Tenant sudah checkout' : 'Unknown')
+                  const roomInfo = tenant?.rooms 
+                    ? `No. ${tenant.rooms.room_number} - ${tenant.rooms.floors?.branches?.name || ''}` 
+                    : (payment.tenant_id ? 'Kamar tidak tersedia' : '-')
+                  const confirmedByName = payment.profiles?.full_name || '-'
+                  
+                  return (
+                    <tr key={payment.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 text-sm text-gray-700">
+                        {new Date(payment.payment_date).toLocaleDateString('id-ID')}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-gray-900">{tenantName}</span>
+                        {!tenant && payment.tenant_id && (
+                          <span className="ml-2 text-xs text-gray-500">(Sudah checkout)</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600">{roomInfo}</td>
+                      <td className="py-3 px-4 text-right">
+                        <span className="font-semibold text-gray-900">
+                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(payment.amount))}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600 capitalize">{payment.payment_method}</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                          Dikonfirmasi
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600">{confirmedByName}</td>
+                    </tr>
+                  )
+                })}
+              {payments.filter((p: any) => p.status === 'confirmed' || (p.status === undefined && p.confirmed_by !== null)).length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-gray-500">
+                    Belum ada pembayaran yang dikonfirmasi
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Payment Modal */}
       <Modal isOpen={isModalOpen} onClose={() => {
