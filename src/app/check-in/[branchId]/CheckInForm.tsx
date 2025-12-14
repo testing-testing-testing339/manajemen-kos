@@ -910,11 +910,20 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           <div className="grid gap-4 md:grid-cols-2">
             {(() => {
               // Group rooms by price and facilities to create room types
-              const roomTypes = new Map<string, { price: number, facilities: string[], count: number }>()
+              const roomTypes = new Map<string, { 
+                price: number, 
+                price_per_day: number | null,
+                price_per_month: number | null,
+                price_per_6months: number | null,
+                facilities: string[], 
+                count: number 
+              }>()
               
               rooms.forEach((room) => {
                 const facilitiesStr = (room.facilities || []).join(', ') || 'Standard'
-                const key = `${room.price}-${facilitiesStr}`
+                // Use price_per_day as primary key since it's required
+                const priceKey = (room as any).price_per_day || room.price || 0
+                const key = `${priceKey}-${facilitiesStr}`
                 
                 if (roomTypes.has(key)) {
                   const existing = roomTypes.get(key)!
@@ -922,6 +931,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 } else {
                   roomTypes.set(key, {
                     price: room.price,
+                    price_per_day: (room as any).price_per_day || null,
+                    price_per_month: (room as any).price_per_month || null,
+                    price_per_6months: (room as any).price_per_6months || null,
                     facilities: room.facilities || [],
                     count: 1
                   })
