@@ -1078,20 +1078,48 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                   )}
 
-                  {/* Price */}
+                  {/* Price Details */}
                   <div className="pt-4 border-t border-gray-200">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-gray-500">Harga sewa</span>
-                      <div className="text-right">
-                        <p className={`text-2xl font-bold ${
+                    <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Harga Sewa:</p>
+                    <div className="space-y-1.5">
+                      {/* Per Hari - Always shown (required) */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600">Per Hari</span>
+                        <span className={`text-sm font-semibold ${
                           selectedRoomType?.key === type.key
                             ? 'text-indigo-600'
                             : 'text-gray-900'
                         }`}>
-                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(type.price)}
-                        </p>
-                        <p className="text-xs text-gray-500">/bulan</p>
+                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((type as any).price_per_day || 0)}
+                        </span>
                       </div>
+                      {/* Per Bulan - Only if set */}
+                      {(type as any).price_per_month && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">Per Bulan</span>
+                          <span className={`text-sm font-semibold ${
+                            selectedRoomType?.key === type.key
+                              ? 'text-indigo-600'
+                              : 'text-gray-900'
+                          }`}>
+                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((type as any).price_per_month)}
+                          </span>
+                        </div>
+                      )}
+                      {/* Per 6 Bulan - Only if set */}
+                      {(type as any).price_per_6months && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">Per 6 Bulan</span>
+                          <span className={`text-sm font-semibold ${
+                            selectedRoomType?.key === type.key
+                              ? 'text-green-600'
+                              : 'text-green-700'
+                          }`}>
+                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((type as any).price_per_6months)}
+                            <span className="text-xs text-green-600 ml-1">(Lebih hemat!)</span>
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </button>
@@ -1136,101 +1164,117 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
       {/* Step 4.5: Rental Duration Selection */}
       {step === 4.5 && selectedRoomType && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Pilih Durasi Sewa</h2>
-            <p className="text-sm text-gray-600">Pilih durasi sewa yang diinginkan</p>
+            <p className="text-sm text-gray-600">Pilih jenis sewa dan durasi yang diinginkan</p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            {/* Daily Rental - Always available (required) */}
-            <button
-              type="button"
-              onClick={() => {
-                setRentalDuration('daily')
-                setRentalDays(1)
-                setTotalAmount(selectedRoomType.price_per_day || 0)
-              }}
-              className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
-                rentalDuration === 'daily'
-                  ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
-                  : 'border-gray-200 bg-white hover:border-indigo-300'
-              }`}
-            >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    rentalDuration === 'daily' ? 'bg-indigo-600' : 'bg-gray-200'
-                  }`}>
-                    <svg className={`w-6 h-6 ${rentalDuration === 'daily' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-bold text-gray-900">Sewa Harian</h3>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">Harga per hari</p>
-                  <p className="text-xl font-bold text-indigo-600">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day || 0)}
-                  </p>
-                  {rentalDuration === 'daily' && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <label className="block text-xs font-semibold text-gray-700 mb-2">Jumlah Hari</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={rentalDays}
-                        onChange={(e) => {
-                          const days = parseInt(e.target.value) || 1
-                          setRentalDays(days)
-                          setTotalAmount((selectedRoomType.price_per_day || 0) * days)
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Total: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((selectedRoomType.price_per_day || 0) * rentalDays)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </button>
-
-            {/* Monthly Rental (6 months) - Only if price_per_6months is set */}
-            {selectedRoomType.price_per_6months && (
-              <button
-                type="button"
-                onClick={() => {
-                  setRentalDuration('6months')
+          {/* Duration Type Dropdown */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Jenis Sewa *
+            </label>
+            <select
+              value={rentalDuration}
+              onChange={(e) => {
+                const duration = e.target.value as 'daily' | '6months'
+                setRentalDuration(duration)
+                if (duration === 'daily') {
+                  setRentalDays(1)
+                  setTotalAmount(selectedRoomType.price_per_day || 0)
+                } else if (duration === '6months') {
                   setTotalAmount(selectedRoomType.price_per_6months || 0)
-                }}
-                className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  rentalDuration === '6months'
-                    ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
-                    : 'border-gray-200 bg-white hover:border-indigo-300'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    rentalDuration === '6months' ? 'bg-indigo-600' : 'bg-gray-200'
-                  }`}>
-                    <svg className={`w-6 h-6 ${rentalDuration === '6months' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-bold text-gray-900">Sewa Bulanan</h3>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">Sewa 6 bulan (otomatis)</p>
-                  <p className="text-xl font-bold text-indigo-600">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months)}
-                  </p>
-                  <p className="text-xs text-green-600 font-semibold">Lebih hemat!</p>
-                  <p className="text-xs text-gray-500">
-                    ≈ {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months / 6)}/bulan
-                  </p>
-                </div>
-              </button>
+                }
+              }}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+            >
+              <option value="daily">Sewa Harian</option>
+              {selectedRoomType.price_per_6months && (
+                <option value="6months">Sewa Bulanan (6 Bulan)</option>
+              )}
+            </select>
+            {rentalDuration === '6months' && (
+              <p className="text-xs text-gray-500 mt-2">
+                <span className="font-semibold text-green-600">Info:</span> Sewa bulanan otomatis untuk 6 bulan. Tidak tersedia untuk 1 atau 2 bulan.
+              </p>
             )}
           </div>
+
+          {/* Daily Rental - Input Jumlah Hari */}
+          {rentalDuration === 'daily' && (
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-200">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Jumlah Hari *
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={rentalDays}
+                onChange={(e) => {
+                  const days = parseInt(e.target.value) || 1
+                  setRentalDays(days)
+                  setTotalAmount((selectedRoomType.price_per_day || 0) * days)
+                }}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="Masukkan jumlah hari"
+              />
+              <div className="mt-4 pt-4 border-t border-indigo-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Harga per hari:</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day || 0)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Jumlah hari:</span>
+                  <span className="text-sm font-semibold text-gray-900">{rentalDays} hari</span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-indigo-200">
+                  <span className="text-base font-bold text-gray-900">Total:</span>
+                  <span className="text-xl font-bold text-indigo-600">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((selectedRoomType.price_per_day || 0) * rentalDays)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Monthly Rental (6 months) - Display Info */}
+          {rentalDuration === '6months' && selectedRoomType.price_per_6months && (
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Sewa Bulanan (6 Bulan)</h3>
+                  <p className="text-xs text-gray-600">Durasi sewa otomatis 6 bulan</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Harga untuk 6 bulan:</span>
+                  <span className="text-lg font-bold text-green-600">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-green-200">
+                  <span className="text-sm text-gray-600">Harga per bulan (rata-rata):</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months / 6)}
+                  </span>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <p className="text-xs text-gray-600 text-center">
+                    <span className="font-semibold text-green-600">Lebih hemat!</span> Dibandingkan sewa harian
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
