@@ -556,14 +556,21 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           
           <div className="bg-gray-50 p-4 rounded-lg space-y-2">
             <div className="flex justify-between">
-              <span className="text-gray-700">Kamar:</span>
-              <span className="font-semibold">{selectedRoom?.room_number}</span>
+              <span className="text-gray-700">Jenis Kamar:</span>
+              <span className="font-semibold">
+                {selectedRoomType?.facilities?.length > 0 
+                  ? selectedRoomType.facilities.join(', ') 
+                  : 'Kamar Standard'}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-700">Harga sewa:</span>
               <span className="font-semibold">
-                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(selectedRoom?.price || 0)}
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(selectedRoomType?.price || 0)}
               </span>
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              * Kamar spesifik akan ditentukan oleh resepsionis
             </div>
             <div className="border-t border-gray-300 pt-2 mt-2">
               <div className="flex justify-between">
