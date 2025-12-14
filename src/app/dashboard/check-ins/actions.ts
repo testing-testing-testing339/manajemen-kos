@@ -242,18 +242,28 @@ export async function assignRoom(prevState: any, formData: FormData) {
       .single()
 
     if (checkInData) {
+      // Get check-in date from check_in_requests (created_at) or use current date
+      const { data: checkInRequest } = await supabase
+        .from('check_in_requests')
+        .select('created_at')
+        .eq('id', check_in_id)
+        .single()
+      
+      const checkInDate = checkInRequest?.created_at 
+        ? new Date(checkInRequest.created_at)
+        : new Date()
+      
       // Calculate payment due date based on rental_duration and rental_days
-      const checkInDate = new Date()
       const paymentDueDate = new Date(checkInDate)
       
       if (checkInData.rental_duration === 'daily' && checkInData.rental_days) {
-        // Daily rental: add rental_days
+        // Daily rental: add rental_days to check-in date
         paymentDueDate.setDate(paymentDueDate.getDate() + checkInData.rental_days)
       } else if (checkInData.rental_duration === '6months') {
-        // 6 months rental: add 6 months (180 days)
+        // 6 months rental: add 6 months to check-in date
         paymentDueDate.setMonth(paymentDueDate.getMonth() + 6)
       } else {
-        // Fallback: 1 month
+        // Fallback: 1 month from check-in date
         paymentDueDate.setMonth(paymentDueDate.getMonth() + 1)
       }
 
@@ -264,7 +274,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
           room_id: room_id,
           full_name: checkInData.full_name,
           id_card_url: checkInData.id_card_photo_url,
-          check_in_date: new Date().toISOString().split('T')[0],
+          check_in_date: checkInDate.toISOString().split('T')[0],
           payment_due_date: paymentDueDate.toISOString().split('T')[0],
           electricity_meter_start: 0 // Default, bisa diubah nanti
         })
