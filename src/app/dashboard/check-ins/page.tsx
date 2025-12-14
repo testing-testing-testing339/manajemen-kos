@@ -36,7 +36,7 @@ export default async function CheckInsPage() {
   // Filter check-in requests based on role
   let checkInsQuery = supabase
     .from('check_in_requests')
-    .select('*, branches(name), rooms(room_number), profiles(full_name)')
+    .select('*, branches(name), rooms(room_number, floors(branches(name))), profiles(full_name)')
     .order('created_at', { ascending: false })
 
   if (profile?.role === 'staff' && profile.branch_id) {
@@ -50,7 +50,7 @@ export default async function CheckInsPage() {
   // Get available rooms for assignment
   let roomsQuery = supabase
     .from('rooms')
-    .select('id, room_number, price, is_occupied, floors(name, branch_id)')
+    .select('id, room_number, price, is_occupied, floors(name, branch_id, branches(name))')
     .eq('is_occupied', false)
 
   if (profile?.role === 'staff' && profile.branch_id) {

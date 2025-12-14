@@ -55,11 +55,31 @@ export default function CheckInList({
     )
   }
 
-  const headers = ['Nama', 'No. Telepon', 'Kamar Dipilih', 'Total', 'Status', 'Tanggal', 'Aksi']
+  // Helper function to format rental duration
+  const formatRentalDuration = (checkIn: any) => {
+    if (checkIn.rental_duration === 'daily' && checkIn.rental_days) {
+      return `${checkIn.rental_days} hari`
+    } else if (checkIn.rental_duration === '6months') {
+      return '6 bulan'
+    }
+    return '-'
+  }
+
+  // Helper function to get room info with branch
+  const getRoomInfo = (checkIn: any) => {
+    if (checkIn.assigned_room_id && checkIn.rooms) {
+      const branchName = checkIn.rooms.floors?.branches?.name || checkIn.branches?.name || '-'
+      return `No. ${checkIn.rooms.room_number} - ${branchName}`
+    }
+    return checkIn.selected_room_type || '-'
+  }
+
+  const headers = ['Nama', 'No. Telepon', 'Kamar Dipilih', 'Durasi Sewa', 'Total', 'Status', 'Tanggal', 'Aksi']
   const rows = checkIns.map(checkIn => [
     checkIn.full_name,
     checkIn.phone,
-    checkIn.selected_room_type || '-',
+    getRoomInfo(checkIn),
+    formatRentalDuration(checkIn),
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(checkIn.total_amount)),
     getStatusBadge(checkIn.status),
     new Date(checkIn.created_at).toLocaleDateString('id-ID'),
@@ -196,7 +216,9 @@ export default function CheckInList({
             {selectedCheckIn.assigned_room_id && (
               <div>
                 <p className="text-sm text-gray-600">Kamar yang Ditetapkan</p>
-                <p className="font-semibold">{selectedCheckIn.rooms?.room_number || '-'}</p>
+                <p className="font-semibold">
+                  No. {selectedCheckIn.rooms?.room_number || '-'} - {selectedCheckIn.rooms?.floors?.branches?.name || selectedCheckIn.branches?.name || '-'}
+                </p>
               </div>
             )}
 
