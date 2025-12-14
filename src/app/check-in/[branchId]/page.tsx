@@ -67,7 +67,7 @@ export default function CheckInPage() {
     )
   }
 
-  if (error || !branchData) {
+  if (error || !branchData || !branchId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
         <div className="text-center max-w-md mx-auto px-4">
