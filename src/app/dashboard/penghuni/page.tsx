@@ -33,8 +33,15 @@ export default async function PenghuniPage() {
     .eq('id', user.id)
     .single()
 
+  // Get branches for filter (only for owner)
+  let branchesQuery = supabase.from('branches').select('id, name').order('name', { ascending: true })
+  if (profile?.role === 'staff' && profile.branch_id) {
+    branchesQuery = branchesQuery.eq('id', profile.branch_id)
+  }
+  const { data: branchesData } = await branchesQuery
+
   // Filter floors first (needed for filtering tenants and rooms)
-  let floorsQuery = supabase.from('floors').select('id, branch_id')
+  let floorsQuery = supabase.from('floors').select('id, name, branch_id, branches(name)').order('name', { ascending: true })
   if (profile?.role === 'staff' && profile.branch_id) {
     floorsQuery = floorsQuery.eq('branch_id', profile.branch_id)
   }
@@ -90,5 +97,13 @@ export default async function PenghuniPage() {
     console.error('Error fetching available rooms:', roomsError)
   }
 
-  return <TenantList initialTenants={tenantsData || []} initialAvailableRooms={availableRoomsData || []} />
+  return (
+    <TenantList 
+      initialTenants={tenantsData || []} 
+      initialAvailableRooms={availableRoomsData || []}
+      userRole={profile?.role || null}
+      branches={branchesData || []}
+      floors={floorsData || []}
+    />
+  )
 }

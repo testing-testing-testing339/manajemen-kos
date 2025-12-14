@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -8,11 +8,26 @@ import { createTenant, deleteTenant } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 
-export default function TenantList({ initialTenants, initialAvailableRooms }: { initialTenants: any[], initialAvailableRooms: any[] }) {
+export default function TenantList({ 
+  initialTenants, 
+  initialAvailableRooms,
+  userRole,
+  branches,
+  floors
+}: { 
+  initialTenants: any[]
+  initialAvailableRooms: any[]
+  userRole: string | null
+  branches: any[]
+  floors: any[]
+}) {
   const [tenants, setTenants] = useState(initialTenants)
   const [availableRooms, setAvailableRooms] = useState(initialAvailableRooms)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState<string>('')
+  const [selectedFloor, setSelectedFloor] = useState<string>('')
   const router = useRouter()
   const [createState, createAction] = useActionState(createTenant, null)
   const [deleteState, deleteAction] = useActionState(deleteTenant, null)
@@ -48,8 +63,56 @@ export default function TenantList({ initialTenants, initialAvailableRooms }: { 
     setAvailableRooms(data || [])
   }
 
+  // Filter floors based on selected branch
+  const filteredFloors = useMemo(() => {
+    if (!selectedBranch) return floors
+    return floors.filter(floor => floor.branch_id === selectedBranch)
+  }, [selectedBranch, floors])
+
+  // Filter tenants based on search, branch, and floor
+  const filteredTenants = useMemo(() => {
+    let filtered = tenants
+
+    // Filter by branch
+    if (selectedBranch) {
+      filtered = filtered.filter(tenant => 
+        tenant.rooms?.floors?.branch_id === selectedBranch
+      )
+    }
+
+    // Filter by floor
+    if (selectedFloor) {
+      filtered = filtered.filter(tenant => 
+        tenant.rooms?.floor_id === selectedFloor
+      )
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter(tenant => 
+        tenant.full_name?.toLowerCase().includes(query) ||
+        tenant.rooms?.room_number?.toString().includes(query) ||
+        tenant.rooms?.floors?.branches?.name?.toLowerCase().includes(query) ||
+        tenant.rooms?.floors?.name?.toLowerCase().includes(query)
+      )
+    }
+
+    return filtered
+  }, [tenants, selectedBranch, selectedFloor, searchQuery])
+
+  // Reset floor filter when branch changes
+  useEffect(() => {
+    if (selectedBranch && selectedFloor) {
+      const floor = floors.find(f => f.id === selectedFloor)
+      if (floor && floor.branch_id !== selectedBranch) {
+        setSelectedFloor('')
+      }
+    }
+  }, [selectedBranch, selectedFloor, floors])
+
   const headers = ['Nama Penghuni', 'Kamar', 'Tgl Masuk', 'Jatuh Tempo', 'Meteran Awal', 'Actions']
-  const rows = tenants.map(tenant => {
+  const rows = filteredTenants.map(tenant => {
     const roomLabel = `No. ${tenant.rooms?.room_number} - ${tenant.rooms?.floors?.branches?.name}`
     const dueDate = new Date(tenant.payment_due_date)
     const isOverdue = dueDate < new Date()
@@ -100,8 +163,146 @@ export default function TenantList({ initialTenants, initialAvailableRooms }: { 
           Check-in Penghuni
         </button>
       </div>
+
+      {/* Filters - Only show for owner */}
+      {userRole === 'owner' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Search */}
+            <div className="md:col-span-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Cari Penghuni</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari nama, kamar, atau cabang..."
+                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all"
+                />
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Branch Filter */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Filter Cabang</label>
+              <select
+                value={selectedBranch}
+                onChange={(e) => {
+                  setSelectedBranch(e.target.value)
+                  if (e.target.value) {
+                    // Reset floor when branch changes
+                    setSelectedFloor('')
+                  }
+                }}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all"
+              >
+                <option value="">Semua Cabang</option>
+                {branches.map(branch => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Floor Filter */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Filter Lantai</label>
+              <select
+                value={selectedFloor}
+                onChange={(e) => setSelectedFloor(e.target.value)}
+                disabled={!selectedBranch}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Semua Lantai</option>
+                {filteredFloors.map(floor => (
+                  <option key={floor.id} value={floor.id}>
+                    {floor.name} - {floor.branches?.name || ''}
+                  </option>
+                ))}
+              </select>
+              {!selectedBranch && (
+                <p className="mt-1 text-xs text-gray-500">Pilih cabang terlebih dahulu</p>
+              )}
+            </div>
+          </div>
+
+          {/* Active Filters Info */}
+          {(selectedBranch || selectedFloor || searchQuery) && (
+            <div className="mt-4 flex flex-wrap gap-2 items-center">
+              <span className="text-sm text-gray-600">Filter aktif:</span>
+              {selectedBranch && (
+                <span className="px-3 py-1 bg-pink-100 text-pink-800 rounded-full text-sm font-medium flex items-center gap-1">
+                  Cabang: {branches.find(b => b.id === selectedBranch)?.name}
+                  <button
+                    onClick={() => {
+                      setSelectedBranch('')
+                      setSelectedFloor('')
+                    }}
+                    className="ml-1 hover:text-pink-900"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {selectedFloor && (
+                <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium flex items-center gap-1">
+                  Lantai: {floors.find(f => f.id === selectedFloor)?.name}
+                  <button
+                    onClick={() => setSelectedFloor('')}
+                    className="ml-1 hover:text-purple-900"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {searchQuery && (
+                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium flex items-center gap-1">
+                  Pencarian: "{searchQuery}"
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="ml-1 hover:text-blue-900"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setSelectedBranch('')
+                  setSelectedFloor('')
+                  setSearchQuery('')
+                }}
+                className="text-sm text-gray-600 hover:text-gray-900 underline"
+              >
+                Hapus semua filter
+              </button>
+            </div>
+          )}
+
+          {/* Results Count */}
+          <div className="mt-4 text-sm text-gray-600">
+            Menampilkan <span className="font-semibold text-gray-900">{filteredTenants.length}</span> dari <span className="font-semibold text-gray-900">{tenants.length}</span> penghuni
+          </div>
+        </div>
+      )}
       
-      <Table headers={headers} rows={rows} />
+      {filteredTenants.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+          <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <p className="text-lg font-semibold text-gray-900 mb-2">Tidak ada penghuni ditemukan</p>
+          <p className="text-gray-600">
+            {searchQuery || selectedBranch || selectedFloor 
+              ? 'Coba ubah filter atau kata kunci pencarian'
+              : 'Belum ada penghuni yang terdaftar'}
+          </p>
+        </div>
+      ) : (
+        <Table headers={headers} rows={rows} />
+      )}
       
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
         <h2 className="text-2xl font-bold mb-6 text-gray-900">Check-in Penghuni Baru</h2>
