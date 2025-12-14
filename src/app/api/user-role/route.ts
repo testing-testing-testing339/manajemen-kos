@@ -1,8 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { NextResponse } from 'next/server'
 
-export default async function Home() {
+export async function GET() {
   const cookieStore = await cookies()
 
   const supabase = createServerClient(
@@ -14,17 +14,24 @@ export default async function Home() {
           return cookieStore.getAll()
         },
         setAll() {
-          // No-op for server components
+          // No-op
         },
       },
     }
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-
-  if (user) {
-    redirect('/dashboard')
-  } else {
-    redirect('/login')
+  
+  if (!user) {
+    return NextResponse.json({ role: null })
   }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  return NextResponse.json({ role: profile?.role || null })
 }
+
