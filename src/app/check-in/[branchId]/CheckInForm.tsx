@@ -1019,7 +1019,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   onClick={() => {
                     setSelectedRoomType(type)
                     // Set default to daily price (required)
-                    const dailyPrice = (type as any).price_per_day || 0
+                    const dailyPrice = type.price_per_day || 0
                     setTotalAmount(dailyPrice)
                     setRentalDuration('daily')
                     setRentalDays(1)
@@ -1102,7 +1102,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                             ? 'text-indigo-600'
                             : 'text-gray-900'
                         }`}>
-                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((type as any).price_per_day || 0)}
+                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(type.price_per_day || 0)}
+                          {!type.price_per_day && (
+                            <span className="text-xs text-red-500 ml-1">(Belum di-set)</span>
+                          )}
                         </span>
                       </div>
                       {/* Per Bulan - Only if set */}
@@ -1155,6 +1158,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 if (selectedRoomType) {
+                  // Validate that price_per_day is set
+                  if (!selectedRoomType.price_per_day || selectedRoomType.price_per_day === 0) {
+                    setError('Harga per hari belum di-set untuk jenis kamar ini. Silakan hubungi admin.')
+                    return
+                  }
                   // Set default to daily price
                   const dailyPrice = selectedRoomType.price_per_day || 0
                   setTotalAmount(dailyPrice)
@@ -1222,15 +1230,34 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <input
                 type="number"
                 min="1"
+                max="7"
                 value={rentalDays}
                 onChange={(e) => {
+                  const inputValue = e.target.value
+                  if (inputValue === '') {
+                    setRentalDays(1)
+                    setTotalAmount(selectedRoomType.price_per_day || 0)
+                    return
+                  }
+                  const days = parseInt(inputValue) || 1
+                  const validDays = Math.min(Math.max(1, days), 7) // Clamp between 1 and 7
+                  setRentalDays(validDays)
+                  setTotalAmount((selectedRoomType.price_per_day || 0) * validDays)
+                }}
+                onBlur={(e) => {
                   const days = parseInt(e.target.value) || 1
-                  setRentalDays(days)
-                  setTotalAmount((selectedRoomType.price_per_day || 0) * days)
+                  const validDays = Math.min(Math.max(1, days), 7)
+                  if (validDays !== rentalDays) {
+                    setRentalDays(validDays)
+                    setTotalAmount((selectedRoomType.price_per_day || 0) * validDays)
+                  }
                 }}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="Masukkan jumlah hari"
+                placeholder="Masukkan jumlah hari (1-7)"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Maksimal 7 hari dalam sekali transaksi
+              </p>
               <div className="mt-4 pt-4 border-t border-indigo-200">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Harga per hari:</span>
