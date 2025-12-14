@@ -44,6 +44,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   } | null>(null)
   const [rentalDuration, setRentalDuration] = useState<'daily' | '6months'>('daily')
   const [rentalDays, setRentalDays] = useState<number>(1) // For daily rental
+  const [rentalDaysInput, setRentalDaysInput] = useState<string>('1') // For input field (allows empty)
   const [totalAmount, setTotalAmount] = useState(0)
   const [paymentDestination, setPaymentDestination] = useState('')
   const [loading, setLoading] = useState(false)
@@ -1168,6 +1169,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   setTotalAmount(dailyPrice)
                   setRentalDuration('daily')
                   setRentalDays(1)
+                  setRentalDaysInput('1')
                   setStep(4.5) // New step for duration selection
                 } else {
                   setError('Harap pilih jenis kamar terlebih dahulu')
@@ -1231,25 +1233,50 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 type="number"
                 min="1"
                 max="7"
-                value={rentalDays}
+                value={rentalDaysInput}
                 onChange={(e) => {
                   const inputValue = e.target.value
+                  // Allow empty input while typing
+                  setRentalDaysInput(inputValue)
+                  
+                  // Only update rentalDays and total if input is valid
                   if (inputValue === '') {
+                    // Keep current value while user is typing
+                    return
+                  }
+                  
+                  const days = parseInt(inputValue)
+                  if (!isNaN(days) && days >= 1 && days <= 7) {
+                    setRentalDays(days)
+                    setTotalAmount((selectedRoomType.price_per_day || 0) * days)
+                  }
+                }}
+                onBlur={(e) => {
+                  const inputValue = e.target.value.trim()
+                  if (inputValue === '') {
+                    // If empty on blur, reset to 1
+                    setRentalDaysInput('1')
                     setRentalDays(1)
                     setTotalAmount(selectedRoomType.price_per_day || 0)
                     return
                   }
-                  const days = parseInt(inputValue) || 1
-                  const validDays = Math.min(Math.max(1, days), 7) // Clamp between 1 and 7
-                  setRentalDays(validDays)
-                  setTotalAmount((selectedRoomType.price_per_day || 0) * validDays)
-                }}
-                onBlur={(e) => {
-                  const days = parseInt(e.target.value) || 1
-                  const validDays = Math.min(Math.max(1, days), 7)
-                  if (validDays !== rentalDays) {
-                    setRentalDays(validDays)
-                    setTotalAmount((selectedRoomType.price_per_day || 0) * validDays)
+                  
+                  const days = parseInt(inputValue)
+                  if (isNaN(days) || days < 1) {
+                    // Invalid, reset to 1
+                    setRentalDaysInput('1')
+                    setRentalDays(1)
+                    setTotalAmount(selectedRoomType.price_per_day || 0)
+                  } else if (days > 7) {
+                    // Too high, clamp to 7
+                    setRentalDaysInput('7')
+                    setRentalDays(7)
+                    setTotalAmount((selectedRoomType.price_per_day || 0) * 7)
+                  } else {
+                    // Valid, ensure input matches
+                    setRentalDaysInput(days.toString())
+                    setRentalDays(days)
+                    setTotalAmount((selectedRoomType.price_per_day || 0) * days)
                   }
                 }}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
