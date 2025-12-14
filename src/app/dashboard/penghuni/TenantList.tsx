@@ -448,6 +448,117 @@ export default function TenantList({
           </div>
         </form>
       </Modal>
+
+      {/* Detail Modal */}
+      <Modal isOpen={isDetailModalOpen} onClose={() => {
+        setIsDetailModalOpen(false)
+        setSelectedTenant(null)
+      }}>
+        {selectedTenant && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Detail Penghuni</h2>
+            
+            {/* Tenant Info */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm font-semibold text-gray-600">Nama:</span>
+                <span className="text-sm text-gray-900">{selectedTenant.full_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-semibold text-gray-600">Kamar:</span>
+                <span className="text-sm text-gray-900">No. {selectedTenant.rooms?.room_number} - {selectedTenant.rooms?.floors?.branches?.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-semibold text-gray-600">Tanggal Masuk:</span>
+                <span className="text-sm text-gray-900">{new Date(selectedTenant.check_in_date).toLocaleDateString('id-ID')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-semibold text-gray-600">Jatuh Tempo:</span>
+                <span className="text-sm text-gray-900">{new Date(selectedTenant.payment_due_date).toLocaleDateString('id-ID')}</span>
+              </div>
+            </div>
+
+            {/* Photos Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold text-gray-900">Dokumen & Foto</h3>
+              
+              {/* KTP Photo */}
+              {selectedTenant.check_in_requests?.[0]?.id_card_photo_url ? (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Foto KTP</label>
+                  <div className="relative">
+                    <img 
+                      src={selectedTenant.check_in_requests[0].id_card_photo_url} 
+                      alt="KTP" 
+                      className="w-full rounded-lg border-2 border-gray-300 max-h-96 object-contain bg-gray-50"
+                    />
+                  </div>
+                </div>
+              ) : selectedTenant.id_card_url ? (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Foto KTP</label>
+                  <div className="relative">
+                    <img 
+                      src={selectedTenant.id_card_url} 
+                      alt="KTP" 
+                      className="w-full rounded-lg border-2 border-gray-300 max-h-96 object-contain bg-gray-50"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Selfie Photo */}
+              {selectedTenant.check_in_requests?.[0]?.selfie_photo_url && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Foto Selfie</label>
+                  <div className="relative">
+                    <img 
+                      src={selectedTenant.check_in_requests[0].selfie_photo_url} 
+                      alt="Selfie" 
+                      className="w-full rounded-lg border-2 border-gray-300 max-h-96 object-contain bg-gray-50"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Proof */}
+              {selectedTenant.check_in_requests?.[0]?.payment_proof_url && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Bukti Pembayaran</label>
+                  <div className="relative">
+                    <img 
+                      src={selectedTenant.check_in_requests[0].payment_proof_url} 
+                      alt="Bukti Transfer" 
+                      className="w-full rounded-lg border-2 border-gray-300 max-h-96 object-contain bg-gray-50"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(!selectedTenant.check_in_requests?.[0]?.id_card_photo_url && 
+                !selectedTenant.id_card_url &&
+                !selectedTenant.check_in_requests?.[0]?.selfie_photo_url && 
+                !selectedTenant.check_in_requests?.[0]?.payment_proof_url) && (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Dokumen tidak tersedia</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={() => {
+                  setIsDetailModalOpen(false)
+                  setSelectedTenant(null)
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
