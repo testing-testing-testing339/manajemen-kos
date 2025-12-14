@@ -29,6 +29,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt')
 
   const idCardVideoRef = useRef<HTMLVideoElement>(null)
   const selfieVideoRef = useRef<HTMLVideoElement>(null)
@@ -82,16 +83,25 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
   const startCamera = async (videoRef: React.RefObject<HTMLVideoElement | null>, streamRef: React.MutableRefObject<MediaStream | null>) => {
     try {
+      setError('')
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: videoRef === selfieVideoRef ? 'user' : 'environment' } 
       })
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         streamRef.current = stream
+        setCameraPermission('granted')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error accessing camera:', error)
-      setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan.')
+      setCameraPermission('denied')
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        setError('Izin kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda, lalu refresh halaman.')
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        setError('Kamera tidak ditemukan. Pastikan perangkat Anda memiliki kamera.')
+      } else {
+        setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan.')
+      }
     }
   }
 
@@ -259,117 +269,241 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         </div>
       )}
 
-      {/* Step 2: Photo Capture */}
+      {/* Step 2: KTP Photo */}
       {step === 2 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Foto KTP & Selfie</h2>
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-blue-900 mb-1">Penting: Izin Kamera</p>
+                <p className="text-sm text-blue-800">Jika muncul popup izin kamera, silakan klik <strong>"Izinkan"</strong> atau <strong>"Allow"</strong> untuk melanjutkan.</p>
+              </div>
+            </div>
+          </div>
+
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Foto KTP</h2>
+          <p className="text-sm text-gray-600 mb-4">Ambil foto KTP Anda dengan jelas. Pastikan semua informasi terlihat.</p>
           
-          {/* KTP Photo */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Foto KTP *</label>
-            {!formData.id_card_photo ? (
-              <div className="space-y-2">
-                <video
-                  ref={idCardVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full rounded-lg border-2 border-gray-300"
-                  style={{ display: idCardStreamRef.current ? 'block' : 'none' }}
-                />
+          {!formData.id_card_photo ? (
+            <div className="space-y-3">
+              <video
+                ref={idCardVideoRef}
+                autoPlay
+                playsInline
+                className="w-full rounded-lg border-2 border-gray-300 max-h-64 object-cover"
+                style={{ display: idCardStreamRef.current ? 'block' : 'none' }}
+              />
+              {!idCardStreamRef.current && (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
+                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <p className="text-gray-600 font-medium mb-2">Kamera belum dibuka</p>
+                  <p className="text-sm text-gray-500">Klik tombol di bawah untuk membuka kamera</p>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => startCamera(idCardVideoRef, idCardStreamRef)}
+                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Buka Kamera untuk Foto KTP
+              </button>
+              {idCardStreamRef.current && (
                 <button
                   type="button"
-                  onClick={() => startCamera(idCardVideoRef, idCardStreamRef)}
-                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-500 transition-all duration-150 active:scale-95"
+                  onClick={() => capturePhoto(idCardVideoRef, 'id_card')}
+                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition-all duration-150 active:scale-95 shadow-lg flex items-center justify-center gap-2"
                 >
-                  Buka Kamera untuk Foto KTP
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Ambil Foto KTP
                 </button>
-                {idCardStreamRef.current && (
-                  <button
-                    type="button"
-                    onClick={() => capturePhoto(idCardVideoRef, 'id_card')}
-                    className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-all duration-150 active:scale-95"
-                  >
-                    Ambil Foto KTP
-                  </button>
-                )}
-              </div>
-            ) : (
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
               <div className="relative">
                 <img
                   src={URL.createObjectURL(formData.id_card_photo)}
                   alt="KTP"
-                  className="w-full rounded-lg border-2 border-gray-300"
+                  className="w-full rounded-lg border-2 border-green-500 shadow-lg"
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData({ ...formData, id_card_photo: null })
-                    stopCamera(idCardStreamRef)
-                  }}
-                  className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-lg text-sm transition-all duration-150 active:scale-95 hover:bg-red-600"
-                >
-                  Hapus
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Selfie Photo */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Foto Selfie *</label>
-            {!formData.selfie_photo ? (
-              <div className="space-y-2">
-                <video
-                  ref={selfieVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full rounded-lg border-2 border-gray-300"
-                  style={{ display: selfieStreamRef.current ? 'block' : 'none' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => startCamera(selfieVideoRef, selfieStreamRef)}
-                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-500 transition-all duration-150 active:scale-95"
-                >
-                  Buka Kamera untuk Selfie
-                </button>
-                {selfieStreamRef.current && (
+                <div className="absolute top-2 right-2 flex gap-2">
                   <button
                     type="button"
-                    onClick={() => capturePhoto(selfieVideoRef, 'selfie')}
-                    className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-all duration-150 active:scale-95"
+                    onClick={() => {
+                      setFormData({ ...formData, id_card_photo: null })
+                      stopCamera(idCardStreamRef)
+                    }}
+                    className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-95 hover:bg-red-600 shadow-md flex items-center gap-1"
                   >
-                    Ambil Selfie
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Hapus
                   </button>
-                )}
+                </div>
               </div>
-            ) : (
-              <div className="relative">
-                <img
-                  src={URL.createObjectURL(formData.selfie_photo)}
-                  alt="Selfie"
-                  className="w-full rounded-lg border-2 border-gray-300"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData({ ...formData, selfie_photo: null })
-                    stopCamera(selfieStreamRef)
-                  }}
-                  className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-lg text-sm transition-all duration-150 active:scale-95 hover:bg-red-600"
-                >
-                  Hapus
-                </button>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <p className="text-sm font-semibold text-green-800">Foto KTP berhasil diambil</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="flex gap-3">
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={() => {
                 setStep(1)
                 stopCamera(idCardStreamRef)
+              }}
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
+            >
+              Kembali
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (formData.id_card_photo) {
+                  setStep(3)
+                  stopCamera(idCardStreamRef)
+                } else {
+                  setError('Harap ambil foto KTP terlebih dahulu')
+                }
+              }}
+              disabled={!formData.id_card_photo}
+              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
+            >
+              Lanjutkan ke Selfie
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Selfie Photo */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-blue-900 mb-1">Penting: Izin Kamera</p>
+                <p className="text-sm text-blue-800">Jika muncul popup izin kamera, silakan klik <strong>"Izinkan"</strong> atau <strong>"Allow"</strong> untuk melanjutkan.</p>
+              </div>
+            </div>
+          </div>
+
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Foto Selfie</h2>
+          <p className="text-sm text-gray-600 mb-4">Ambil foto selfie Anda dengan jelas. Pastikan wajah terlihat penuh dan jelas.</p>
+          
+          {!formData.selfie_photo ? (
+            <div className="space-y-3">
+              <video
+                ref={selfieVideoRef}
+                autoPlay
+                playsInline
+                className="w-full rounded-lg border-2 border-gray-300 max-h-64 object-cover"
+                style={{ display: selfieStreamRef.current ? 'block' : 'none' }}
+              />
+              {!selfieStreamRef.current && (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
+                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <p className="text-gray-600 font-medium mb-2">Kamera belum dibuka</p>
+                  <p className="text-sm text-gray-500">Klik tombol di bawah untuk membuka kamera</p>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => startCamera(selfieVideoRef, selfieStreamRef)}
+                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Buka Kamera untuk Selfie
+              </button>
+              {selfieStreamRef.current && (
+                <button
+                  type="button"
+                  onClick={() => capturePhoto(selfieVideoRef, 'selfie')}
+                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition-all duration-150 active:scale-95 shadow-lg flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Ambil Selfie
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="relative">
+                <img
+                  src={URL.createObjectURL(formData.selfie_photo)}
+                  alt="Selfie"
+                  className="w-full rounded-lg border-2 border-green-500 shadow-lg"
+                />
+                <div className="absolute top-2 right-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({ ...formData, selfie_photo: null })
+                      stopCamera(selfieStreamRef)
+                    }}
+                    className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-95 hover:bg-red-600 shadow-md flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Hapus
+                  </button>
+                </div>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <p className="text-sm font-semibold text-green-800">Foto selfie berhasil diambil</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setStep(2)
                 stopCamera(selfieStreamRef)
               }}
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
@@ -379,24 +513,24 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (formData.id_card_photo && formData.selfie_photo) {
-                  setStep(3)
-                  stopCamera(idCardStreamRef)
+                if (formData.selfie_photo) {
+                  setStep(4) // Step 4: Room Selection
                   stopCamera(selfieStreamRef)
                 } else {
-                  setError('Harap ambil foto KTP dan selfie terlebih dahulu')
+                  setError('Harap ambil foto selfie terlebih dahulu')
                 }
               }}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl"
+              disabled={!formData.selfie_photo}
+              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
             >
-              Lanjutkan
+              Lanjutkan ke Pilih Kamar
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Room Type Selection */}
-      {step === 3 && (
+      {/* Step 4: Room Type Selection */}
+      {step === 4 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Pilih Jenis Kamar</h2>
           <p className="text-sm text-gray-600 mb-4">Pilih jenis kamar yang diinginkan. Kamar spesifik akan ditentukan oleh resepsionis.</p>
@@ -469,7 +603,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={() => setStep(3)}
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
               Kembali
@@ -478,7 +612,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 if (selectedRoomType) {
-                  setStep(4)
+                  setStep(5)
                 } else {
                   setError('Harap pilih jenis kamar terlebih dahulu')
                 }
@@ -492,8 +626,8 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         </div>
       )}
 
-      {/* Step 4: Terms & Conditions */}
-      {step === 4 && (
+      {/* Step 5: Terms & Conditions */}
+      {step === 5 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Kebijakan dan Aturan Kost</h2>
           
@@ -526,7 +660,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setStep(3)}
+              onClick={() => setStep(4)}
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
               Kembali
@@ -535,7 +669,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 if (formData.terms_accepted) {
-                  setStep(5)
+                  setStep(6)
                 } else {
                   setError('Harap setujui kebijakan dan aturan kost terlebih dahulu')
                 }
@@ -549,8 +683,8 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         </div>
       )}
 
-      {/* Step 5: Payment Summary */}
-      {step === 5 && (
+      {/* Step 6: Payment Summary */}
+      {step === 6 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Ringkasan Pembayaran</h2>
           
@@ -618,7 +752,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setStep(4)}
+              onClick={() => setStep(5)}
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
               Kembali
