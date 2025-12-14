@@ -2,6 +2,16 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { 
+  validateFullName, 
+  validatePhone, 
+  validateEmail, 
+  validateIdCardNumber,
+  validateFile,
+  validateAmount,
+  validateJSON,
+  sanitizeString
+} from '@/lib/validation'
 
 interface CheckInFormProps {
   branchId: string
@@ -31,6 +41,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const [success, setSuccess] = useState(false)
   const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt')
   const [cameraLoading, setCameraLoading] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
 
   const idCardVideoRef = useRef<HTMLVideoElement>(null)
   const selfieVideoRef = useRef<HTMLVideoElement>(null)
@@ -223,11 +234,22 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       canvas.toBlob((blob) => {
         if (blob) {
           const file = new File([blob], `${type}-${Date.now()}.jpg`, { type: 'image/jpeg' })
+          
+          // Validate file
+          const fileValidation = validateFile(file, ['image/'], 5)
+          if (!fileValidation.valid) {
+            setError(fileValidation.error || 'File tidak valid')
+            return
+          }
+          
           if (type === 'id_card') {
             setFormData({ ...formData, id_card_photo: file })
+            setValidationErrors({ ...validationErrors, id_card_photo: '' })
           } else {
             setFormData({ ...formData, selfie_photo: file })
+            setValidationErrors({ ...validationErrors, selfie_photo: '' })
           }
+          setError('')
           stopCamera(
             type === 'id_card' ? idCardStreamRef : selfieStreamRef,
             type === 'id_card' ? idCardVideoRef : selfieVideoRef
@@ -237,25 +259,123 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     }
   }
 
+  // Validate form data
+  const validateForm = (): boolean => {
+    const errors: { [key: string]: string } = {}
+
+    // Validate full name
+    const nameValidation = validateFullName(formData.full_name)
+    if (!nameValidation.valid) {
+      errors.full_name = 'Nama lengkap harus 2-100 karakter dan hanya mengandung huruf, spasi, titik, atau tanda hubung'
+    }
+
+    // Validate phone
+    const phoneValidation = validatePhone(formData.phone)
+    if (!phoneValidation.valid) {
+      errors.phone = 'Nomor telepon tidak valid. Gunakan format: 08xxxxxxxxxx atau +628xxxxxxxxxx'
+    }
+
+    // Validate email (optional but must be valid if provided)
+    if (formData.email) {
+      const emailValidation = validateEmail(formData.email)
+      if (!emailValidation.valid) {
+        errors.email = 'Format email tidak valid'
+      }
+    }
+
+    // Validate ID card number
+    const idCardValidation = validateIdCardNumber(formData.id_card_number)
+    if (!idCardValidation.valid) {
+      errors.id_card_number = 'Nomor KTP harus 16 digit angka'
+    }
+
+    // Validate photos
+    if (!formData.id_card_photo) {
+      errors.id_card_photo = 'Foto KTP wajib diisi'
+    } else {
+      const idCardFileValidation = validateFile(formData.id_card_photo, ['image/'], 5)
+      if (!idCardFileValidation.valid) {
+        errors.id_card_photo = idCardFileValidation.error || 'Foto KTP tidak valid'
+      }
+    }
+
+    if (!formData.selfie_photo) {
+      errors.selfie_photo = 'Foto selfie wajib diisi'
+    } else {
+      const selfieFileValidation = validateFile(formData.selfie_photo, ['image/'], 5)
+      if (!selfieFileValidation.valid) {
+        errors.selfie_photo = selfieFileValidation.error || 'Foto selfie tidak valid'
+      }
+    }
+
+    // Validate room type selection
+    if (!selectedRoomType) {
+      errors.room_type = 'Jenis kamar harus dipilih'
+    }
+
+    // Validate payment proof
+    if (!formData.payment_proof) {
+      errors.payment_proof = 'Bukti transfer wajib diisi'
+    } else {
+      const proofFileValidation = validateFile(formData.payment_proof, ['image/'], 5)
+      if (!proofFileValidation.valid) {
+        errors.payment_proof = proofFileValidation.error || 'Bukti transfer tidak valid'
+      }
+    }
+
+    // Validate terms acceptance
+    if (!formData.terms_accepted) {
+      errors.terms_accepted = 'Anda harus menyetujui kebijakan dan aturan kost'
+    }
+
+    // Validate amount
+    const amountValidation = validateAmount(totalAmount)
+    if (!amountValidation.valid) {
+      errors.amount = 'Jumlah pembayaran tidak valid'
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setValidationErrors({})
+
+    // Client-side validation
+    if (!validateForm()) {
+      setError('Harap perbaiki kesalahan pada form sebelum melanjutkan')
+      setLoading(false)
+      return
+    }
 
     try {
+      // Sanitize inputs
+      const sanitizedName = sanitizeString(formData.full_name)
+      const phoneValidation = validatePhone(formData.phone)
+      const emailValidation = formData.email ? validateEmail(formData.email) : { sanitized: '' }
+      const idCardValidation = validateIdCardNumber(formData.id_card_number)
+
       const submitData = new FormData()
       submitData.append('branch_id', branchId)
-      submitData.append('full_name', formData.full_name)
-      submitData.append('phone', formData.phone)
-      submitData.append('email', formData.email || '')
-      submitData.append('id_card_number', formData.id_card_number)
+      submitData.append('full_name', sanitizedName)
+      submitData.append('phone', phoneValidation.sanitized)
+      submitData.append('email', emailValidation.sanitized)
+      submitData.append('id_card_number', idCardValidation.sanitized)
+      
       // Send room type info (price and facilities) instead of specific room
-      submitData.append('selected_room_type', selectedRoomType ? JSON.stringify({
-        price: selectedRoomType.price,
-        facilities: selectedRoomType.facilities
-      }) : '')
+      if (selectedRoomType) {
+        const roomTypeData = {
+          price: selectedRoomType.price,
+          facilities: selectedRoomType.facilities
+        }
+        submitData.append('selected_room_type', JSON.stringify(roomTypeData))
+      }
+      
       submitData.append('total_amount', totalAmount.toString())
-      submitData.append('payment_destination', paymentDestination)
+      submitData.append('payment_destination', sanitizeString(paymentDestination))
       submitData.append('terms_accepted', 'true')
       
       if (formData.id_card_photo) {
@@ -320,10 +440,21 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="text"
               required
               value={formData.full_name}
-              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              onChange={(e) => {
+                setFormData({ ...formData, full_name: e.target.value })
+                if (validationErrors.full_name) {
+                  setValidationErrors({ ...validationErrors, full_name: '' })
+                }
+              }}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                validationErrors.full_name ? 'border-red-500' : 'border-gray-300'
+              }`}
               placeholder="Masukkan nama lengkap"
+              maxLength={100}
             />
+            {validationErrors.full_name && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.full_name}</p>
+            )}
           </div>
 
           <div>
@@ -332,10 +463,21 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="tel"
               required
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              onChange={(e) => {
+                setFormData({ ...formData, phone: e.target.value })
+                if (validationErrors.phone) {
+                  setValidationErrors({ ...validationErrors, phone: '' })
+                }
+              }}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                validationErrors.phone ? 'border-red-500' : 'border-gray-300'
+              }`}
               placeholder="08xxxxxxxxxx"
+              maxLength={15}
             />
+            {validationErrors.phone && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
+            )}
           </div>
 
           <div>
@@ -343,10 +485,21 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              onChange={(e) => {
+                setFormData({ ...formData, email: e.target.value })
+                if (validationErrors.email) {
+                  setValidationErrors({ ...validationErrors, email: '' })
+                }
+              }}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                validationErrors.email ? 'border-red-500' : 'border-gray-300'
+              }`}
               placeholder="email@example.com"
+              maxLength={255}
             />
+            {validationErrors.email && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
+            )}
           </div>
 
           <div>
@@ -355,15 +508,64 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="text"
               required
               value={formData.id_card_number}
-              onChange={(e) => setFormData({ ...formData, id_card_number: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              onChange={(e) => {
+                // Only allow digits
+                const value = e.target.value.replace(/\D/g, '')
+                setFormData({ ...formData, id_card_number: value })
+                if (validationErrors.id_card_number) {
+                  setValidationErrors({ ...validationErrors, id_card_number: '' })
+                }
+              }}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                validationErrors.id_card_number ? 'border-red-500' : 'border-gray-300'
+              }`}
               placeholder="16 digit nomor KTP"
+              maxLength={16}
             />
+            {validationErrors.id_card_number && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.id_card_number}</p>
+            )}
           </div>
+
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
 
           <button
             type="button"
-            onClick={() => setStep(2)}
+            onClick={() => {
+              // Validate step 1 before proceeding
+              const errors: { [key: string]: string } = {}
+              const nameValidation = validateFullName(formData.full_name)
+              if (!nameValidation.valid) {
+                errors.full_name = 'Nama lengkap harus 2-100 karakter dan hanya mengandung huruf, spasi, titik, atau tanda hubung'
+              }
+              const phoneValidation = validatePhone(formData.phone)
+              if (!phoneValidation.valid) {
+                errors.phone = 'Nomor telepon tidak valid. Gunakan format: 08xxxxxxxxxx atau +628xxxxxxxxxx'
+              }
+              if (formData.email) {
+                const emailValidation = validateEmail(formData.email)
+                if (!emailValidation.valid) {
+                  errors.email = 'Format email tidak valid'
+                }
+              }
+              const idCardValidation = validateIdCardNumber(formData.id_card_number)
+              if (!idCardValidation.valid) {
+                errors.id_card_number = 'Nomor KTP harus 16 digit angka'
+              }
+              
+              if (Object.keys(errors).length > 0) {
+                setValidationErrors(errors)
+                setError('Harap perbaiki kesalahan pada form sebelum melanjutkan')
+              } else {
+                setValidationErrors({})
+                setError('')
+                setStep(2)
+              }
+            }}
             className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95"
           >
             Lanjutkan
@@ -499,12 +701,24 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (formData.id_card_photo) {
-                  setStep(3)
-                  stopCamera(idCardStreamRef, idCardVideoRef)
-                } else {
+                if (!formData.id_card_photo) {
                   setError('Harap ambil foto KTP terlebih dahulu')
+                  setValidationErrors({ ...validationErrors, id_card_photo: 'Foto KTP wajib diisi' })
+                  return
                 }
+                
+                // Validate file
+                const fileValidation = validateFile(formData.id_card_photo, ['image/'], 5)
+                if (!fileValidation.valid) {
+                  setError(fileValidation.error || 'Foto KTP tidak valid')
+                  setValidationErrors({ ...validationErrors, id_card_photo: fileValidation.error || 'Foto KTP tidak valid' })
+                  return
+                }
+                
+                setValidationErrors({ ...validationErrors, id_card_photo: '' })
+                setError('')
+                setStep(3)
+                stopCamera(idCardStreamRef, idCardVideoRef)
               }}
               disabled={!formData.id_card_photo}
               className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
@@ -641,12 +855,24 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (formData.selfie_photo) {
-                  setStep(4) // Step 4: Room Selection
-                  stopCamera(selfieStreamRef, selfieVideoRef)
-                } else {
+                if (!formData.selfie_photo) {
                   setError('Harap ambil foto selfie terlebih dahulu')
+                  setValidationErrors({ ...validationErrors, selfie_photo: 'Foto selfie wajib diisi' })
+                  return
                 }
+                
+                // Validate file
+                const fileValidation = validateFile(formData.selfie_photo, ['image/'], 5)
+                if (!fileValidation.valid) {
+                  setError(fileValidation.error || 'Foto selfie tidak valid')
+                  setValidationErrors({ ...validationErrors, selfie_photo: fileValidation.error || 'Foto selfie tidak valid' })
+                  return
+                }
+                
+                setValidationErrors({ ...validationErrors, selfie_photo: '' })
+                setError('')
+                setStep(4) // Step 4: Room Selection
+                stopCamera(selfieStreamRef, selfieVideoRef)
               }}
               disabled={!formData.selfie_photo}
               className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
@@ -857,11 +1083,28 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               required
               onChange={(e) => {
                 if (e.target.files && e.target.files[0]) {
-                  setFormData({ ...formData, payment_proof: e.target.files[0] })
+                  const file = e.target.files[0]
+                  const fileValidation = validateFile(file, ['image/'], 5)
+                  
+                  if (!fileValidation.valid) {
+                    setError(fileValidation.error || 'Bukti transfer tidak valid')
+                    setValidationErrors({ ...validationErrors, payment_proof: fileValidation.error || 'Bukti transfer tidak valid' })
+                    e.target.value = '' // Reset input
+                    return
+                  }
+                  
+                  setFormData({ ...formData, payment_proof: file })
+                  setValidationErrors({ ...validationErrors, payment_proof: '' })
+                  setError('')
                 }
               }}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                validationErrors.payment_proof ? 'border-red-500' : 'border-gray-300'
+              }`}
             />
+            {validationErrors.payment_proof && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.payment_proof}</p>
+            )}
             {formData.payment_proof && (
               <img
                 src={URL.createObjectURL(formData.payment_proof)}
