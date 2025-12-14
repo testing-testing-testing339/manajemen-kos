@@ -80,7 +80,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     fetchPaymentInfo()
   }, [branchId])
 
-  const startCamera = async (videoRef: React.RefObject<HTMLVideoElement>, streamRef: React.MutableRefObject<MediaStream | null>) => {
+  const startCamera = async (videoRef: React.RefObject<HTMLVideoElement | null>, streamRef: React.MutableRefObject<MediaStream | null>) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: videoRef === selfieVideoRef ? 'user' : 'environment' } 
@@ -102,7 +102,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     }
   }
 
-  const capturePhoto = (videoRef: React.RefObject<HTMLVideoElement>, type: 'id_card' | 'selfie') => {
+  const capturePhoto = (videoRef: React.RefObject<HTMLVideoElement | null>, type: 'id_card' | 'selfie') => {
     if (!videoRef.current) return
 
     const canvas = document.createElement('canvas')
