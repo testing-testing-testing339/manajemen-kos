@@ -313,11 +313,12 @@ export default function PropertiList({
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Harga Per Hari (Rp)
-                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
+                  <span className="text-xs font-normal text-red-500 ml-2">Wajib</span>
                 </label>
                 <input 
                   name="price_per_day" 
                   type="number" 
+                  required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
                   placeholder="50000" 
                 />
@@ -325,12 +326,11 @@ export default function PropertiList({
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Harga Per Bulan (Rp)
-                  <span className="text-xs font-normal text-gray-500 ml-2">Wajib</span>
+                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
                 </label>
                 <input 
                   name="price_per_month" 
                   type="number" 
-                  required 
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
                   placeholder="1000000" 
                 />

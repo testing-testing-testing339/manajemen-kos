@@ -176,14 +176,14 @@ export async function deleteFloor(prevState: any, formData: FormData) {
 export async function createRoom(prevState: any, formData: FormData) {
   const floor_id = formData.get('floor_id') as string
   const room_number = formData.get('room_number') as string
-  const price_per_day = formData.get('price_per_day') ? parseFloat(formData.get('price_per_day') as string) : null
-  const price_per_month = parseFloat(formData.get('price_per_month') as string)
+  const price_per_day = parseFloat(formData.get('price_per_day') as string) // Required
+  const price_per_month = formData.get('price_per_month') ? parseFloat(formData.get('price_per_month') as string) : null
   const price_per_6months = formData.get('price_per_6months') ? parseFloat(formData.get('price_per_6months') as string) : null
   const facilitiesStr = formData.get('facilities') as string
   const facilities = facilitiesStr ? facilitiesStr.split(',').map(f => f.trim()).filter(f => f) : []
   
-  // For backward compatibility, use price_per_month as price
-  const price = price_per_month
+  // For backward compatibility, use price_per_day * 30 as default monthly price, or use price_per_month if provided
+  const price = price_per_month || (price_per_day * 30)
 
   const cookieStore = await cookies()
   const supabase = createServerClient(

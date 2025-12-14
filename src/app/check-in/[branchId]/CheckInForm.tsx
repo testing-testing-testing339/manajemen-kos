@@ -1000,10 +1000,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   type="button"
                   onClick={() => {
                     setSelectedRoomType(type)
-                    // Set default to monthly price
-                    const monthlyPrice = (type as any).price_per_month || type.price || 0
-                    setTotalAmount(monthlyPrice)
-                    setRentalDuration('monthly')
+                    // Set default to daily price (required)
+                    const dailyPrice = (type as any).price_per_day || 0
+                    setTotalAmount(dailyPrice)
+                    setRentalDuration('daily')
+                    setRentalDays(1)
                   }}
                   className={`relative p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
                     selectedRoomType?.key === type.key
@@ -1135,21 +1136,20 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            {/* Daily Rental */}
-            {selectedRoomType.price_per_day && (
-              <button
-                type="button"
-                onClick={() => {
-                  setRentalDuration('daily')
-                  setRentalDays(1)
-                  setTotalAmount(selectedRoomType.price_per_day || 0)
-                }}
-                className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  rentalDuration === 'daily'
-                    ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
-                    : 'border-gray-200 bg-white hover:border-indigo-300'
-                }`}
-              >
+            {/* Daily Rental - Always available (required) */}
+            <button
+              type="button"
+              onClick={() => {
+                setRentalDuration('daily')
+                setRentalDays(1)
+                setTotalAmount(selectedRoomType.price_per_day || 0)
+              }}
+              className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
+                rentalDuration === 'daily'
+                  ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
+                  : 'border-gray-200 bg-white hover:border-indigo-300'
+              }`}
+            >
                 <div className="flex items-center gap-3 mb-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                     rentalDuration === 'daily' ? 'bg-indigo-600' : 'bg-gray-200'
@@ -1188,20 +1188,20 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               </button>
             )}
 
-            {/* Monthly Rental */}
-            <button
-              type="button"
-              onClick={() => {
-                setRentalDuration('monthly')
-                const monthlyPrice = selectedRoomType.price_per_month || selectedRoomType.price || 0
-                setTotalAmount(monthlyPrice)
-              }}
-              className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
-                rentalDuration === 'monthly'
-                  ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
-                  : 'border-gray-200 bg-white hover:border-indigo-300'
-              }`}
-            >
+            {/* Monthly Rental - Only if price_per_month is set */}
+            {selectedRoomType.price_per_month && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRentalDuration('monthly')
+                  setTotalAmount(selectedRoomType.price_per_month || 0)
+                }}
+                className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
+                  rentalDuration === 'monthly'
+                    ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
+                    : 'border-gray-200 bg-white hover:border-indigo-300'
+                }`}
+              >
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                   rentalDuration === 'monthly' ? 'bg-indigo-600' : 'bg-gray-200'
@@ -1220,6 +1220,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <p className="text-xs text-gray-500">Paling populer</p>
               </div>
             </button>
+            )}
 
             {/* 6 Months Rental */}
             {selectedRoomType.price_per_6months && (
