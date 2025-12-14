@@ -1,11 +1,50 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useState, useRef } from 'react'
 import { login } from './actions'
 
 export default function LoginPage() {
   const [state, formAction] = useActionState(login, null)
   const [showPassword, setShowPassword] = useState(false)
+  const [emailError, setEmailError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const emailRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
+
+  // Client-side validation for email
+  const validateEmailInput = (value: string) => {
+    setEmailError('')
+    if (!value) return
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(value)) {
+      setEmailError('Format email tidak valid')
+      return
+    }
+    
+    // Check for dangerous characters
+    if (/[<>'"&]/.test(value) || /javascript:/gi.test(value) || /on\w+=/gi.test(value)) {
+      setEmailError('Email mengandung karakter tidak valid')
+      return
+    }
+  }
+
+  // Client-side validation for password
+  const validatePasswordInput = (value: string) => {
+    setPasswordError('')
+    if (!value) return
+    
+    if (value.length < 6) {
+      setPasswordError('Password harus minimal 6 karakter')
+      return
+    }
+    
+    // Check for dangerous patterns
+    if (/[<>'"&]/.test(value) || /javascript:/gi.test(value) || /on\w+=/gi.test(value)) {
+      setPasswordError('Password mengandung karakter tidak valid')
+      return
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -46,14 +85,23 @@ export default function LoginPage() {
                   </svg>
                 </div>
                 <input
+                  ref={emailRef}
                   id="email"
                   name="email"
                   type="email"
                   required
                   autoComplete="email"
                   placeholder="nama@email.com"
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  onChange={(e) => validateEmailInput(e.target.value)}
+                  onBlur={(e) => validateEmailInput(e.target.value)}
+                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all ${
+                    emailError ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+              </div>
+              {emailError && (
+                <p className="mt-1 text-sm text-red-600">{emailError}</p>
+              )}
               </div>
             </div>
 
@@ -68,14 +116,23 @@ export default function LoginPage() {
                   </svg>
                 </div>
                 <input
+                  ref={passwordRef}
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
                   placeholder="Masukkan password"
-                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  onChange={(e) => validatePasswordInput(e.target.value)}
+                  onBlur={(e) => validatePasswordInput(e.target.value)}
+                  className={`block w-full pl-10 pr-10 py-3 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all ${
+                    passwordError ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+              </div>
+              {passwordError && (
+                <p className="mt-1 text-sm text-red-600">{passwordError}</p>
+              )}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -103,64 +160,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Security Badges */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full">
-                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs font-semibold text-green-700">SSL/TLS Encrypted</span>
-              </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full">
-                <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs font-semibold text-blue-700">Secure Auth</span>
-              </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-full">
-                <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs font-semibold text-purple-700">XSS Protected</span>
-              </div>
-            </div>
-            
-            {/* Security Warning */}
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg mb-4">
-              <div className="flex items-start">
-                <svg className="w-5 h-5 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                <div className="flex-1">
-                  <h4 className="text-sm font-bold text-yellow-800 mb-1">Perlindungan Keamanan Aktif</h4>
-                  <p className="text-xs text-yellow-700 leading-relaxed">
-                    Sistem ini dilindungi dari <strong>SQL Injection</strong> dan <strong>XSS (Cross-Site Scripting)</strong> attacks. 
-                    Semua input divalidasi dan disanitasi menggunakan teknologi keamanan modern.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Security Technologies */}
-            <div className="text-center mb-4">
-              <p className="text-xs text-gray-500 mb-2">Dilindungi oleh:</p>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium">Input Validation</span>
-                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium">Parameterized Queries</span>
-                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium">Content Security Policy</span>
-                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium">HTTPS Only</span>
-              </div>
-            </div>
-          </div>
-
           {/* Footer */}
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center">
             <p className="text-xs text-gray-500">
               © 2025 Graha Aisyah Mainframe System. All rights reserved.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Powered by Next.js 14 & Supabase Security
             </p>
           </div>
         </div>
