@@ -42,7 +42,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     facilities: string[]
     count: number
   } | null>(null)
-  const [rentalDuration, setRentalDuration] = useState<'daily' | 'monthly' | '6months'>('monthly')
+  const [rentalDuration, setRentalDuration] = useState<'daily' | '6months'>('daily')
   const [rentalDays, setRentalDays] = useState<number>(1) // For daily rental
   const [totalAmount, setTotalAmount] = useState(0)
   const [paymentDestination, setPaymentDestination] = useState('')
@@ -387,6 +387,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       submitData.append('total_amount', totalAmount.toString())
       submitData.append('payment_destination', sanitizeString(paymentDestination))
       submitData.append('terms_accepted', 'true')
+      submitData.append('rental_duration', rentalDuration)
+      if (rentalDuration === 'daily') {
+        submitData.append('rental_days', rentalDays.toString())
+      } else if (rentalDuration === '6months') {
+        submitData.append('rental_days', '180') // 6 months = 180 days
+      }
       
       if (formData.id_card_photo) {
         submitData.append('id_card_photo', formData.id_card_photo)
@@ -1109,10 +1115,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 if (selectedRoomType) {
-                  // Calculate initial total based on monthly price
-                  const monthlyPrice = selectedRoomType.price_per_month || selectedRoomType.price || 0
-                  setTotalAmount(monthlyPrice)
-                  setRentalDuration('monthly')
+                  // Set default to daily price
+                  const dailyPrice = selectedRoomType.price_per_day || 0
+                  setTotalAmount(dailyPrice)
+                  setRentalDuration('daily')
+                  setRentalDays(1)
                   setStep(4.5) // New step for duration selection
                 } else {
                   setError('Harap pilih jenis kamar terlebih dahulu')
@@ -1187,41 +1194,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 </div>
               </button>
 
-            {/* Monthly Rental - Only if price_per_month is set */}
-            {selectedRoomType.price_per_month && (
-              <button
-                type="button"
-                onClick={() => {
-                  setRentalDuration('monthly')
-                  setTotalAmount(selectedRoomType.price_per_month || 0)
-                }}
-                className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  rentalDuration === 'monthly'
-                    ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
-                    : 'border-gray-200 bg-white hover:border-indigo-300'
-                }`}
-              >
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  rentalDuration === 'monthly' ? 'bg-indigo-600' : 'bg-gray-200'
-                }`}>
-                  <svg className={`w-6 h-6 ${rentalDuration === 'monthly' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h3 className="font-bold text-gray-900">Sewa Bulanan</h3>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">Harga per bulan</p>
-                <p className="text-xl font-bold text-indigo-600">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_month || selectedRoomType.price || 0)}
-                </p>
-                <p className="text-xs text-gray-500">Paling populer</p>
-              </div>
-            </button>
-            )}
-
-            {/* 6 Months Rental */}
+            {/* Monthly Rental (6 months) - Only if price_per_6months is set */}
             {selectedRoomType.price_per_6months && (
               <button
                 type="button"
@@ -1240,13 +1213,13 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     rentalDuration === '6months' ? 'bg-indigo-600' : 'bg-gray-200'
                   }`}>
                     <svg className={`w-6 h-6 ${rentalDuration === '6months' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <h3 className="font-bold text-gray-900">Sewa 6 Bulan</h3>
+                  <h3 className="font-bold text-gray-900">Sewa Bulanan</h3>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-600">Harga untuk 6 bulan</p>
+                  <p className="text-sm text-gray-600">Sewa 6 bulan (otomatis)</p>
                   <p className="text-xl font-bold text-indigo-600">
                     {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months)}
                   </p>
@@ -1393,7 +1366,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    {rentalDuration === 'daily' ? 'Harga Sewa Harian' : rentalDuration === '6months' ? 'Harga Sewa 6 Bulan' : 'Harga Sewa Bulanan'}
+                    {rentalDuration === 'daily' ? 'Harga Sewa Harian' : 'Harga Sewa Bulanan (6 Bulan)'}
                   </span>
                   <span className="font-semibold text-gray-900">
                     {rentalDuration === 'daily' && selectedRoomType?.price_per_day ? (
@@ -1406,12 +1379,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                         {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months)}
                         <span className="text-xs font-normal text-gray-500 ml-1">/6 bulan</span>
                       </>
-                    ) : (
-                      <>
-                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType?.price_per_month || selectedRoomType?.price || 0)}
-                        <span className="text-xs font-normal text-gray-500 ml-1">/bulan</span>
-                      </>
-                    )}
+                    ) : null}
                   </span>
                 </div>
               </div>
