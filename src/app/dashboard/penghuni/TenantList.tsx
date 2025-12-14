@@ -50,11 +50,11 @@ export default function TenantList({ initialTenants, initialAvailableRooms }: { 
       new Date(tenant.check_in_date).toLocaleDateString('id-ID'),
       <span key={tenant.id} className={isOverdue ? 'text-red-500 font-bold' : ''}>{dueDate.toLocaleDateString('id-ID')}</span>,
       tenant.electricity_meter_start,
-      <form action={deleteAction} key={tenant.id}>
+      <form action={deleteAction} key={tenant.id} className="inline-block">
         <input type="hidden" name="id" value={tenant.id} />
         <button 
           type="submit" 
-          className="px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 font-medium transition-colors"
+          className="px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 font-medium transition-all duration-150 active:scale-95 active:bg-orange-200"
         >
           Check-out
         </button>
@@ -71,7 +71,7 @@ export default function TenantList({ initialTenants, initialAvailableRooms }: { 
         </div>
         <button 
           onClick={() => setIsModalOpen(true)} 
-          className="bg-gradient-to-r from-pink-600 to-rose-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-pink-700 hover:to-rose-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+          className="bg-gradient-to-r from-pink-600 to-rose-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-pink-700 hover:to-rose-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 flex items-center gap-2"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -164,13 +164,13 @@ export default function TenantList({ initialTenants, initialAvailableRooms }: { 
             <button 
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
               Batal
             </button>
             <button 
               type="submit" 
-              className="flex-1 bg-gradient-to-r from-pink-600 to-rose-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-pink-700 hover:to-rose-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+              className="flex-1 bg-gradient-to-r from-pink-600 to-rose-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-pink-700 hover:to-rose-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
             >
               Check-in
             </button>
