@@ -1024,6 +1024,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     setTotalAmount(dailyPrice)
                     setRentalDuration('daily')
                     setRentalDays(1)
+                    setRentalDaysInput('1')
                   }}
                   className={`relative p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
                     selectedRoomType?.key === type.key
@@ -1204,6 +1205,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 setRentalDuration(duration)
                 if (duration === 'daily') {
                   setRentalDays(1)
+                  setRentalDaysInput('1')
                   setTotalAmount(selectedRoomType.price_per_day || 0)
                 } else if (duration === '6months') {
                   setTotalAmount(selectedRoomType.price_per_6months || 0)
