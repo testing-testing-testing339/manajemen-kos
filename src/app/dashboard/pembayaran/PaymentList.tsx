@@ -229,7 +229,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                       <input type="hidden" name="payment_id" value={payment.id} />
                       <button
                         type="submit"
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-all duration-150 active:scale-95"
                       >
                         Konfirmasi Pembayaran
                       </button>
@@ -318,7 +318,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                   </button>
                   <button 
                     type="submit" 
-                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
                   >
                     Tandai Sudah Bayar
                   </button>

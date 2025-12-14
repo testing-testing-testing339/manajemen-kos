@@ -100,7 +100,7 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
           <input type="hidden" name="staff_id" value={staffMember.id} />
           <button 
             type="submit" 
-            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors text-sm"
+            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-all duration-150 active:scale-95 active:bg-red-200 text-sm"
           >
             Hapus
           </button>
@@ -394,7 +394,7 @@ function StaffForm({
         </button>
         <button 
           type="submit" 
-          className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+          className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
         >
           {staff ? 'Update Staff' : 'Tambah Staff'}
         </button>

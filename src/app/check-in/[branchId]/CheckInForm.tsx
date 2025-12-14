@@ -248,7 +248,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all"
+            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95"
           >
             Lanjutkan
           </button>
@@ -275,7 +275,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <button
                   type="button"
                   onClick={() => startCamera(idCardVideoRef, idCardStreamRef)}
-                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-500 transition-colors"
+                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-500 transition-all duration-150 active:scale-95"
                 >
                   Buka Kamera untuk Foto KTP
                 </button>
@@ -283,7 +283,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   <button
                     type="button"
                     onClick={() => capturePhoto(idCardVideoRef, 'id_card')}
-                    className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-indigo-700"
+                    className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-all duration-150 active:scale-95"
                   >
                     Ambil Foto KTP
                   </button>
@@ -302,7 +302,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     setFormData({ ...formData, id_card_photo: null })
                     stopCamera(idCardStreamRef)
                   }}
-                  className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-lg text-sm"
+                  className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-lg text-sm transition-all duration-150 active:scale-95 hover:bg-red-600"
                 >
                   Hapus
                 </button>
@@ -325,7 +325,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <button
                   type="button"
                   onClick={() => startCamera(selfieVideoRef, selfieStreamRef)}
-                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-500 transition-colors"
+                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-500 transition-all duration-150 active:scale-95"
                 >
                   Buka Kamera untuk Selfie
                 </button>
@@ -333,7 +333,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   <button
                     type="button"
                     onClick={() => capturePhoto(selfieVideoRef, 'selfie')}
-                    className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-indigo-700"
+                    className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-all duration-150 active:scale-95"
                   >
                     Ambil Selfie
                   </button>
@@ -352,7 +352,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     setFormData({ ...formData, selfie_photo: null })
                     stopCamera(selfieStreamRef)
                   }}
-                  className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-lg text-sm"
+                  className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-lg text-sm transition-all duration-150 active:scale-95 hover:bg-red-600"
                 >
                   Hapus
                 </button>
@@ -368,7 +368,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 stopCamera(idCardStreamRef)
                 stopCamera(selfieStreamRef)
               }}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
               Kembali
             </button>
@@ -383,7 +383,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   setError('Harap ambil foto KTP dan selfie terlebih dahulu')
                 }
               }}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700"
+              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl"
             >
               Lanjutkan
             </button>
@@ -405,7 +405,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   setSelectedRoom(room)
                   setTotalAmount(parseFloat(room.price))
                 }}
-                className={`p-4 border-2 rounded-lg text-left transition-all ${
+                className={`p-4 border-2 rounded-lg text-left transition-all duration-150 active:scale-95 ${
                   selectedRoom?.id === room.id
                     ? 'border-indigo-600 bg-indigo-50'
                     : 'border-gray-300 hover:border-indigo-300'
@@ -435,7 +435,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
               Kembali
             </button>
@@ -449,7 +449,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 }
               }}
               disabled={!selectedRoom}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
             >
               Pesan Kamar
             </button>
@@ -492,7 +492,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
               Kembali
             </button>
@@ -506,7 +506,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 }
               }}
               disabled={!formData.terms_accepted}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
             >
               Lanjutkan
             </button>
@@ -577,14 +577,14 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => setStep(4)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
               Kembali
             </button>
             <button
               type="submit"
               disabled={loading || !formData.payment_proof}
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100"
             >
               {loading ? 'Mengirim...' : 'Kirim Permintaan'}
             </button>

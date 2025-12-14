@@ -17,3 +17,20 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Button animation utilities */
+.btn-press {
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-press:active {
+  transform: scale(0.95);
+}
+
+.btn-press:hover {
+  transform: translateY(-2px);
+}
+
+.btn-press:active:hover {
+  transform: scale(0.95) translateY(0);
+}
