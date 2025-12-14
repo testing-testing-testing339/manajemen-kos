@@ -237,14 +237,25 @@ export async function assignRoom(prevState: any, formData: FormData) {
     // Create tenant record
     const { data: checkInData } = await supabase
       .from('check_in_requests')
-      .select('full_name, phone, email, id_card_number, id_card_photo_url, total_amount')
+      .select('full_name, phone, email, id_card_number, id_card_photo_url, total_amount, rental_duration, rental_days')
       .eq('id', check_in_id)
       .single()
 
     if (checkInData) {
-      // Calculate payment due date (1 month from now)
-      const paymentDueDate = new Date()
-      paymentDueDate.setMonth(paymentDueDate.getMonth() + 1)
+      // Calculate payment due date based on rental_duration and rental_days
+      const checkInDate = new Date()
+      const paymentDueDate = new Date(checkInDate)
+      
+      if (checkInData.rental_duration === 'daily' && checkInData.rental_days) {
+        // Daily rental: add rental_days
+        paymentDueDate.setDate(paymentDueDate.getDate() + checkInData.rental_days)
+      } else if (checkInData.rental_duration === '6months') {
+        // 6 months rental: add 6 months (180 days)
+        paymentDueDate.setMonth(paymentDueDate.getMonth() + 6)
+      } else {
+        // Fallback: 1 month
+        paymentDueDate.setMonth(paymentDueDate.getMonth() + 1)
+      }
 
       // Create tenant record
       const { data: newTenant, error: tenantError } = await supabase

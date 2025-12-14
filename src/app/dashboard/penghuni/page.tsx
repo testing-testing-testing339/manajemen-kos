@@ -48,7 +48,7 @@ export default async function PenghuniPage() {
   const { data: floorsData } = await floorsQuery
 
   // Filter tenants based on role
-  let tenantsQuery = supabase.from('tenants').select('*, rooms(room_number, floor_id, floors(name, branch_id, branches(name))), check_in_requests(id_card_photo_url, selfie_photo_url, payment_proof_url, rental_duration, rental_days)')
+  let tenantsQuery = supabase.from('tenants').select('*, rooms(room_number, floor_id, floors(name, branch_id, branches(name)))')
   if (profile?.role === 'staff' && profile.branch_id && floorsData) {
     // Staff can only see tenants in their branch - filter by room's floor_id
     const floorIds = floorsData.map(f => f.id)
@@ -90,6 +90,31 @@ export default async function PenghuniPage() {
   const { data: tenantsData, error: tenantsError } = await tenantsQuery
   const { data: availableRoomsData, error: roomsError } = await availableRoomsQuery
 
+  // Fetch check_in_requests for tenants (match by assigned_room_id -> room_id)
+  let checkInRequestsData: any[] = []
+  if (tenantsData && tenantsData.length > 0) {
+    // Get all room IDs from tenants
+    const roomIds = tenantsData.map(t => t.room_id).filter(Boolean)
+    if (roomIds.length > 0) {
+      const { data: checkInRequests } = await supabase
+        .from('check_in_requests')
+        .select('id, assigned_room_id, id_card_photo_url, selfie_photo_url, payment_proof_url, rental_duration, rental_days')
+        .in('assigned_room_id', roomIds)
+        .eq('status', 'completed')
+      
+      checkInRequestsData = checkInRequests || []
+    }
+  }
+
+  // Merge check_in_requests with tenants
+  const tenantsWithCheckIn = (tenantsData || []).map(tenant => {
+    const checkInRequest = checkInRequestsData.find(cir => cir.assigned_room_id === tenant.room_id)
+    return {
+      ...tenant,
+      check_in_requests: checkInRequest ? [checkInRequest] : []
+    }
+  })
+
   if (tenantsError && process.env.NODE_ENV === 'development') {
     console.error('Error fetching tenants:', tenantsError)
   }
@@ -99,7 +124,7 @@ export default async function PenghuniPage() {
 
   return (
     <TenantList 
-      initialTenants={tenantsData || []} 
+      initialTenants={tenantsWithCheckIn} 
       initialAvailableRooms={availableRoomsData || []}
       userRole={profile?.role || null}
       branches={branchesData || []}

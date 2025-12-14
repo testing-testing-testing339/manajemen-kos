@@ -113,10 +113,21 @@ export default function TenantList({
     }
   }, [selectedBranch, selectedFloor, floors])
 
-  // Calculate rental duration from payment_due_date
-  const calculateRentalDuration = (checkInDate: string, dueDate: string) => {
-    const checkIn = new Date(checkInDate)
-    const due = new Date(dueDate)
+  // Calculate rental duration from check_in_requests or fallback to payment_due_date
+  const calculateRentalDuration = (tenant: any) => {
+    // First, try to get from check_in_requests
+    const checkInRequest = tenant.check_in_requests?.[0]
+    if (checkInRequest) {
+      if (checkInRequest.rental_duration === 'daily' && checkInRequest.rental_days) {
+        return `${checkInRequest.rental_days} hari`
+      } else if (checkInRequest.rental_duration === '6months') {
+        return '6 bulan'
+      }
+    }
+    
+    // Fallback: calculate from check_in_date and payment_due_date
+    const checkIn = new Date(tenant.check_in_date)
+    const due = new Date(tenant.payment_due_date)
     const diffTime = Math.abs(due.getTime() - checkIn.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     
@@ -141,7 +152,7 @@ export default function TenantList({
     const roomLabel = `No. ${tenant.rooms?.room_number} - ${tenant.rooms?.floors?.branches?.name}`
     const dueDate = new Date(tenant.payment_due_date)
     const isOverdue = dueDate < new Date()
-    const rentalDuration = calculateRentalDuration(tenant.check_in_date, tenant.payment_due_date)
+    const rentalDuration = calculateRentalDuration(tenant)
     
     return [
       tenant.full_name,
