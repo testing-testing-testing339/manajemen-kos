@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createStaff, updateStaff, deleteStaff } from './actions'
+import { createStaff, updateStaff, deleteStaff, changeStaffPassword } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 
@@ -12,10 +12,12 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
   const [branches, setBranches] = useState(initialBranches)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
   const [selectedStaff, setSelectedStaff] = useState<any>(null)
   const [createState, createAction] = useActionState(createStaff, null)
   const [updateState, updateAction] = useActionState(updateStaff, null)
   const [deleteState, deleteAction] = useActionState(deleteStaff, null)
+  const [passwordState, passwordAction] = useActionState(changeStaffPassword, null)
   const router = useRouter()
 
   // Sync state with props
@@ -44,6 +46,14 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
       router.refresh()
     }
   }, [deleteState, router])
+
+  useEffect(() => {
+    if (passwordState?.success) {
+      setIsPasswordModalOpen(false)
+      setSelectedStaff(null)
+      router.refresh()
+    }
+  }, [passwordState, router])
 
   // Statistics
   const totalStaff = staff.length
@@ -92,9 +102,18 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
             setSelectedStaff(staffMember)
             setIsEditModalOpen(true)
           }}
-          className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-colors text-sm"
+          className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-all duration-150 active:scale-95 text-sm"
         >
           Edit
+        </button>
+        <button
+          onClick={() => {
+            setSelectedStaff(staffMember)
+            setIsPasswordModalOpen(true)
+          }}
+          className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 font-medium transition-all duration-150 active:scale-95 text-sm"
+        >
+          Ganti Password
         </button>
         <form action={deleteAction}>
           <input type="hidden" name="staff_id" value={staffMember.id} />
@@ -200,6 +219,86 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
                 setSelectedStaff(null)
               }}
             />
+          </>
+        )}
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal isOpen={isPasswordModalOpen} onClose={() => {
+        setIsPasswordModalOpen(false)
+        setSelectedStaff(null)
+      }}>
+        {selectedStaff && (
+          <>
+            <h2 className="text-2xl font-bold mb-6 text-gray-900">Ganti Password</h2>
+            <form action={passwordAction} className="space-y-5">
+              <input type="hidden" name="staff_id" value={selectedStaff.id} />
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Staff
+                </label>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <p className="font-semibold text-gray-900">{selectedStaff.full_name}</p>
+                  <p className="text-sm text-gray-600">{selectedStaff.email}</p>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="new_password" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Password Baru *
+                </label>
+                <input
+                  id="new_password"
+                  name="new_password"
+                  type="password"
+                  required
+                  minLength={6}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="Masukkan password baru (minimal 6 karakter)"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="confirm_password" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Konfirmasi Password Baru *
+                </label>
+                <input
+                  id="confirm_password"
+                  name="confirm_password"
+                  type="password"
+                  required
+                  minLength={6}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="Konfirmasi password baru"
+                />
+              </div>
+
+              {passwordState?.error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">{passwordState.error}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsPasswordModalOpen(false)
+                    setSelectedStaff(null)
+                  }}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+                >
+                  Ganti Password
+                </button>
+              </div>
+            </form>
           </>
         )}
       </Modal>

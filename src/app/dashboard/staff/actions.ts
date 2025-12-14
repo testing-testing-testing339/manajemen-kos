@@ -379,3 +379,107 @@ export async function deleteStaff(prevState: any, formData: FormData) {
   return { success: true }
 }
 
+export async function changeStaffPassword(prevState: any, formData: FormData) {
+  const staff_id = formData.get('staff_id') as string
+  const new_password = formData.get('new_password') as string
+  const confirm_password = formData.get('confirm_password') as string
+
+  if (!staff_id || !new_password || !confirm_password) {
+    return { error: 'Semua field harus diisi' }
+  }
+
+  if (new_password.length < 6) {
+    return { error: 'Password harus minimal 6 karakter' }
+  }
+
+  if (new_password !== confirm_password) {
+    return { error: 'Password dan konfirmasi password tidak cocok' }
+  }
+
+  const cookieStore = await cookies()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  // Check if user is owner
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'owner') {
+    return { error: 'Only owner can change staff password' }
+  }
+
+  // Verify staff exists and is a staff member
+  const { data: staffProfile } = await supabase
+    .from('profiles')
+    .select('id, role')
+    .eq('id', staff_id)
+    .single()
+
+  if (!staffProfile) {
+    return { error: 'Staff tidak ditemukan' }
+  }
+
+  if (staffProfile.role !== 'staff') {
+    return { error: 'Hanya bisa mengubah password untuk staff' }
+  }
+
+  // Change password using service role (admin API)
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { error: 'Service role key tidak dikonfigurasi' }
+  }
+
+  try {
+    const adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+
+    const { error: updateError } = await adminClient.auth.admin.updateUserById(
+      staff_id,
+      { password: new_password }
+    )
+
+    if (updateError) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error updating password:', updateError)
+      }
+      return { error: updateError.message || 'Gagal mengubah password' }
+    }
+
+    revalidatePath('/dashboard/staff')
+    return { success: true }
+  } catch (error: any) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Unexpected error in changeStaffPassword:', error)
+    }
+    return { error: error?.message || 'Terjadi kesalahan saat mengubah password' }
+  }
+}
+
