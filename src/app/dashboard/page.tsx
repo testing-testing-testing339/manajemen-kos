@@ -32,25 +32,140 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .single()
 
+  // Get user role and branch_id for filtering
+  const userRole = profile?.role || null
+  const userBranchId = profile?.branch_id || null
+
+  // Get floors in staff's branch (needed for filtering rooms and tenants)
+  let floorsData: any[] = []
+  if (userRole === 'staff' && userBranchId) {
+    const { data: floors } = await supabase
+      .from('floors')
+      .select('id')
+      .eq('branch_id', userBranchId)
+    floorsData = floors || []
+  }
+
+  // Build queries based on role
+  let branchesQuery = supabase.from('branches').select('*', { count: 'exact', head: true })
+  let floorsQuery = supabase.from('floors').select('*', { count: 'exact', head: true })
+  let roomsQuery = supabase.from('rooms').select('*', { count: 'exact', head: true })
+  let occupiedRoomsQuery = supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('is_occupied', true)
+  let tenantsQuery = supabase.from('tenants').select('*', { count: 'exact', head: true })
+
+  // Filter for staff
+  if (userRole === 'staff' && userBranchId) {
+    // Staff can only see their branch
+    branchesQuery = branchesQuery.eq('id', userBranchId)
+    
+    // Staff can only see floors in their branch
+    floorsQuery = floorsQuery.eq('branch_id', userBranchId)
+    
+    // Staff can only see rooms in their branch
+    if (floorsData.length > 0) {
+      const floorIds = floorsData.map(f => f.id)
+      roomsQuery = roomsQuery.in('floor_id', floorIds)
+      occupiedRoomsQuery = occupiedRoomsQuery.in('floor_id', floorIds)
+      
+      // Get room IDs for filtering tenants
+      const { data: staffRooms } = await supabase
+        .from('rooms')
+        .select('id')
+        .in('floor_id', floorIds)
+      
+      if (staffRooms && staffRooms.length > 0) {
+        const roomIds = staffRooms.map(r => r.id)
+        tenantsQuery = tenantsQuery.in('room_id', roomIds)
+      } else {
+        // No rooms in their branch, return empty
+        tenantsQuery = tenantsQuery.eq('room_id', '00000000-0000-0000-0000-000000000000')
+      }
+    } else {
+      // No floors in their branch, return empty
+      roomsQuery = roomsQuery.eq('floor_id', '00000000-0000-0000-0000-000000000000')
+      occupiedRoomsQuery = occupiedRoomsQuery.eq('floor_id', '00000000-0000-0000-0000-000000000000')
+      tenantsQuery = tenantsQuery.eq('room_id', '00000000-0000-0000-0000-000000000000')
+    }
+  }
+
   // Get statistics
   const [branchesCount, floorsCount, roomsCount, tenantsCount, occupiedRoomsCount] = await Promise.all([
-    supabase.from('branches').select('*', { count: 'exact', head: true }),
-    supabase.from('floors').select('*', { count: 'exact', head: true }),
-    supabase.from('rooms').select('*', { count: 'exact', head: true }),
-    supabase.from('tenants').select('*', { count: 'exact', head: true }),
-    supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('is_occupied', true),
+    branchesQuery,
+    floorsQuery,
+    roomsQuery,
+    tenantsQuery,
+    occupiedRoomsQuery,
   ])
 
   // Get payments (handle case if table doesn't exist yet)
   let paymentsData: any[] = []
   try {
-    const { data, error } = await supabase.from('payments').select('amount, payment_date')
-    if (!error) {
-      paymentsData = data || []
+    // Filter payments for staff - only payments from tenants in their branch
+    if (userRole === 'staff' && userBranchId && floorsData.length > 0) {
+      // Get room IDs in staff's branch
+      const { data: staffRooms } = await supabase
+        .from('rooms')
+        .select('id')
+        .in('floor_id', floorsData.map(f => f.id))
+      
+      if (staffRooms && staffRooms.length > 0) {
+        const roomIds = staffRooms.map(r => r.id)
+        // Get tenant IDs in those rooms
+        const { data: staffTenants } = await supabase
+          .from('tenants')
+          .select('id')
+          .in('room_id', roomIds)
+        
+        if (staffTenants && staffTenants.length > 0) {
+          const tenantIds = staffTenants.map(t => t.id)
+          // Get payments from these tenants
+          const { data: branchPayments } = await supabase
+            .from('payments')
+            .select('amount, payment_date, tenant_id')
+            .in('tenant_id', tenantIds)
+          
+          // Also get payments with null tenant_id (for revenue tracking after checkout)
+          // Note: We can't filter null tenant_id by branch, so we include all null payments
+          // This ensures revenue tracking persists even after tenant checkout
+          const { data: nullTenantPayments } = await supabase
+            .from('payments')
+            .select('amount, payment_date, tenant_id')
+            .is('tenant_id', null)
+          
+          paymentsData = [
+            ...(branchPayments || []),
+            ...(nullTenantPayments || [])
+          ]
+        } else {
+          // No tenants in their branch, but still include null tenant_id payments for revenue tracking
+          const { data: nullTenantPayments } = await supabase
+            .from('payments')
+            .select('amount, payment_date, tenant_id')
+            .is('tenant_id', null)
+          
+          paymentsData = nullTenantPayments || []
+        }
+      } else {
+        // No rooms, only include null tenant_id payments for revenue tracking
+        const { data: nullTenantPayments } = await supabase
+          .from('payments')
+          .select('amount, payment_date, tenant_id')
+          .is('tenant_id', null)
+        
+        paymentsData = nullTenantPayments || []
+      }
+    } else {
+      // Owner can see all payments
+      const { data, error } = await supabase.from('payments').select('amount, payment_date, tenant_id')
+      if (!error) {
+        paymentsData = data || []
+      }
     }
   } catch (error) {
     // Table might not exist yet, that's okay
-    console.log('Payments table might not exist yet')
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Payments table might not exist yet')
+    }
   }
 
 
