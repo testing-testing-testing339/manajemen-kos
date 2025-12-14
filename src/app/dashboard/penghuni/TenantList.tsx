@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useActionState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { createTenant, deleteTenant } from './actions'
 import Modal from '@/components/ui/Modal'
@@ -11,6 +12,8 @@ export default function TenantList({ initialTenants, initialAvailableRooms }: { 
   const [tenants, setTenants] = useState(initialTenants)
   const [availableRooms, setAvailableRooms] = useState(initialAvailableRooms)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const router = useRouter()
   const [createState, createAction] = useActionState(createTenant, null)
   const [deleteState, deleteAction] = useActionState(deleteTenant, null)
 
@@ -24,10 +27,16 @@ export default function TenantList({ initialTenants, initialAvailableRooms }: { 
 
   useEffect(() => {
     if (deleteState?.success) {
+      setDeletingId(null)
+      router.refresh()
       fetchTenants()
       fetchAvailableRooms()
     }
-  }, [deleteState])
+    if (deleteState?.error) {
+      setDeletingId(null)
+      alert(`Error: ${deleteState.error}`)
+    }
+  }, [deleteState, router])
 
   const fetchTenants = async () => {
     const { data } = await supabase.from('tenants').select('*, rooms(room_number, floors(branches(name)))')
@@ -50,13 +59,25 @@ export default function TenantList({ initialTenants, initialAvailableRooms }: { 
       new Date(tenant.check_in_date).toLocaleDateString('id-ID'),
       <span key={tenant.id} className={isOverdue ? 'text-red-500 font-bold' : ''}>{dueDate.toLocaleDateString('id-ID')}</span>,
       tenant.electricity_meter_start,
-      <form action={deleteAction} key={tenant.id} className="inline-block">
+      <form 
+        action={deleteAction} 
+        key={tenant.id} 
+        className="inline-block"
+        onSubmit={(e) => {
+          if (!confirm(`Apakah Anda yakin ingin melakukan check-out untuk ${tenant.full_name}?`)) {
+            e.preventDefault()
+          } else {
+            setDeletingId(tenant.id)
+          }
+        }}
+      >
         <input type="hidden" name="id" value={tenant.id} />
         <button 
           type="submit" 
-          className="px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 font-medium transition-all duration-150 active:scale-95 active:bg-orange-200"
+          disabled={deletingId === tenant.id}
+          className="px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 font-medium transition-all duration-150 active:scale-95 active:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Check-out
+          {deletingId === tenant.id ? 'Memproses...' : 'Check-out'}
         </button>
       </form>
     ]
