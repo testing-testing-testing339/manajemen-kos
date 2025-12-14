@@ -93,6 +93,109 @@ export default async function PembayaranPage() {
       } catch (e) {
         // Ignore profile fetch errors
       }
+
+      // Fetch check_in_requests to get tenant names and payment proof for payments from check-in
+      // This helps when tenant has checked out (tenant_id is null)
+      try {
+        const { data: checkInRequests } = await supabase
+          .from('check_in_requests')
+          .select('id, full_name, payment_proof_url, total_amount, assigned_room_id, created_at, rooms(room_number, floors(branches(name)))')
+          .eq('status', 'completed')
+        
+        if (checkInRequests && checkInRequests.length > 0) {
+          // Get all assigned room IDs from check-in requests
+          const assignedRoomIds = checkInRequests
+            .map((cir: any) => cir.assigned_room_id)
+            .filter(Boolean)
+          
+          if (assignedRoomIds.length > 0) {
+            // Get all active tenants in these rooms
+            const { data: tenantsFromCheckIn } = await supabase
+              .from('tenants')
+              .select('id, room_id, full_name')
+              .in('room_id', assignedRoomIds)
+            
+            // Create a map: tenant_id -> check_in_request (for active tenants)
+            const tenantToCheckInMap = new Map()
+            if (tenantsFromCheckIn) {
+              tenantsFromCheckIn.forEach((tenant: any) => {
+                const checkIn = checkInRequests.find((cir: any) => cir.assigned_room_id === tenant.room_id)
+                if (checkIn) {
+                  tenantToCheckInMap.set(tenant.id, checkIn)
+                }
+              })
+            }
+            
+            // Create a map: room_id -> check_in_request (for matching by room)
+            const roomToCheckInMap = new Map()
+            checkInRequests.forEach((cir: any) => {
+              if (cir.assigned_room_id) {
+                roomToCheckInMap.set(cir.assigned_room_id, cir)
+              }
+            })
+            
+            // Get all active tenant room IDs for filtering checkout check-ins
+            const activeTenantRoomIds = new Set(tenantsFromCheckIn?.map((t: any) => t.room_id) || [])
+            
+            // Enrich payments with check-in request data
+            paymentsData = paymentsData.map((payment: any) => {
+              // If payment has tenant_id, try to find check-in request via tenant
+              if (payment.tenant_id && tenantToCheckInMap.has(payment.tenant_id)) {
+                const checkIn = tenantToCheckInMap.get(payment.tenant_id)
+                return { ...payment, check_in_request: checkIn }
+              }
+              
+              // If payment has no tenant_id (checkout), try to match by amount and date proximity
+              // Only match with check-in requests for rooms that are no longer occupied
+              if (!payment.tenant_id) {
+                const paymentDate = new Date(payment.payment_date)
+                const paymentAmount = parseFloat(payment.amount)
+                
+                // Find best matching check-in request
+                // Priority: 1) Exact amount match, 2) Date within 3 days, 3) Room not currently occupied
+                let bestMatch: any = null
+                let bestScore = 0
+                
+                checkInRequests.forEach((cir: any) => {
+                  // Skip if this room is still occupied
+                  if (cir.assigned_room_id && activeTenantRoomIds.has(cir.assigned_room_id)) {
+                    return
+                  }
+                  
+                  const checkInAmount = parseFloat(cir.total_amount)
+                  const checkInDate = new Date(cir.created_at)
+                  const daysDiff = Math.abs((paymentDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
+                  
+                  // Calculate match score
+                  let score = 0
+                  if (Math.abs(checkInAmount - paymentAmount) < 0.01) {
+                    score += 100 // Exact amount match
+                  }
+                  if (daysDiff <= 3) {
+                    score += 50 - (daysDiff * 10) // Closer dates get higher score
+                  }
+                  
+                  if (score > bestScore) {
+                    bestScore = score
+                    bestMatch = cir
+                  }
+                })
+                
+                if (bestMatch && bestScore >= 50) {
+                  return { ...payment, check_in_request: bestMatch }
+                }
+              }
+              
+              return payment
+            })
+          }
+        }
+      } catch (e) {
+        // Ignore check-in request fetch errors
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Error fetching check-in requests:', e)
+        }
+      }
     }
   } catch (error: any) {
     // If table doesn't exist or other error, try simple query

@@ -12,6 +12,8 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
   const [payments, setPayments] = useState(initialPayments)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTenant, setSelectedTenant] = useState<any>(null)
+  const [isProofModalOpen, setIsProofModalOpen] = useState(false)
+  const [selectedPaymentProof, setSelectedPaymentProof] = useState<string | null>(null)
   const [paymentState, paymentAction] = useActionState(recordPayment, null)
   const [confirmState, confirmAction] = useActionState(confirmPayment, null)
   const router = useRouter()
@@ -211,8 +213,25 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
               .map((payment: any) => {
                 // Get tenant info from payment relation or from tenants list
                 const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
-                const tenantName = tenant?.full_name || (payment.tenant_id ? 'Tenant sudah checkout' : 'Unknown')
-                const roomInfo = tenant?.rooms ? `No. ${tenant.rooms.room_number} - ${tenant.rooms.floors?.branches?.name}` : 'Kamar tidak tersedia'
+                const checkInRequest = payment.check_in_request
+                
+                // Determine tenant name: from tenant, check-in request, or fallback
+                let tenantName = 'Unknown'
+                if (tenant?.full_name) {
+                  tenantName = tenant.full_name
+                } else if (checkInRequest?.full_name) {
+                  tenantName = checkInRequest.full_name
+                } else if (payment.tenant_id) {
+                  tenantName = 'Tenant sudah checkout'
+                }
+                
+                // Determine room info
+                let roomInfo = 'Kamar tidak tersedia'
+                if (tenant?.rooms) {
+                  roomInfo = `No. ${tenant.rooms.room_number} - ${tenant.rooms.floors?.branches?.name}`
+                } else if (checkInRequest?.rooms) {
+                  roomInfo = `No. ${checkInRequest.rooms.room_number} - ${checkInRequest.rooms.floors?.branches?.name || ''}`
+                }
                 
                 return (
                   <div key={payment.id} className="flex items-center justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -263,6 +282,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Metode</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Dikonfirmasi Oleh</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Bukti Transfer</th>
               </tr>
             </thead>
             <tbody>
@@ -271,11 +291,32 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                 .map((payment: any) => {
                   // Get tenant info from payment relation or from tenants list
                   const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
-                  const tenantName = tenant?.full_name || (payment.tenant_id ? 'Tenant sudah checkout' : 'Unknown')
-                  const roomInfo = tenant?.rooms 
-                    ? `No. ${tenant.rooms.room_number} - ${tenant.rooms.floors?.branches?.name || ''}` 
-                    : (payment.tenant_id ? 'Kamar tidak tersedia' : '-')
+                  
+                  // Get check-in request data if available (for checkout tenants)
+                  const checkInRequest = payment.check_in_request
+                  
+                  // Determine tenant name: from tenant, check-in request, or fallback
+                  let tenantName = 'Unknown'
+                  if (tenant?.full_name) {
+                    tenantName = tenant.full_name
+                  } else if (checkInRequest?.full_name) {
+                    tenantName = checkInRequest.full_name
+                  } else if (payment.tenant_id) {
+                    tenantName = 'Tenant sudah checkout'
+                  }
+                  
+                  // Determine room info
+                  let roomInfo = '-'
+                  if (tenant?.rooms) {
+                    roomInfo = `No. ${tenant.rooms.room_number} - ${tenant.rooms.floors?.branches?.name || ''}`
+                  } else if (checkInRequest?.rooms) {
+                    roomInfo = `No. ${checkInRequest.rooms.room_number} - ${checkInRequest.rooms.floors?.branches?.name || ''}`
+                  } else if (payment.tenant_id) {
+                    roomInfo = 'Kamar tidak tersedia'
+                  }
+                  
                   const confirmedByName = payment.profiles?.full_name || '-'
+                  const paymentProofUrl = checkInRequest?.payment_proof_url || null
                   
                   return (
                     <tr key={payment.id} className="border-b border-gray-100 hover:bg-gray-50">
@@ -301,12 +342,27 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                         </span>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">{confirmedByName}</td>
+                      <td className="py-3 px-4">
+                        {paymentProofUrl ? (
+                          <button
+                            onClick={() => {
+                              setSelectedPaymentProof(paymentProofUrl)
+                              setIsProofModalOpen(true)
+                            }}
+                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold hover:bg-blue-200 transition-all duration-150 active:scale-95"
+                          >
+                            Lihat Bukti
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
               {payments.filter((p: any) => p.status === 'confirmed' || (p.status === undefined && p.confirmed_by !== null)).length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-500">
+                  <td colSpan={8} className="py-8 text-center text-gray-500">
                     Belum ada pembayaran yang dikonfirmasi
                   </td>
                 </tr>
@@ -417,6 +473,51 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                 </div>
               </div>
             )}
+          </>
+        )}
+      </Modal>
+
+      {/* Payment Proof Modal */}
+      <Modal isOpen={isProofModalOpen} onClose={() => {
+        setIsProofModalOpen(false)
+        setSelectedPaymentProof(null)
+      }}>
+        {selectedPaymentProof && (
+          <>
+            <h2 className="text-2xl font-bold mb-6 text-gray-900">Bukti Transfer</h2>
+            <div className="relative w-full max-w-2xl mx-auto">
+              <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden">
+                <img
+                  src={selectedPaymentProof}
+                  alt="Bukti Transfer"
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.src = '/placeholder-image.png'
+                    target.alt = 'Gambar tidak dapat dimuat'
+                  }}
+                />
+              </div>
+              <div className="mt-4 flex justify-center gap-3">
+                <a
+                  href={selectedPaymentProof}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all duration-150 active:scale-95"
+                >
+                  Buka di Tab Baru
+                </a>
+                <button
+                  onClick={() => {
+                    setIsProofModalOpen(false)
+                    setSelectedPaymentProof(null)
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
           </>
         )}
       </Modal>
