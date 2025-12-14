@@ -2,23 +2,6 @@
 -- PERINGATAN: Script ini akan menghapus semua data pembayaran dan riwayat check-in
 -- Data yang TIDAK akan dihapus: tenants, rooms, floors, branches, profiles
 
-BEGIN;
-
--- 1. Hapus semua data pembayaran (payments)
-DELETE FROM payments;
-RAISE NOTICE 'Data pembayaran telah dihapus';
-
--- 2. Hapus semua riwayat check-in requests
-DELETE FROM check_in_requests;
-RAISE NOTICE 'Riwayat check-in requests telah dihapus';
-
--- 3. Reset payment_due_date untuk semua tenants
--- Hitung ulang berdasarkan check_in_date + 1 bulan (default)
-UPDATE tenants
-SET payment_due_date = (check_in_date::date + '1 month'::interval)::date;
-RAISE NOTICE 'Payment due date untuk tenants telah di-reset';
-
--- 4. Tampilkan ringkasan
 DO $$
 DECLARE
   tenant_count INTEGER;
@@ -26,6 +9,21 @@ DECLARE
   payment_count INTEGER;
   checkin_count INTEGER;
 BEGIN
+  -- 1. Hapus semua data pembayaran (payments)
+  DELETE FROM payments;
+  RAISE NOTICE 'Data pembayaran telah dihapus';
+
+  -- 2. Hapus semua riwayat check-in requests
+  DELETE FROM check_in_requests;
+  RAISE NOTICE 'Riwayat check-in requests telah dihapus';
+
+  -- 3. Reset payment_due_date untuk semua tenants
+  -- Hitung ulang berdasarkan check_in_date + 1 bulan (default)
+  UPDATE tenants
+  SET payment_due_date = (check_in_date::date + '1 month'::interval)::date;
+  RAISE NOTICE 'Payment due date untuk tenants telah di-reset';
+
+  -- 4. Tampilkan ringkasan
   SELECT COUNT(*) INTO tenant_count FROM tenants;
   SELECT COUNT(*) INTO room_count FROM rooms;
   SELECT COUNT(*) INTO payment_count FROM payments;
@@ -39,8 +37,6 @@ BEGIN
   RAISE NOTICE 'Total Check-in Requests: %', checkin_count;
   RAISE NOTICE '========================================';
 END $$;
-
-COMMIT;
 
 -- Verifikasi hasil
 SELECT 
