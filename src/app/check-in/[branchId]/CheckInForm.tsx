@@ -437,7 +437,33 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         <p className="text-gray-600 mb-4">
           Terima kasih telah mengisi form check-in. Permintaan Anda sedang ditinjau oleh staff.
         </p>
-        <p className="text-sm text-gray-500">
+        
+        {/* Instruksi Konfirmasi ke Resepsionis */}
+        <div className="max-w-md mx-auto mt-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="text-left flex-1">
+              <h3 className="font-bold text-blue-900 mb-2">Langkah Selanjutnya:</h3>
+              <p className="text-sm text-blue-800 leading-relaxed">
+                Silakan konfirmasi reservasi Anda ke <strong>meja resepsionis</strong> dengan menyebutkan nama:
+              </p>
+              <div className="mt-3 p-3 bg-white rounded-lg border-2 border-blue-300">
+                <p className="text-lg font-bold text-blue-900 text-center">
+                  {formData.full_name || 'Nama Anda'}
+                </p>
+              </div>
+              <p className="text-xs text-blue-700 mt-3 italic">
+                Staff akan memproses reservasi Anda setelah konfirmasi di meja resepsionis.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-sm text-gray-500 mt-6">
           Anda akan dihubungi segera setelah permintaan Anda disetujui.
         </p>
       </div>
