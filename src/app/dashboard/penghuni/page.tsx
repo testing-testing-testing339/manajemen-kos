@@ -48,7 +48,7 @@ export default async function PenghuniPage() {
   const { data: floorsData } = await floorsQuery
 
   // Filter tenants based on role
-  let tenantsQuery = supabase.from('tenants').select('*, rooms(room_number, floor_id, floors(name, branch_id, branches(name)))')
+  let tenantsQuery = supabase.from('tenants').select('*, rooms(room_number, floor_id, floors(name, branch_id, branches(name))), check_in_requests(id_card_photo_url, selfie_photo_url, payment_proof_url, rental_duration, rental_days)')
   if (profile?.role === 'staff' && profile.branch_id && floorsData) {
     // Staff can only see tenants in their branch - filter by room's floor_id
     const floorIds = floorsData.map(f => f.id)

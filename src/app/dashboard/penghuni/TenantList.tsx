@@ -24,6 +24,8 @@ export default function TenantList({
   const [tenants, setTenants] = useState(initialTenants)
   const [availableRooms, setAvailableRooms] = useState(initialAvailableRooms)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [selectedTenant, setSelectedTenant] = useState<any>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedBranch, setSelectedBranch] = useState<string>('')
@@ -111,38 +113,74 @@ export default function TenantList({
     }
   }, [selectedBranch, selectedFloor, floors])
 
-  const headers = ['Nama Penghuni', 'Kamar', 'Tgl Masuk', 'Jatuh Tempo', 'Meteran Awal', 'Actions']
+  // Calculate rental duration from payment_due_date
+  const calculateRentalDuration = (checkInDate: string, dueDate: string) => {
+    const checkIn = new Date(checkInDate)
+    const due = new Date(dueDate)
+    const diffTime = Math.abs(due.getTime() - checkIn.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays <= 7) {
+      return `${diffDays} hari`
+    } else if (diffDays <= 30) {
+      const weeks = Math.floor(diffDays / 7)
+      const days = diffDays % 7
+      return days > 0 ? `${weeks} minggu ${days} hari` : `${weeks} minggu`
+    } else if (diffDays <= 180) {
+      const months = Math.floor(diffDays / 30)
+      const days = diffDays % 30
+      return days > 0 ? `${months} bulan ${days} hari` : `${months} bulan`
+    } else {
+      const months = Math.floor(diffDays / 30)
+      return `${months} bulan`
+    }
+  }
+
+  const headers = ['Nama Penghuni', 'Kamar', 'Tgl Masuk', 'Durasi Sewa', 'Jatuh Tempo', 'Meteran Awal', 'Actions']
   const rows = filteredTenants.map(tenant => {
     const roomLabel = `No. ${tenant.rooms?.room_number} - ${tenant.rooms?.floors?.branches?.name}`
     const dueDate = new Date(tenant.payment_due_date)
     const isOverdue = dueDate < new Date()
+    const rentalDuration = calculateRentalDuration(tenant.check_in_date, tenant.payment_due_date)
+    
     return [
       tenant.full_name,
       roomLabel,
       new Date(tenant.check_in_date).toLocaleDateString('id-ID'),
-      <span key={tenant.id} className={isOverdue ? 'text-red-500 font-bold' : ''}>{dueDate.toLocaleDateString('id-ID')}</span>,
+      rentalDuration,
+      <span key={`due-${tenant.id}`} className={isOverdue ? 'text-red-500 font-bold' : ''}>{dueDate.toLocaleDateString('id-ID')}</span>,
       tenant.electricity_meter_start,
-      <form 
-        action={deleteAction} 
-        key={tenant.id} 
-        className="inline-block"
-        onSubmit={(e) => {
-          if (!confirm(`Apakah Anda yakin ingin melakukan check-out untuk ${tenant.full_name}?`)) {
-            e.preventDefault()
-          } else {
-            setDeletingId(tenant.id)
-          }
-        }}
-      >
-        <input type="hidden" name="id" value={tenant.id} />
-        <button 
-          type="submit" 
-          disabled={deletingId === tenant.id}
-          className="px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 font-medium transition-all duration-150 active:scale-95 active:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      <div key={`actions-${tenant.id}`} className="flex gap-2">
+        <button
+          onClick={() => {
+            setSelectedTenant(tenant)
+            setIsDetailModalOpen(true)
+          }}
+          className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-all duration-150 active:scale-95 active:bg-blue-200"
         >
-          {deletingId === tenant.id ? 'Memproses...' : 'Check-out'}
+          Detail
         </button>
-      </form>
+        <form 
+          action={deleteAction} 
+          className="inline-block"
+          onSubmit={(e) => {
+            if (!confirm(`Apakah Anda yakin ingin melakukan check-out untuk ${tenant.full_name}?`)) {
+              e.preventDefault()
+            } else {
+              setDeletingId(tenant.id)
+            }
+          }}
+        >
+          <input type="hidden" name="id" value={tenant.id} />
+          <button 
+            type="submit" 
+            disabled={deletingId === tenant.id}
+            className="px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 font-medium transition-all duration-150 active:scale-95 active:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {deletingId === tenant.id ? 'Memproses...' : 'Check-out'}
+          </button>
+        </form>
+      </div>
     ]
   })
 
