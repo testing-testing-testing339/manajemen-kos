@@ -1163,7 +1163,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600">Harga per hari</p>
                   <p className="text-xl font-bold text-indigo-600">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day)}
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day || 0)}
                   </p>
                   {rentalDuration === 'daily' && (
                     <div className="mt-3 pt-3 border-t border-gray-200">
@@ -1180,13 +1180,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Total: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day * rentalDays)}
+                        Total: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((selectedRoomType.price_per_day || 0) * rentalDays)}
                       </p>
                     </div>
                   )}
                 </div>
               </button>
-            )}
 
             {/* Monthly Rental - Only if price_per_month is set */}
             {selectedRoomType.price_per_month && (
