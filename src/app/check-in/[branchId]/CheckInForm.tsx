@@ -30,6 +30,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt')
+  const [cameraLoading, setCameraLoading] = useState(false)
 
   const idCardVideoRef = useRef<HTMLVideoElement>(null)
   const selfieVideoRef = useRef<HTMLVideoElement>(null)
@@ -82,35 +83,133 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   }, [branchId])
 
   const startCamera = async (videoRef: React.RefObject<HTMLVideoElement | null>, streamRef: React.MutableRefObject<MediaStream | null>) => {
+    // Prevent multiple simultaneous calls
+    if (cameraLoading) return
+    
     try {
+      setCameraLoading(true)
       setError('')
+      
+      // Stop any existing stream first to prevent conflicts
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop()
+        })
+        streamRef.current = null
+      }
+      
+      // Also stop the other camera stream if it's active
+      if (videoRef === idCardVideoRef && selfieStreamRef.current) {
+        selfieStreamRef.current.getTracks().forEach(track => track.stop())
+        selfieStreamRef.current = null
+        if (selfieVideoRef.current) {
+          selfieVideoRef.current.srcObject = null
+        }
+      } else if (videoRef === selfieVideoRef && idCardStreamRef.current) {
+        idCardStreamRef.current.getTracks().forEach(track => track.stop())
+        idCardStreamRef.current = null
+        if (idCardVideoRef.current) {
+          idCardVideoRef.current.srcObject = null
+        }
+      }
+      
+      // Wait a bit to ensure cleanup is complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Request camera access
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: videoRef === selfieVideoRef ? 'user' : 'environment' } 
+        video: { 
+          facingMode: videoRef === selfieVideoRef ? 'user' : 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
       })
-      if (videoRef.current) {
+      
+      // Check if component is still mounted and video ref is still valid
+      if (videoRef.current && stream) {
         videoRef.current.srcObject = stream
         streamRef.current = stream
         setCameraPermission('granted')
+        
+        // Handle video load errors
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            videoRef.current.play().catch(err => {
+              console.error('Error playing video:', err)
+            })
+          }
+        }
+      } else {
+        // Cleanup if ref is no longer valid
+        stream.getTracks().forEach(track => track.stop())
       }
     } catch (error: any) {
       console.error('Error accessing camera:', error)
       setCameraPermission('denied')
+      
+      // Cleanup on error
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null
+      }
+      
+      // Set appropriate error message
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         setError('Izin kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda, lalu refresh halaman.')
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
         setError('Kamera tidak ditemukan. Pastikan perangkat Anda memiliki kamera.')
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        setError('Kamera sedang digunakan oleh aplikasi lain. Silakan tutup aplikasi lain yang menggunakan kamera.')
+      } else if (error.name === 'OverconstrainedError') {
+        setError('Kamera tidak mendukung mode yang diminta. Mencoba mode alternatif...')
+        // Try with simpler constraints
+        try {
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true })
+          if (videoRef.current && fallbackStream) {
+            videoRef.current.srcObject = fallbackStream
+            streamRef.current = fallbackStream
+            setCameraPermission('granted')
+            setError('')
+          }
+        } catch (fallbackError) {
+          setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan.')
+        }
       } else {
         setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan.')
       }
+    } finally {
+      setCameraLoading(false)
     }
   }
 
-  const stopCamera = (streamRef: React.MutableRefObject<MediaStream | null>) => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
-      streamRef.current = null
+  const stopCamera = (streamRef: React.MutableRefObject<MediaStream | null>, videoRef?: React.RefObject<HTMLVideoElement | null>) => {
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop()
+          track.enabled = false
+        })
+        streamRef.current = null
+      }
+      if (videoRef?.current) {
+        videoRef.current.srcObject = null
+        videoRef.current.pause()
+      }
+    } catch (error) {
+      console.error('Error stopping camera:', error)
     }
   }
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera(idCardStreamRef, idCardVideoRef)
+      stopCamera(selfieStreamRef, selfieVideoRef)
+    }
+  }, [])
 
   const capturePhoto = (videoRef: React.RefObject<HTMLVideoElement | null>, type: 'id_card' | 'selfie') => {
     if (!videoRef.current) return
@@ -129,7 +228,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           } else {
             setFormData({ ...formData, selfie_photo: file })
           }
-          stopCamera(type === 'id_card' ? idCardStreamRef : selfieStreamRef)
+          stopCamera(
+            type === 'id_card' ? idCardStreamRef : selfieStreamRef,
+            type === 'id_card' ? idCardVideoRef : selfieVideoRef
+          )
         }
       }, 'image/jpeg', 0.9)
     }
@@ -309,13 +411,26 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <button
                 type="button"
                 onClick={() => startCamera(idCardVideoRef, idCardStreamRef)}
-                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+                disabled={cameraLoading}
+                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Buka Kamera untuk Foto KTP
+                {cameraLoading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 8 2.627 8 5.292V7.292A8 8 0 014 12z"></path>
+                    </svg>
+                    Membuka kamera...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Buka Kamera untuk Foto KTP
+                  </>
+                )}
               </button>
               {idCardStreamRef.current && (
                 <button
@@ -344,7 +459,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     type="button"
                     onClick={() => {
                       setFormData({ ...formData, id_card_photo: null })
-                      stopCamera(idCardStreamRef)
+                      stopCamera(idCardStreamRef, idCardVideoRef)
                     }}
                     className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-95 hover:bg-red-600 shadow-md flex items-center gap-1"
                   >
@@ -375,7 +490,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 setStep(1)
-                stopCamera(idCardStreamRef)
+                stopCamera(idCardStreamRef, idCardVideoRef)
               }}
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
@@ -386,7 +501,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               onClick={() => {
                 if (formData.id_card_photo) {
                   setStep(3)
-                  stopCamera(idCardStreamRef)
+                  stopCamera(idCardStreamRef, idCardVideoRef)
                 } else {
                   setError('Harap ambil foto KTP terlebih dahulu')
                 }
@@ -439,12 +554,25 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <button
                 type="button"
                 onClick={() => startCamera(selfieVideoRef, selfieStreamRef)}
-                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+                disabled={cameraLoading}
+                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Buka Kamera untuk Selfie
+                {cameraLoading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 8 2.627 8 5.292V7.292A8 8 0 014 12z"></path>
+                    </svg>
+                    Membuka kamera...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Buka Kamera untuk Selfie
+                  </>
+                )}
               </button>
               {selfieStreamRef.current && (
                 <button
@@ -473,7 +601,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     type="button"
                     onClick={() => {
                       setFormData({ ...formData, selfie_photo: null })
-                      stopCamera(selfieStreamRef)
+                      stopCamera(selfieStreamRef, selfieVideoRef)
                     }}
                     className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-95 hover:bg-red-600 shadow-md flex items-center gap-1"
                   >
@@ -504,7 +632,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 setStep(2)
-                stopCamera(selfieStreamRef)
+                stopCamera(selfieStreamRef, selfieVideoRef)
               }}
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
             >
@@ -515,7 +643,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               onClick={() => {
                 if (formData.selfie_photo) {
                   setStep(4) // Step 4: Room Selection
-                  stopCamera(selfieStreamRef)
+                  stopCamera(selfieStreamRef, selfieVideoRef)
                 } else {
                   setError('Harap ambil foto selfie terlebih dahulu')
                 }
