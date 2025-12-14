@@ -1,6 +1,15 @@
 -- Script untuk reset data keuangan dan riwayat transaksi
--- PERINGATAN: Script ini akan menghapus semua data pembayaran dan riwayat check-in
--- Data yang TIDAK akan dihapus: tenants, rooms, floors, branches, profiles
+-- PERINGATAN: Script ini akan menghapus:
+--   - Semua data pembayaran (payments)
+--   - Semua riwayat check-in requests
+--   - Semua penghuni (tenants)
+--   - Reset semua kamar menjadi kosong (is_occupied = false)
+--
+-- Data yang TIDAK akan dihapus:
+--   - Cabang (branches)
+--   - Lantai (floors)
+--   - Kamar (rooms) - hanya direset is_occupied = false
+--   - Staff/User accounts (profiles)
 
 DO $$
 DECLARE
@@ -8,31 +17,37 @@ DECLARE
   room_count INTEGER;
   payment_count INTEGER;
   checkin_count INTEGER;
+  occupied_rooms_count INTEGER;
 BEGIN
-  -- 1. Hapus semua data pembayaran (payments)
-  DELETE FROM payments;
-  RAISE NOTICE 'Data pembayaran telah dihapus';
-
-  -- 2. Hapus semua riwayat check-in requests
+  -- 1. Hapus semua riwayat check-in requests (harus sebelum tenants karena foreign key)
   DELETE FROM check_in_requests;
   RAISE NOTICE 'Riwayat check-in requests telah dihapus';
 
-  -- 3. Reset payment_due_date untuk semua tenants
-  -- Hitung ulang berdasarkan check_in_date + 1 bulan (default)
-  UPDATE tenants
-  SET payment_due_date = (check_in_date::date + '1 month'::interval)::date;
-  RAISE NOTICE 'Payment due date untuk tenants telah di-reset';
+  -- 2. Hapus semua data pembayaran (harus sebelum tenants karena foreign key dengan ON DELETE SET NULL)
+  DELETE FROM payments;
+  RAISE NOTICE 'Data pembayaran telah dihapus';
 
-  -- 4. Tampilkan ringkasan
+  -- 3. Hapus semua penghuni (tenants)
+  DELETE FROM tenants;
+  RAISE NOTICE 'Semua penghuni telah dihapus';
+
+  -- 4. Reset semua kamar menjadi kosong
+  UPDATE rooms SET is_occupied = false;
+  RAISE NOTICE 'Semua kamar telah direset menjadi kosong';
+
+  -- 5. Tampilkan ringkasan
   SELECT COUNT(*) INTO tenant_count FROM tenants;
   SELECT COUNT(*) INTO room_count FROM rooms;
   SELECT COUNT(*) INTO payment_count FROM payments;
   SELECT COUNT(*) INTO checkin_count FROM check_in_requests;
+  SELECT COUNT(*) INTO occupied_rooms_count FROM rooms WHERE is_occupied = true;
   
   RAISE NOTICE '========================================';
   RAISE NOTICE 'Ringkasan setelah reset:';
   RAISE NOTICE 'Total Penghuni: %', tenant_count;
   RAISE NOTICE 'Total Kamar: %', room_count;
+  RAISE NOTICE 'Kamar Terisi: %', occupied_rooms_count;
+  RAISE NOTICE 'Kamar Kosong: %', (room_count - occupied_rooms_count);
   RAISE NOTICE 'Total Pembayaran: %', payment_count;
   RAISE NOTICE 'Total Check-in Requests: %', checkin_count;
   RAISE NOTICE '========================================';
