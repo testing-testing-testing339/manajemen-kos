@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
-import { addBranch, deleteBranch, addFloor, deleteFloor, createRoom, deleteRoom } from './actions'
+import { addBranch, deleteBranch, addFloor, deleteFloor, createRoom, deleteRoom, updateRoom, bulkCreateRooms } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 
@@ -28,6 +28,9 @@ export default function PropertiList({
   const [rooms, setRooms] = useState(initialRooms)
   const [floorsForRooms, setFloorsForRooms] = useState(initialFloorsForRooms)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isBulkAddModalOpen, setIsBulkAddModalOpen] = useState(false)
+  const [selectedRoom, setSelectedRoom] = useState<any>(null)
   const [selectedBranch, setSelectedBranch] = useState('')
   const router = useRouter()
 
@@ -36,6 +39,8 @@ export default function PropertiList({
   const [addFloorState, addFloorAction] = useActionState(addFloor, null)
   const [deleteFloorState, deleteFloorAction] = useActionState(deleteFloor, null)
   const [createRoomState, createRoomAction] = useActionState(createRoom, null)
+  const [updateRoomState, updateRoomAction] = useActionState(updateRoom, null)
+  const [bulkCreateRoomsState, bulkCreateRoomsAction] = useActionState(bulkCreateRooms, null)
   const [deleteRoomState, deleteRoomAction] = useActionState(deleteRoom, null)
 
   useEffect(() => {
@@ -48,11 +53,14 @@ export default function PropertiList({
   useEffect(() => {
     if (addBranchState?.success || deleteBranchState?.success || 
         addFloorState?.success || deleteFloorState?.success ||
-        createRoomState?.success || deleteRoomState?.success) {
+        createRoomState?.success || updateRoomState?.success || bulkCreateRoomsState?.success || deleteRoomState?.success) {
       setIsModalOpen(false)
+      setIsEditModalOpen(false)
+      setIsBulkAddModalOpen(false)
+      setSelectedRoom(null)
       router.refresh()
     }
-  }, [addBranchState, deleteBranchState, addFloorState, deleteFloorState, createRoomState, deleteRoomState, router])
+  }, [addBranchState, deleteBranchState, addFloorState, deleteFloorState, createRoomState, updateRoomState, bulkCreateRoomsState, deleteRoomState, router])
 
   // Group floors by branch
   const floorsByBranch = branches.map(branch => ({
@@ -106,21 +114,45 @@ export default function PropertiList({
     const row = [
       room.room_number,
       room.floors?.name || 'Unknown',
-      new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(room.price),
+      <div key={`price-${room.id}`}>
+        <div className="text-sm font-semibold">
+          {room.price_per_day ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_day) : '-'} /hari
+        </div>
+        {room.price_per_month && (
+          <div className="text-xs text-gray-500">
+            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_month)} /bulan
+          </div>
+        )}
+      </div>,
       room.facilities?.join(', ') || '',
-      room.is_occupied ? 'Terisi' : 'Kosong'
+      room.is_occupied ? (
+        <span key={`status-${room.id}`} className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">Terisi</span>
+      ) : (
+        <span key={`status-${room.id}`} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">Kosong</span>
+      )
     ]
     if (userRole === 'owner') {
       row.push(
-        <form action={deleteRoomAction} key={room.id}>
-          <input type="hidden" name="id" value={room.id} />
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-all duration-150 active:scale-95 active:bg-red-200"
+        <div key={`actions-${room.id}`} className="flex gap-2">
+          <button
+            onClick={() => {
+              setSelectedRoom(room)
+              setIsEditModalOpen(true)
+            }}
+            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-all duration-150 active:scale-95 active:bg-blue-200"
           >
-            Hapus
+            Edit
           </button>
-        </form>
+          <form action={deleteRoomAction} className="inline">
+            <input type="hidden" name="id" value={room.id} />
+            <button 
+              type="submit" 
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-all duration-150 active:scale-95 active:bg-red-200"
+            >
+              Hapus
+            </button>
+          </form>
+        </div>
       )
     }
     return row
@@ -364,6 +396,185 @@ export default function PropertiList({
               Batal
             </button>
             <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-blue-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl">
+              Tambah Kamar
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Room Modal */}
+      <Modal isOpen={isEditModalOpen} onClose={() => {
+        setIsEditModalOpen(false)
+        setSelectedRoom(null)
+      }}>
+        <h2 className="text-2xl font-bold mb-6 text-gray-900">Edit Kamar</h2>
+        {selectedRoom && (
+          <form action={updateRoomAction} className="space-y-5">
+            <input type="hidden" name="id" value={selectedRoom.id} />
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Lantai</label>
+              <select name="floor_id" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" defaultValue={selectedRoom.floor_id}>
+                <option value="">Pilih Lantai</option>
+                {floorsForRooms.map(floor => (
+                  <option key={floor.id} value={floor.id}>{floor.name} - {floor.branches?.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">No. Kamar</label>
+              <input name="room_number" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" defaultValue={selectedRoom.room_number} placeholder="Contoh: 101" />
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Harga Per Hari (Rp)
+                  <span className="text-xs font-normal text-red-500 ml-2">Wajib</span>
+                </label>
+                <input 
+                  name="price_per_day" 
+                  type="number" 
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                  placeholder="50000"
+                  defaultValue={selectedRoom.price_per_day || ''}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Harga Per Bulan (Rp)
+                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
+                </label>
+                <input 
+                  name="price_per_month" 
+                  type="number" 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                  placeholder="1000000"
+                  defaultValue={selectedRoom.price_per_month || ''}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Harga Per 6 Bulan (Rp)
+                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
+                </label>
+                <input 
+                  name="price_per_6months" 
+                  type="number" 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                  placeholder="5500000"
+                  defaultValue={selectedRoom.price_per_6months || ''}
+                />
+                <p className="text-xs text-gray-500 mt-1">Harga untuk sewa 6 bulan (biasanya lebih murah)</p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Fasilitas (pisahkan dengan koma)</label>
+              <input name="facilities" type="text" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="AC, WiFi, Kamar Mandi Dalam" defaultValue={selectedRoom.facilities?.join(', ') || ''} />
+            </div>
+            {updateRoomState?.error && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">{updateRoomState.error}</p>
+              </div>
+            )}
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={() => {
+                setIsEditModalOpen(false)
+                setSelectedRoom(null)
+              }} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95">
+                Batal
+              </button>
+              <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-blue-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl">
+                Simpan Perubahan
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Bulk Add Rooms Modal */}
+      <Modal isOpen={isBulkAddModalOpen} onClose={() => {
+        setIsBulkAddModalOpen(false)
+      }}>
+        <h2 className="text-2xl font-bold mb-6 text-gray-900">Tambah Banyak Kamar</h2>
+        <form action={bulkCreateRoomsAction} className="space-y-5">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Lantai</label>
+            <select name="floor_id" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+              <option value="">Pilih Lantai</option>
+              {floorsForRooms.map(floor => (
+                <option key={floor.id} value={floor.id}>{floor.name} - {floor.branches?.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Nomor Kamar Awal</label>
+            <input name="start_room_number" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Contoh: 101" />
+            <p className="text-xs text-gray-500 mt-1">Kamar akan dinomori otomatis mulai dari nomor ini (101, 102, 103, dst)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Jumlah Kamar</label>
+            <input name="room_count" type="number" required min="1" max="100" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="10" />
+            <p className="text-xs text-gray-500 mt-1">Masukkan jumlah kamar yang ingin ditambahkan (maksimal 100)</p>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Harga Per Hari (Rp)
+                <span className="text-xs font-normal text-red-500 ml-2">Wajib</span>
+              </label>
+              <input 
+                name="price_per_day" 
+                type="number" 
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                placeholder="50000" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Harga Per Bulan (Rp)
+                <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
+              </label>
+              <input 
+                name="price_per_month" 
+                type="number" 
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                placeholder="1000000" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Harga Per 6 Bulan (Rp)
+                <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
+              </label>
+              <input 
+                name="price_per_6months" 
+                type="number" 
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                placeholder="5500000" 
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Fasilitas (pisahkan dengan koma)</label>
+            <input name="facilities" type="text" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="AC, WiFi, Kamar Mandi Dalam" />
+            <p className="text-xs text-gray-500 mt-1">Fasilitas yang sama akan diterapkan ke semua kamar</p>
+          </div>
+          {bulkCreateRoomsState?.error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">{bulkCreateRoomsState.error}</p>
+            </div>
+          )}
+          {bulkCreateRoomsState?.success && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800">Berhasil menambahkan {bulkCreateRoomsState.count || 0} kamar!</p>
+            </div>
+          )}
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={() => setIsBulkAddModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95">
+              Batal
+            </button>
+            <button type="submit" className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl">
               Tambah Kamar
             </button>
           </div>
