@@ -53,6 +53,13 @@ export async function approveCheckIn(prevState: any, formData: FormData) {
     return { error: 'Only owner or staff can approve check-ins' }
   }
 
+  // Get check-in request data to create payment
+  const { data: checkInData } = await supabase
+    .from('check_in_requests')
+    .select('total_amount')
+    .eq('id', check_in_id)
+    .single()
+
   const { error } = await supabase
     .from('check_in_requests')
     .update({
@@ -63,6 +70,9 @@ export async function approveCheckIn(prevState: any, formData: FormData) {
     .eq('id', check_in_id)
 
   if (error) return { error: error.message }
+
+  // Note: Payment will be created when room is assigned (in assignRoom function)
+  // This ensures payment is linked to the actual tenant record
 
   revalidatePath('/dashboard/check-ins')
   return { success: true }
