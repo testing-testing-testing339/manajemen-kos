@@ -41,6 +41,8 @@ export async function POST(request: Request) {
     const email = formData.get('email') as string
     const id_card_number = formData.get('id_card_number') as string
     const selected_room_type = formData.get('selected_room_type') as string
+    const rental_duration = formData.get('rental_duration') as string
+    const rental_days = formData.get('rental_days') as string
     const total_amount = formData.get('total_amount') as string
     const payment_destination = formData.get('payment_destination') as string
     const id_card_photo = formData.get('id_card_photo') as File
@@ -103,6 +105,23 @@ export async function POST(request: Request) {
       const roomTypeValidation = validateJSON(selected_room_type)
       if (!roomTypeValidation.valid || !roomTypeValidation.data) {
         errors.push('Data jenis kamar tidak valid')
+      }
+    }
+
+    // Validate rental duration
+    if (!rental_duration || !['daily', 'monthly', '6months'].includes(rental_duration)) {
+      errors.push('Durasi sewa tidak valid')
+    }
+
+    // Validate rental days for daily rental
+    if (rental_duration === 'daily') {
+      if (!rental_days) {
+        errors.push('Jumlah hari wajib diisi untuk sewa harian')
+      } else {
+        const days = parseInt(rental_days)
+        if (isNaN(days) || days < 1 || days > 365) {
+          errors.push('Jumlah hari harus antara 1-365 hari')
+        }
       }
     }
 
@@ -268,6 +287,8 @@ export async function POST(request: Request) {
         id_card_photo_url, // URL from storage
         selfie_photo_url, // URL from storage
         selected_room_type: selected_room_type, // JSON string (validated)
+        rental_duration: rental_duration as 'daily' | 'monthly' | '6months', // Validated
+        rental_days: rental_duration === 'daily' ? parseInt(rental_days) : null, // Only for daily
         total_amount: sanitizedAmount, // Validated number
         payment_destination: sanitizedPaymentDest, // Sanitized
         payment_proof_url, // URL from storage

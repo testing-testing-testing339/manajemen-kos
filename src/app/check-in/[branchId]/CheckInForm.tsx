@@ -33,7 +33,17 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     payment_proof: null as File | null,
   })
   const [rooms, setRooms] = useState<any[]>([])
-  const [selectedRoomType, setSelectedRoomType] = useState<any>(null) // Changed to room type instead of specific room
+  const [selectedRoomType, setSelectedRoomType] = useState<{
+    key: string
+    price: number
+    price_per_day?: number | null
+    price_per_month?: number | null
+    price_per_6months?: number | null
+    facilities: string[]
+    count: number
+  } | null>(null)
+  const [rentalDuration, setRentalDuration] = useState<'daily' | 'monthly' | '6months'>('monthly')
+  const [rentalDays, setRentalDays] = useState<number>(1) // For daily rental
   const [totalAmount, setTotalAmount] = useState(0)
   const [paymentDestination, setPaymentDestination] = useState('')
   const [loading, setLoading] = useState(false)
@@ -990,7 +1000,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   type="button"
                   onClick={() => {
                     setSelectedRoomType(type)
-                    setTotalAmount(parseFloat(type.price.toString()))
+                    // Set default to monthly price
+                    const monthlyPrice = (type as any).price_per_month || type.price || 0
+                    setTotalAmount(monthlyPrice)
+                    setRentalDuration('monthly')
                   }}
                   className={`relative p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
                     selectedRoomType?.key === type.key
@@ -1025,7 +1038,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                         <h3 className={`text-lg font-bold ${
                           selectedRoomType?.key === type.key ? 'text-indigo-900' : 'text-gray-900'
                         }`}>
-                          {type.facilities.length > 0 ? type.facilities[0] : 'Kamar Standard'}
+                          {(type.facilities && type.facilities.length > 0) ? type.facilities[0] : 'Kamar Standard'}
                         </h3>
                         <p className="text-xs text-gray-500 mt-0.5">
                           {type.count} kamar tersedia
@@ -1035,7 +1048,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   </div>
 
                   {/* Facilities */}
-                  {type.facilities.length > 0 && (
+                  {type.facilities && type.facilities.length > 0 && (
                     <div className="mb-4">
                       <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Fasilitas:</p>
                       <div className="flex flex-wrap gap-2">
@@ -1095,7 +1108,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 if (selectedRoomType) {
-                  setStep(5)
+                  // Calculate initial total based on monthly price
+                  const monthlyPrice = selectedRoomType.price_per_month || selectedRoomType.price || 0
+                  setTotalAmount(monthlyPrice)
+                  setRentalDuration('monthly')
+                  setStep(4.5) // New step for duration selection
                 } else {
                   setError('Harap pilih jenis kamar terlebih dahulu')
                 }
@@ -1103,7 +1120,172 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               disabled={!selectedRoomType}
               className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
             >
-              Pesan Kamar
+              Lanjutkan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4.5: Rental Duration Selection */}
+      {step === 4.5 && selectedRoomType && (
+        <div className="space-y-4">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Pilih Durasi Sewa</h2>
+            <p className="text-sm text-gray-600">Pilih durasi sewa yang diinginkan</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Daily Rental */}
+            {selectedRoomType.price_per_day && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRentalDuration('daily')
+                  setRentalDays(1)
+                  setTotalAmount(selectedRoomType.price_per_day || 0)
+                }}
+                className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
+                  rentalDuration === 'daily'
+                    ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
+                    : 'border-gray-200 bg-white hover:border-indigo-300'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    rentalDuration === 'daily' ? 'bg-indigo-600' : 'bg-gray-200'
+                  }`}>
+                    <svg className={`w-6 h-6 ${rentalDuration === 'daily' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-gray-900">Sewa Harian</h3>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Harga per hari</p>
+                  <p className="text-xl font-bold text-indigo-600">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day)}
+                  </p>
+                  {rentalDuration === 'daily' && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <label className="block text-xs font-semibold text-gray-700 mb-2">Jumlah Hari</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={rentalDays}
+                        onChange={(e) => {
+                          const days = parseInt(e.target.value) || 1
+                          setRentalDays(days)
+                          setTotalAmount((selectedRoomType.price_per_day || 0) * days)
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Total: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day * rentalDays)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </button>
+            )}
+
+            {/* Monthly Rental */}
+            <button
+              type="button"
+              onClick={() => {
+                setRentalDuration('monthly')
+                const monthlyPrice = selectedRoomType.price_per_month || selectedRoomType.price || 0
+                setTotalAmount(monthlyPrice)
+              }}
+              className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
+                rentalDuration === 'monthly'
+                  ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
+                  : 'border-gray-200 bg-white hover:border-indigo-300'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  rentalDuration === 'monthly' ? 'bg-indigo-600' : 'bg-gray-200'
+                }`}>
+                  <svg className={`w-6 h-6 ${rentalDuration === 'monthly' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="font-bold text-gray-900">Sewa Bulanan</h3>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">Harga per bulan</p>
+                <p className="text-xl font-bold text-indigo-600">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_month || selectedRoomType.price || 0)}
+                </p>
+                <p className="text-xs text-gray-500">Paling populer</p>
+              </div>
+            </button>
+
+            {/* 6 Months Rental */}
+            {selectedRoomType.price_per_6months && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRentalDuration('6months')
+                  setTotalAmount(selectedRoomType.price_per_6months || 0)
+                }}
+                className={`p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
+                  rentalDuration === '6months'
+                    ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg'
+                    : 'border-gray-200 bg-white hover:border-indigo-300'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    rentalDuration === '6months' ? 'bg-indigo-600' : 'bg-gray-200'
+                  }`}>
+                    <svg className={`w-6 h-6 ${rentalDuration === '6months' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-gray-900">Sewa 6 Bulan</h3>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Harga untuk 6 bulan</p>
+                  <p className="text-xl font-bold text-indigo-600">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months)}
+                  </p>
+                  <p className="text-xs text-green-600 font-semibold">Lebih hemat!</p>
+                  <p className="text-xs text-gray-500">
+                    ≈ {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months / 6)}/bulan
+                  </p>
+                </div>
+              </button>
+            )}
+          </div>
+
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setStep(4)}
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
+            >
+              Kembali
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (rentalDuration) {
+                  setStep(5)
+                } else {
+                  setError('Harap pilih durasi sewa terlebih dahulu')
+                }
+              }}
+              disabled={!rentalDuration}
+              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
+            >
+              Lanjutkan
             </button>
           </div>
         </div>
@@ -1188,11 +1370,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Jenis Kamar</p>
                     <p className="font-semibold text-gray-900">
-                      {selectedRoomType?.facilities?.length > 0 
+                      {selectedRoomType && selectedRoomType.facilities && selectedRoomType.facilities.length > 0 
                         ? selectedRoomType.facilities[0]
                         : 'Kamar Standard'}
                     </p>
-                    {selectedRoomType?.facilities?.length > 1 && (
+                    {selectedRoomType && selectedRoomType.facilities && selectedRoomType.facilities.length > 1 && (
                       <p className="text-xs text-gray-500 mt-1">
                         + {selectedRoomType.facilities.slice(1).join(', ')}
                       </p>
@@ -1211,11 +1393,25 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Harga Sewa
+                    {rentalDuration === 'daily' ? 'Harga Sewa Harian' : rentalDuration === '6months' ? 'Harga Sewa 6 Bulan' : 'Harga Sewa Bulanan'}
                   </span>
                   <span className="font-semibold text-gray-900">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType?.price || 0)}
-                    <span className="text-xs font-normal text-gray-500 ml-1">/bulan</span>
+                    {rentalDuration === 'daily' && selectedRoomType?.price_per_day ? (
+                      <>
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day)}
+                        <span className="text-xs font-normal text-gray-500 ml-1">× {rentalDays} hari</span>
+                      </>
+                    ) : rentalDuration === '6months' && selectedRoomType?.price_per_6months ? (
+                      <>
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months)}
+                        <span className="text-xs font-normal text-gray-500 ml-1">/6 bulan</span>
+                      </>
+                    ) : (
+                      <>
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType?.price_per_month || selectedRoomType?.price || 0)}
+                        <span className="text-xs font-normal text-gray-500 ml-1">/bulan</span>
+                      </>
+                    )}
                   </span>
                 </div>
               </div>

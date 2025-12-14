@@ -176,9 +176,14 @@ export async function deleteFloor(prevState: any, formData: FormData) {
 export async function createRoom(prevState: any, formData: FormData) {
   const floor_id = formData.get('floor_id') as string
   const room_number = formData.get('room_number') as string
-  const price = parseFloat(formData.get('price') as string)
+  const price_per_day = formData.get('price_per_day') ? parseFloat(formData.get('price_per_day') as string) : null
+  const price_per_month = parseFloat(formData.get('price_per_month') as string)
+  const price_per_6months = formData.get('price_per_6months') ? parseFloat(formData.get('price_per_6months') as string) : null
   const facilitiesStr = formData.get('facilities') as string
   const facilities = facilitiesStr ? facilitiesStr.split(',').map(f => f.trim()).filter(f => f) : []
+  
+  // For backward compatibility, use price_per_month as price
+  const price = price_per_month
 
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -211,7 +216,15 @@ export async function createRoom(prevState: any, formData: FormData) {
     return { error: 'Only owner can add rooms' }
   }
 
-  const { error } = await supabase.from('rooms').insert({ floor_id, room_number, price, facilities })
+  const { error } = await supabase.from('rooms').insert({ 
+    floor_id, 
+    room_number, 
+    price, // Backward compatibility
+    price_per_day,
+    price_per_month,
+    price_per_6months,
+    facilities 
+  })
   if (error) return { error: error.message }
 
   revalidatePath('/dashboard/properti')

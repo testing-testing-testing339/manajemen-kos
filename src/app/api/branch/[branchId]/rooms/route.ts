@@ -58,7 +58,7 @@ export async function GET(
   // Note: RLS policy should allow anon users to read rooms where is_occupied = false
   const { data: rooms, error: roomsError } = await supabase
     .from('rooms')
-    .select('id, room_number, price, facilities, is_occupied')
+    .select('id, room_number, price, price_per_day, price_per_month, price_per_6months, facilities, is_occupied')
     .in('floor_id', floorIds)
     .eq('is_occupied', false)
 

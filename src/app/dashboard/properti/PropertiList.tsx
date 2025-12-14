@@ -309,8 +309,46 @@ export default function PropertiList({
             <input name="room_number" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Contoh: 101" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Harga (Rp)</label>
-            <input name="price" type="number" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="1000000" />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Harga Per Hari (Rp)
+                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
+                </label>
+                <input 
+                  name="price_per_day" 
+                  type="number" 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                  placeholder="50000" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Harga Per Bulan (Rp)
+                  <span className="text-xs font-normal text-gray-500 ml-2">Wajib</span>
+                </label>
+                <input 
+                  name="price_per_month" 
+                  type="number" 
+                  required 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                  placeholder="1000000" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Harga Per 6 Bulan (Rp)
+                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
+                </label>
+                <input 
+                  name="price_per_6months" 
+                  type="number" 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                  placeholder="5500000" 
+                />
+                <p className="text-xs text-gray-500 mt-1">Harga untuk sewa 6 bulan (biasanya lebih murah)</p>
+              </div>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Fasilitas (pisahkan dengan koma)</label>
