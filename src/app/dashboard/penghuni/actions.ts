@@ -87,15 +87,8 @@ export async function deleteTenant(prevState: any, formData: FormData) {
 
   if (!tenant) return { error: 'Tenant not found' }
 
-  // Delete all payments for this tenant first (to avoid foreign key constraint violation)
-  const { error: deletePaymentsError } = await supabase.from('payments').delete().eq('tenant_id', id)
-
-  if (deletePaymentsError) {
-    // Log error but continue - payments might not exist
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Error deleting payments:', deletePaymentsError)
-    }
-  }
+  // Don't delete payments - keep them for revenue tracking
+  // Just delete the tenant record and update room status
 
   // Delete tenant
   const { error: deleteError } = await supabase.from('tenants').delete().eq('id', id)

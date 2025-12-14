@@ -236,7 +236,8 @@ export async function assignRoom(prevState: any, formData: FormData) {
       const paymentDueDate = new Date()
       paymentDueDate.setMonth(paymentDueDate.getMonth() + 1)
 
-      const { error: tenantError } = await supabase
+      // Create tenant record
+      const { data: newTenant, error: tenantError } = await supabase
         .from('tenants')
         .insert({
           room_id: room_id,
@@ -246,8 +247,33 @@ export async function assignRoom(prevState: any, formData: FormData) {
           payment_due_date: paymentDueDate.toISOString().split('T')[0],
           electricity_meter_start: 0 // Default, bisa diubah nanti
         })
+        .select()
+        .single()
 
       if (tenantError) throw tenantError
+
+      // Create payment record with confirmed status
+      if (newTenant && checkInData.total_amount) {
+        const { error: paymentError } = await supabase
+          .from('payments')
+          .insert({
+            tenant_id: newTenant.id,
+            amount: checkInData.total_amount,
+            payment_date: new Date().toISOString().split('T')[0],
+            payment_method: 'transfer',
+            status: 'confirmed',
+            confirmed_by: user.id,
+            confirmed_at: new Date().toISOString(),
+            notes: 'Pembayaran dari check-in request'
+          })
+
+        if (paymentError) {
+          // Log error but don't fail the whole process
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Error creating payment:', paymentError)
+          }
+        }
+      }
     }
 
     revalidatePath('/dashboard/check-ins')

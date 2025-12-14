@@ -23,7 +23,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     payment_proof: null as File | null,
   })
   const [rooms, setRooms] = useState<any[]>([])
-  const [selectedRoom, setSelectedRoom] = useState<any>(null)
+  const [selectedRoomType, setSelectedRoomType] = useState<any>(null) // Changed to room type instead of specific room
   const [totalAmount, setTotalAmount] = useState(0)
   const [paymentDestination, setPaymentDestination] = useState('')
   const [loading, setLoading] = useState(false)
@@ -137,7 +137,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       submitData.append('phone', formData.phone)
       submitData.append('email', formData.email || '')
       submitData.append('id_card_number', formData.id_card_number)
-      submitData.append('selected_room_type', selectedRoom?.room_type || '')
+      // Send room type info (price and facilities) instead of specific room
+      submitData.append('selected_room_type', selectedRoomType ? JSON.stringify({
+        price: selectedRoomType.price,
+        facilities: selectedRoomType.facilities
+      }) : '')
       submitData.append('total_amount', totalAmount.toString())
       submitData.append('payment_destination', paymentDestination)
       submitData.append('terms_accepted', 'true')
@@ -391,40 +395,71 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         </div>
       )}
 
-      {/* Step 3: Room Selection */}
+      {/* Step 3: Room Type Selection */}
       {step === 3 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Pilih Jenis Kamar</h2>
+          <p className="text-sm text-gray-600 mb-4">Pilih jenis kamar yang diinginkan. Kamar spesifik akan ditentukan oleh resepsionis.</p>
           
           <div className="grid gap-4">
-            {rooms.map((room) => (
-              <button
-                key={room.id}
-                type="button"
-                onClick={() => {
-                  setSelectedRoom(room)
-                  setTotalAmount(parseFloat(room.price))
-                }}
-                className={`p-4 border-2 rounded-lg text-left transition-all duration-150 active:scale-95 ${
-                  selectedRoom?.id === room.id
-                    ? 'border-indigo-600 bg-indigo-50'
-                    : 'border-gray-300 hover:border-indigo-300'
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{room.room_number}</h3>
-                    <p className="text-sm text-gray-600">{room.facilities?.join(', ') || 'Standard'}</p>
+            {(() => {
+              // Group rooms by price and facilities to create room types
+              const roomTypes = new Map<string, { price: number, facilities: string[], count: number }>()
+              
+              rooms.forEach((room) => {
+                const facilitiesStr = (room.facilities || []).join(', ') || 'Standard'
+                const key = `${room.price}-${facilitiesStr}`
+                
+                if (roomTypes.has(key)) {
+                  const existing = roomTypes.get(key)!
+                  existing.count += 1
+                } else {
+                  roomTypes.set(key, {
+                    price: room.price,
+                    facilities: room.facilities || [],
+                    count: 1
+                  })
+                }
+              })
+
+              const typesArray = Array.from(roomTypes.entries()).map(([key, value]) => ({
+                key,
+                ...value
+              }))
+
+              return typesArray.map((type) => (
+                <button
+                  key={type.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRoomType(type)
+                    setTotalAmount(parseFloat(type.price.toString()))
+                  }}
+                  className={`p-4 border-2 rounded-lg text-left transition-all duration-150 active:scale-95 ${
+                    selectedRoomType?.key === type.key
+                      ? 'border-indigo-600 bg-indigo-50'
+                      : 'border-gray-300 hover:border-indigo-300'
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">
+                        {type.facilities.length > 0 ? type.facilities.join(', ') : 'Kamar Standard'}
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {type.count} kamar tersedia
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-indigo-600">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(type.price)}
+                      </p>
+                      <p className="text-xs text-gray-500">/bulan</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-indigo-600">
-                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(room.price)}
-                    </p>
-                    <p className="text-xs text-gray-500">/bulan</p>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              ))
+            })()}
           </div>
 
           {rooms.length === 0 && (
@@ -442,13 +477,13 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (selectedRoom) {
+                if (selectedRoomType) {
                   setStep(4)
                 } else {
-                  setError('Harap pilih kamar terlebih dahulu')
+                  setError('Harap pilih jenis kamar terlebih dahulu')
                 }
               }}
-              disabled={!selectedRoom}
+              disabled={!selectedRoomType}
               className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
             >
               Pesan Kamar
