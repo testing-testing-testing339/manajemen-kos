@@ -74,14 +74,16 @@ export async function POST(request: Request) {
     const sanitizedRoomNumber = sanitizeString(room_number)
 
     // Find tenant by room number and name/phone
-    // First, find the room by room number
-    let roomsQuery = supabase
+    // First, find the room by room number (case-insensitive, trim whitespace)
+    // room_number is text, so we need to handle it carefully
+    const normalizedRoomNumber = sanitizedRoomNumber.trim()
+    
+    // Get all rooms and filter client-side for more flexibility
+    // This handles cases where room_number might have different formats
+    const { data: allRooms, error: roomsError } = await supabase
       .from('rooms')
       .select('id, room_number, floor_id')
-      .eq('room_number', sanitizedRoomNumber)
     
-    const { data: rooms, error: roomsError } = await roomsQuery
-
     if (roomsError) {
       console.error('Error finding room:', roomsError)
       return NextResponse.json(
@@ -90,9 +92,38 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!rooms || rooms.length === 0) {
+    if (!allRooms || allRooms.length === 0) {
       return NextResponse.json(
-        { error: 'Kamar tidak ditemukan. Pastikan nomor kamar yang Anda masukkan benar.' },
+        { error: 'Tidak ada kamar yang terdaftar di sistem.' },
+        { status: 404 }
+      )
+    }
+
+    // Filter rooms by room number (flexible matching)
+    let rooms = allRooms.filter((r: any) => {
+      const dbRoomNumber = r.room_number?.toString().trim()
+      const inputRoomNumber = normalizedRoomNumber.trim()
+      
+      // Try exact match
+      if (dbRoomNumber === inputRoomNumber) return true
+      
+      // Try case-insensitive
+      if (dbRoomNumber?.toLowerCase() === inputRoomNumber.toLowerCase()) return true
+      
+      // Try numeric comparison (in case one is "1" and other is "01")
+      const dbNum = parseInt(dbRoomNumber || '0')
+      const inputNum = parseInt(inputRoomNumber || '0')
+      if (dbNum > 0 && dbNum === inputNum && dbNum.toString() === inputNum.toString()) {
+        // Only match if both are valid numbers and represent the same number
+        return true
+      }
+      
+      return false
+    })
+
+    if (rooms.length === 0) {
+      return NextResponse.json(
+        { error: `Kamar dengan nomor "${sanitizedRoomNumber}" tidak ditemukan. Pastikan nomor kamar yang Anda masukkan benar dan sesuai dengan data yang terdaftar.` },
         { status: 404 }
       )
     }
