@@ -74,15 +74,45 @@ export async function POST(request: Request) {
     const sanitizedRoomNumber = sanitizeString(room_number)
 
     // Find tenant by room number and name/phone
-    // First, find the room by room number (case-insensitive, trim whitespace)
-    // room_number is text, so we need to handle it carefully
+    // Normalize room number input
     const normalizedRoomNumber = sanitizedRoomNumber.trim()
     
-    // Get all rooms and filter client-side for more flexibility
-    // This handles cases where room_number might have different formats
-    const { data: allRooms, error: roomsError } = await supabase
+    // Step 1: If branch_id provided, get floors in that branch first
+    let floorIds: string[] = []
+    if (branch_id) {
+      const { data: floors, error: floorsError } = await supabase
+        .from('floors')
+        .select('id')
+        .eq('branch_id', branch_id)
+      
+      if (floorsError) {
+        console.error('Error finding floors:', floorsError)
+        return NextResponse.json(
+          { error: 'Terjadi kesalahan saat mencari data cabang. Silakan coba lagi.' },
+          { status: 500 }
+        )
+      }
+      
+      if (!floors || floors.length === 0) {
+        return NextResponse.json(
+          { error: 'Cabang tidak memiliki lantai. Silakan hubungi administrator.' },
+          { status: 404 }
+        )
+      }
+      
+      floorIds = floors.map((f: any) => f.id)
+    }
+    
+    // Step 2: Get rooms - filter by floor_ids if branch_id provided
+    let roomsQuery = supabase
       .from('rooms')
       .select('id, room_number, floor_id')
+    
+    if (branch_id && floorIds.length > 0) {
+      roomsQuery = roomsQuery.in('floor_id', floorIds)
+    }
+    
+    const { data: allRooms, error: roomsError } = await roomsQuery
     
     if (roomsError) {
       console.error('Error finding room:', roomsError)
@@ -93,67 +123,56 @@ export async function POST(request: Request) {
     }
 
     if (!allRooms || allRooms.length === 0) {
-      return NextResponse.json(
-        { error: 'Tidak ada kamar yang terdaftar di sistem.' },
-        { status: 404 }
-      )
-    }
-
-    // If branch_id provided, filter rooms by branch FIRST
-    let roomsToSearch = allRooms
-    if (branch_id) {
-      // Get floors in the branch
-      const { data: floors } = await supabase
-        .from('floors')
-        .select('id')
-        .eq('branch_id', branch_id)
-      
-      if (floors && floors.length > 0) {
-        const floorIds = floors.map((f: any) => f.id)
-        roomsToSearch = allRooms.filter((r: any) => floorIds.includes(r.floor_id))
+      if (branch_id) {
+        return NextResponse.json(
+          { error: 'Tidak ada kamar yang terdaftar di cabang ini.' },
+          { status: 404 }
+        )
       } else {
-        roomsToSearch = []
+        return NextResponse.json(
+          { error: 'Tidak ada kamar yang terdaftar di sistem.' },
+          { status: 404 }
+        )
       }
     }
 
-    // Filter rooms by room number (flexible matching) from filtered rooms
-    let rooms = roomsToSearch.filter((r: any) => {
-      const dbRoomNumber = r.room_number?.toString().trim()
+    // Step 3: Filter by room number with flexible matching
+    const matchingRooms = allRooms.filter((r: any) => {
+      const dbRoomNumber = String(r.room_number || '').trim()
       const inputRoomNumber = normalizedRoomNumber.trim()
       
-      // Try exact match
+      // Exact match (case-sensitive)
       if (dbRoomNumber === inputRoomNumber) return true
       
-      // Try case-insensitive
-      if (dbRoomNumber?.toLowerCase() === inputRoomNumber.toLowerCase()) return true
+      // Case-insensitive match
+      if (dbRoomNumber.toLowerCase() === inputRoomNumber.toLowerCase()) return true
       
-      // Try numeric comparison (in case one is "1" and other is "01" or "2" vs "02")
-      const dbNum = parseInt(dbRoomNumber || '0')
-      const inputNum = parseInt(inputRoomNumber || '0')
-      if (dbNum > 0 && inputNum > 0 && dbNum === inputNum) {
-        // Match if both are valid numbers and represent the same number
-        return true
+      // Numeric match (handle "2" vs "02" vs "002")
+      const dbNum = parseInt(dbRoomNumber, 10)
+      const inputNum = parseInt(inputRoomNumber, 10)
+      if (!isNaN(dbNum) && !isNaN(inputNum) && dbNum > 0 && inputNum > 0) {
+        if (dbNum === inputNum) return true
       }
       
       return false
     })
 
-    if (rooms.length === 0) {
-      // More helpful error message
+    if (matchingRooms.length === 0) {
       if (branch_id) {
         return NextResponse.json(
-          { error: `Kamar dengan nomor "${sanitizedRoomNumber}" tidak ditemukan di cabang ini. Pastikan nomor kamar yang Anda masukkan benar.` },
+          { error: `Kamar nomor "${sanitizedRoomNumber}" tidak ditemukan di cabang ini. Pastikan nomor kamar yang Anda masukkan benar.` },
           { status: 404 }
         )
       } else {
         return NextResponse.json(
-          { error: `Kamar dengan nomor "${sanitizedRoomNumber}" tidak ditemukan. Pastikan nomor kamar yang Anda masukkan benar dan sesuai dengan data yang terdaftar.` },
+          { error: `Kamar nomor "${sanitizedRoomNumber}" tidak ditemukan. Pastikan nomor kamar yang Anda masukkan benar.` },
           { status: 404 }
         )
       }
     }
 
-    const room = rooms[0]
+    // Use the first matching room
+    const room = matchingRooms[0]
     const roomId = room.id
 
     // Find tenant in this room - try by name first (case insensitive)
