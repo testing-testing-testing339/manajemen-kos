@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import {
@@ -9,20 +10,26 @@ import {
 } from '@/lib/validation'
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies()
+  // Use service role key to bypass RLS for complaint API
+  // This is needed because we need to read ALL rooms (including occupied) and tenants
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!serviceRoleKey) {
+    console.error('SUPABASE_SERVICE_ROLE_KEY is not set in environment variables')
+    return NextResponse.json(
+      { error: 'Konfigurasi server tidak lengkap. Silakan hubungi administrator.' },
+      { status: 500 }
+    )
+  }
 
-  const supabase = createServerClient(
+  const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serviceRoleKey,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {
-          // No-op
-        },
-      },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
     }
   )
 
@@ -80,7 +87,7 @@ export async function POST(request: Request) {
     // Step 1: If branch_id provided, get floors in that branch first
     let floorIds: string[] = []
     if (branch_id) {
-      const { data: floors, error: floorsError } = await supabase
+      const { data: floors, error: floorsError } = await supabaseAdmin
         .from('floors')
         .select('id')
         .eq('branch_id', branch_id)
@@ -103,8 +110,9 @@ export async function POST(request: Request) {
       floorIds = floors.map((f: any) => f.id)
     }
     
-    // Step 2: Get rooms - filter by floor_ids if branch_id provided
-    let roomsQuery = supabase
+    // Step 2: Get ALL rooms (including occupied) - filter by floor_ids if branch_id provided
+    // We need ALL rooms because we're looking for tenants who might be in occupied rooms
+    let roomsQuery = supabaseAdmin
       .from('rooms')
       .select('id, room_number, floor_id')
     
@@ -136,28 +144,55 @@ export async function POST(request: Request) {
       }
     }
 
+    // Debug: Log all room numbers found (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('All rooms found:', allRooms.map((r: any) => r.room_number))
+      console.log('Searching for room number:', normalizedRoomNumber)
+    }
+
     // Step 3: Filter by room number with flexible matching
     const matchingRooms = allRooms.filter((r: any) => {
       const dbRoomNumber = String(r.room_number || '').trim()
       const inputRoomNumber = normalizedRoomNumber.trim()
       
       // Exact match (case-sensitive)
-      if (dbRoomNumber === inputRoomNumber) return true
+      if (dbRoomNumber === inputRoomNumber) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Exact match found: "${dbRoomNumber}" === "${inputRoomNumber}"`)
+        }
+        return true
+      }
       
       // Case-insensitive match
-      if (dbRoomNumber.toLowerCase() === inputRoomNumber.toLowerCase()) return true
+      if (dbRoomNumber.toLowerCase() === inputRoomNumber.toLowerCase()) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Case-insensitive match found: "${dbRoomNumber}" === "${inputRoomNumber}"`)
+        }
+        return true
+      }
       
       // Numeric match (handle "2" vs "02" vs "002")
       const dbNum = parseInt(dbRoomNumber, 10)
       const inputNum = parseInt(inputRoomNumber, 10)
       if (!isNaN(dbNum) && !isNaN(inputNum) && dbNum > 0 && inputNum > 0) {
-        if (dbNum === inputNum) return true
+        if (dbNum === inputNum) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`Numeric match found: ${dbNum} === ${inputNum}`)
+          }
+          return true
+        }
       }
       
       return false
     })
 
     if (matchingRooms.length === 0) {
+      // Debug: Log available room numbers for better error message
+      const availableRooms = allRooms.map((r: any) => r.room_number).join(', ')
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Available room numbers:', availableRooms)
+      }
+      
       if (branch_id) {
         return NextResponse.json(
           { error: `Kamar nomor "${sanitizedRoomNumber}" tidak ditemukan di cabang ini. Pastikan nomor kamar yang Anda masukkan benar.` },
@@ -176,7 +211,7 @@ export async function POST(request: Request) {
     const roomId = room.id
 
     // Find tenant in this room - try by name first (case insensitive)
-    const { data: allTenantsInRoom } = await supabase
+    const { data: allTenantsInRoom } = await supabaseAdmin
       .from('tenants')
       .select('id, full_name, phone, email')
       .eq('room_id', roomId)
@@ -230,7 +265,7 @@ export async function POST(request: Request) {
     }
 
     // Create ticket
-    const { data: ticket, error: ticketError } = await supabase
+    const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('tickets')
       .insert({
         tenant_id: tenant.id,
