@@ -54,6 +54,7 @@ export default function PublicComplaintForm({ branchId, branchName }: { branchId
         category: 'other',
         priority: 'medium',
         description: '',
+        branch_id: branchId || '',
       })
 
       // Redirect after 3 seconds
