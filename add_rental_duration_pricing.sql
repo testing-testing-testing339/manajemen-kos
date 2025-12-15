@@ -27,3 +27,4 @@ COMMENT ON COLUMN rooms.price_per_6months IS 'Harga sewa per 6 bulan';
 COMMENT ON COLUMN check_in_requests.rental_duration IS 'Durasi sewa: daily, monthly, atau 6months';
 COMMENT ON COLUMN check_in_requests.rental_days IS 'Jumlah hari untuk sewa harian';
 
+

@@ -88,3 +88,4 @@ ALTER TABLE branches
 ADD COLUMN IF NOT EXISTS qr_code_url text,
 ADD COLUMN IF NOT EXISTS qr_code_data text; -- Store QR data for regeneration
 
+
