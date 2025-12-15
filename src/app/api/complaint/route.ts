@@ -280,6 +280,11 @@ export async function POST(request: Request) {
       ticketData.tenant_id = tenantId
     }
     
+    // Log ticket data before insert (for debugging)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Creating ticket with data:', JSON.stringify(ticketData, null, 2))
+    }
+    
     const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('tickets')
       .insert(ticketData)
@@ -288,8 +293,18 @@ export async function POST(request: Request) {
 
     if (ticketError) {
       console.error('Error creating ticket:', ticketError)
+      console.error('Ticket error details:', JSON.stringify(ticketError, null, 2))
+      console.error('Ticket data attempted:', JSON.stringify(ticketData, null, 2))
+      
+      // Return more detailed error message
+      const errorMessage = ticketError.message || 'Unknown error'
+      const errorCode = ticketError.code || 'UNKNOWN'
+      
       return NextResponse.json(
-        { error: 'Gagal membuat komplain. Silakan coba lagi.' },
+        { 
+          error: `Gagal membuat komplain: ${errorMessage} (${errorCode}). Silakan coba lagi atau hubungi administrator.`,
+          details: process.env.NODE_ENV === 'development' ? ticketError : undefined
+        },
         { status: 500 }
       )
     }
@@ -306,14 +321,34 @@ export async function POST(request: Request) {
     console.error('Error in complaint API:', error)
     console.error('Error stack:', error?.stack)
     console.error('Error details:', JSON.stringify(error, null, 2))
+    console.error('Error name:', error?.name)
+    console.error('Error message:', error?.message)
+    
+    // Check if it's a service role key issue
+    if (error?.message?.includes('JWT') || error?.message?.includes('token') || error?.message?.includes('key')) {
+      return NextResponse.json(
+        { 
+          error: 'Konfigurasi server tidak lengkap. Service role key tidak valid atau tidak ditemukan. Silakan hubungi administrator.',
+          hint: 'Pastikan SUPABASE_SERVICE_ROLE_KEY sudah ditambahkan di environment variables Vercel.'
+        },
+        { status: 500 }
+      )
+    }
     
     // Return more detailed error in development
     const errorMessage = process.env.NODE_ENV === 'development' 
       ? `Terjadi kesalahan server: ${error?.message || 'Unknown error'}. Silakan coba lagi.`
-      : 'Terjadi kesalahan server. Silakan coba lagi.'
+      : 'Terjadi kesalahan server. Silakan coba lagi atau hubungi administrator.'
     
     return NextResponse.json(
-      { error: errorMessage },
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? {
+          name: error?.name,
+          message: error?.message,
+          stack: error?.stack
+        } : undefined
+      },
       { status: 500 }
     )
   }
