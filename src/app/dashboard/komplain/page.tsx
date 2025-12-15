@@ -35,7 +35,7 @@ export default async function KomplainPage() {
     .single()
 
   // Get tenant info if user is a tenant
-  let tenant = null
+  let tenant: any = null
   if (profile?.role === 'tenant') {
     const { data: tenantData } = await supabase
       .from('tenants')
@@ -43,7 +43,12 @@ export default async function KomplainPage() {
       .eq('user_id', user.id)
       .single()
     
-    tenant = tenantData
+    // Ensure rooms is an object, not array
+    if (tenantData && Array.isArray(tenantData.rooms)) {
+      tenant = { ...tenantData, rooms: tenantData.rooms[0] }
+    } else {
+      tenant = tenantData
+    }
   }
 
   // Get tickets based on role
@@ -58,25 +63,38 @@ export default async function KomplainPage() {
     `)
     .order('created_at', { ascending: false })
 
+  let tickets: any[] = []
+  
   if (profile?.role === 'tenant' && tenant) {
     // Tenants can only see their own tickets
-    ticketsQuery = ticketsQuery.eq('tenant_id', tenant.id)
+    const { data: tenantTickets } = await ticketsQuery.eq('tenant_id', tenant.id)
+    tickets = tenantTickets || []
   } else if (profile?.role === 'staff' && profile.branch_id) {
     // Staff can see tickets in their branch
-    ticketsQuery = ticketsQuery
-      .select(`
-        *,
-        tenants(full_name, rooms(room_number, floors(branches(name)))),
-        rooms(room_number, floors(branches(name))),
-        profiles!tickets_assigned_to_fkey(full_name),
-        profiles!tickets_resolved_by_fkey(full_name),
-        rooms!inner(floors!inner(branches!inner(id)))
-      `)
-      .eq('rooms.floors.branches.id', profile.branch_id)
+    // First get all rooms in their branch
+    const { data: floors } = await supabase
+      .from('floors')
+      .select('id')
+      .eq('branch_id', profile.branch_id)
+    
+    if (floors && floors.length > 0) {
+      const floorIds = floors.map((f: any) => f.id)
+      const { data: rooms } = await supabase
+        .from('rooms')
+        .select('id')
+        .in('floor_id', floorIds)
+      
+      if (rooms && rooms.length > 0) {
+        const roomIds = rooms.map((r: any) => r.id)
+        const { data: staffTickets } = await ticketsQuery.in('room_id', roomIds)
+        tickets = staffTickets || []
+      }
+    }
+  } else {
+    // Owner can see all tickets (no filter)
+    const { data: allTickets } = await ticketsQuery
+    tickets = allTickets || []
   }
-  // Owner can see all tickets (no filter)
-
-  const { data: tickets } = await ticketsQuery
 
   // Get unread/open tickets count for badge
   const openTicketsCount = tickets?.filter((t: any) => 
@@ -94,11 +112,11 @@ export default async function KomplainPage() {
               : 'Kelola tiket komplain dari penyewa'}
           </p>
         </div>
-        {profile?.role === 'tenant' && tenant && (
+        {profile?.role === 'tenant' && tenant && tenant.rooms && (
           <div className="text-right">
             <p className="text-sm text-gray-600">Kamar Anda</p>
             <p className="text-lg font-semibold text-gray-900">
-              No. {tenant.rooms?.room_number} - {tenant.rooms?.floors?.branches?.name}
+              No. {tenant.rooms.room_number} - {tenant.rooms.floors?.branches?.name}
             </p>
           </div>
         )}

@@ -27,11 +27,16 @@ export default async function DashboardLayout({
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = user ? await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single() : { data: null }
+  
+  let profile: { role: string } | null = null
+  if (user) {
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    profile = profileData
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
