@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const nameValidation = validateFullName(full_name)
     if (!nameValidation.valid) {
       return NextResponse.json(
-        { error: nameValidation.error || 'Nama tidak valid' },
+        { error: 'Nama tidak valid. Nama harus 2-100 karakter dan hanya boleh huruf, spasi, titik, tanda hubung, atau apostrof.' },
         { status: 400 }
       )
     }
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const phoneValidation = validatePhone(phone)
     if (!phoneValidation.valid) {
       return NextResponse.json(
-        { error: phoneValidation.error || 'Nomor telepon tidak valid' },
+        { error: 'Nomor telepon tidak valid. Gunakan format nomor Indonesia (08xx atau +628xx).' },
         { status: 400 }
       )
     }
@@ -59,18 +59,18 @@ export async function POST(request: Request) {
       const emailValidation = validateEmail(email)
       if (!emailValidation.valid) {
         return NextResponse.json(
-          { error: emailValidation.error || 'Email tidak valid' },
+          { error: 'Email tidak valid. Pastikan format email benar (contoh: email@example.com).' },
           { status: 400 }
         )
       }
     }
 
-    // Sanitize inputs
-    const sanitizedName = sanitizeString(full_name)
+    // Use sanitized values from validation
+    const sanitizedName = nameValidation.sanitized
     const sanitizedTitle = sanitizeString(title)
     const sanitizedDescription = sanitizeString(description)
-    const sanitizedPhone = sanitizeString(phone)
-    const sanitizedEmail = email ? sanitizeString(email) : null
+    const sanitizedPhone = phoneValidation.sanitized
+    const sanitizedEmail = email ? validateEmail(email).sanitized : null
     const sanitizedRoomNumber = sanitizeString(room_number)
 
     // Find tenant by room number and name/phone
