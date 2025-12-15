@@ -221,49 +221,30 @@ export async function POST(request: Request) {
     const room = matchingRooms[0]
     const roomId = room.id
 
-    // Find tenant in this room - try by name first (case insensitive)
-    const { data: allTenantsInRoom, error: tenantsError } = await supabaseAdmin
-      .from('tenants')
-      .select('id, full_name, phone, email')
-      .eq('room_id', roomId)
-
-    if (tenantsError) {
-      console.error('Error finding tenants:', tenantsError)
-      console.error('Tenants error details:', JSON.stringify(tenantsError, null, 2))
-      return NextResponse.json(
-        { error: `Terjadi kesalahan saat mencari data penyewa: ${tenantsError.message || 'Unknown error'}. Silakan coba lagi.` },
-        { status: 500 }
-      )
-    }
-
-    if (!allTenantsInRoom) {
-      console.error('Error: allTenantsInRoom is null')
-      return NextResponse.json(
-        { error: 'Terjadi kesalahan saat mencari data penyewa. Silakan coba lagi.' },
-        { status: 500 }
-      )
-    }
-
-    // Try to find tenant by name (case insensitive)
-    let tenant = allTenantsInRoom.find((t: any) => 
-      t.full_name.toLowerCase().trim() === sanitizedName.toLowerCase().trim()
-    )
+    // Skip tenant validation - create ticket directly with room_id
+    // tenant_id will be null if tenant not found, which is acceptable
+    let tenantId = null
     
-    // If not found by name, try by phone
-    if (!tenant) {
-      tenant = allTenantsInRoom.find((t: any) => {
-        // Normalize phone numbers for comparison
-        const tenantPhone = t.phone?.replace(/[^\d]/g, '')
-        const inputPhone = sanitizedPhone.replace(/[^\d]/g, '')
-        return tenantPhone === inputPhone
-      })
-    }
+    // Try to find tenant in this room (optional - don't fail if not found)
+    try {
+      const { data: allTenantsInRoom } = await supabaseAdmin
+        .from('tenants')
+        .select('id, full_name')
+        .eq('room_id', roomId)
 
-    if (!tenant) {
-      return NextResponse.json(
-        { error: 'Data penyewa tidak ditemukan. Pastikan nama dan nomor kamar yang Anda masukkan sesuai dengan data yang terdaftar.' },
-        { status: 404 }
-      )
+      if (allTenantsInRoom && allTenantsInRoom.length > 0) {
+        // Try to find tenant by name (case insensitive)
+        const tenant = allTenantsInRoom.find((t: any) => 
+          t.full_name.toLowerCase().trim() === sanitizedName.toLowerCase().trim()
+        )
+        
+        if (tenant) {
+          tenantId = tenant.id
+        }
+      }
+    } catch (tenantError) {
+      // Ignore tenant lookup errors - we'll create ticket without tenant_id
+      console.log('Tenant lookup skipped:', tenantError)
     }
 
     // Validate category and priority
@@ -284,18 +265,24 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create ticket
+    // Create ticket - tenant_id is optional (can be null)
+    const ticketData: any = {
+      room_id: roomId,
+      title: sanitizedTitle,
+      description: sanitizedDescription,
+      category,
+      priority,
+      status: 'open',
+    }
+    
+    // Only add tenant_id if we found a matching tenant
+    if (tenantId) {
+      ticketData.tenant_id = tenantId
+    }
+    
     const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('tickets')
-      .insert({
-        tenant_id: tenant.id,
-        room_id: roomId,
-        title: sanitizedTitle,
-        description: sanitizedDescription,
-        category,
-        priority,
-        status: 'open',
-      })
+      .insert(ticketData)
       .select()
       .single()
 
