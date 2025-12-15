@@ -26,6 +26,42 @@ export default async function PembayaranPage() {
     .select('*, rooms(room_number, price, floors(branches(name)))')
     .order('payment_due_date', { ascending: true })
 
+  // Fetch check_in_requests for tenants to get total_amount (calculated based on rental duration)
+  let tenantsWithCheckIn: any[] = []
+  if (tenantsData && tenantsData.length > 0) {
+    const roomIds = tenantsData.map(t => t.room_id).filter(Boolean)
+    if (roomIds.length > 0) {
+      const { data: checkInRequests } = await supabase
+        .from('check_in_requests')
+        .select('id, assigned_room_id, total_amount, rental_duration, rental_days')
+        .in('assigned_room_id', roomIds)
+        .eq('status', 'completed')
+      
+      // Create map: room_id -> check_in_request
+      const roomToCheckInMap = new Map()
+      if (checkInRequests) {
+        checkInRequests.forEach((cir: any) => {
+          if (cir.assigned_room_id) {
+            roomToCheckInMap.set(cir.assigned_room_id, cir)
+          }
+        })
+      }
+      
+      // Merge check_in_requests with tenants
+      tenantsWithCheckIn = tenantsData.map(tenant => {
+        const checkInRequest = roomToCheckInMap.get(tenant.room_id)
+        return {
+          ...tenant,
+          check_in_request: checkInRequest || null
+        }
+      })
+    } else {
+      tenantsWithCheckIn = tenantsData
+    }
+  } else {
+    tenantsWithCheckIn = tenantsData || []
+  }
+
   // Get all payments - include tenant info where available
   // Note: tenant_id can be null after tenant checkout, so we need to handle that
   let paymentsData = []
@@ -99,7 +135,7 @@ export default async function PembayaranPage() {
       try {
         const { data: checkInRequests } = await supabase
           .from('check_in_requests')
-          .select('id, full_name, payment_proof_url, total_amount, assigned_room_id, created_at, rooms(room_number, floors(branches(name)))')
+          .select('id, full_name, payment_proof_url, total_amount, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, rooms(room_number, floors(branches(name)))')
           .eq('status', 'completed')
         
         if (checkInRequests && checkInRequests.length > 0) {
@@ -256,7 +292,7 @@ export default async function PembayaranPage() {
 
   return (
     <PaymentList 
-      initialTenants={tenantsData || []} 
+      initialTenants={tenantsWithCheckIn} 
       initialPayments={paymentsData || []} 
     />
   )

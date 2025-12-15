@@ -1,19 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { recordPayment, confirmPayment } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
+import SubmitButton from '@/components/ui/SubmitButton'
 
 export default function PaymentList({ initialTenants, initialPayments }: { initialTenants: any[], initialPayments: any[] }) {
   const [tenants, setTenants] = useState(initialTenants)
   const [payments, setPayments] = useState(initialPayments)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTenant, setSelectedTenant] = useState<any>(null)
-  const [isProofModalOpen, setIsProofModalOpen] = useState(false)
-  const [selectedPaymentProof, setSelectedPaymentProof] = useState<string | null>(null)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [selectedPayment, setSelectedPayment] = useState<any>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
   const [paymentState, paymentAction] = useActionState(recordPayment, null)
   const [confirmState, confirmAction] = useActionState(confirmPayment, null)
   const router = useRouter()
@@ -79,11 +82,14 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
     })
     .reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0)
 
-  const headers = ['Nama Penghuni', 'Kamar', 'Harga Sewa', 'Jatuh Tempo', 'Status Pembayaran', 'Actions']
+  const headers = ['Nama Penghuni', 'Kamar', 'Harga Sewa', 'Jatuh Tempo', 'Status Pembayaran', 'Aksi']
   const rows = tenants.map(tenant => {
     const status = getPaymentStatus(tenant)
     const roomLabel = `No. ${tenant.rooms?.room_number} - ${tenant.rooms?.floors?.branches?.name}`
-    const price = tenant.rooms?.price || 0
+    // Use total_amount from check_in_request if available, otherwise use room price
+    const price = tenant.check_in_request?.total_amount 
+      ? parseFloat(tenant.check_in_request.total_amount)
+      : (tenant.rooms?.price || 0)
 
     let statusBadge
     if (status.hasPaid) {
@@ -251,12 +257,13 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                     </div>
                     <form action={confirmAction}>
                       <input type="hidden" name="payment_id" value={payment.id} />
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-all duration-150 active:scale-95"
+                      <SubmitButton
+                        variant="success"
+                        className="px-4 py-2"
+                        loadingText="Mengonfirmasi..."
                       >
                         Konfirmasi Pembayaran
-                      </button>
+                      </SubmitButton>
                     </form>
                   </div>
                 )
@@ -267,10 +274,62 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
 
       {/* All Payments History Section - Including checkout tenants */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Riwayat Semua Pembayaran</h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Menampilkan semua pembayaran termasuk dari penyewa yang sudah checkout
-        </p>
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-1">Riwayat Semua Pembayaran</h2>
+            <p className="text-sm text-gray-600">
+              Menampilkan semua pembayaran termasuk dari penyewa yang sudah checkout
+            </p>
+          </div>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          {/* Search Input */}
+          <div className="relative flex-1 sm:flex-initial sm:w-80">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Cari nama penghuni atau kamar..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white shadow-sm"
+            />
+          </div>
+          
+          {/* Date Filter */}
+          <div className="relative sm:w-64">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white shadow-sm"
+            />
+          </div>
+
+          {/* Reset Filter Button */}
+          {(searchQuery || dateFilter) && (
+            <button
+              onClick={() => {
+                setSearchQuery('')
+                setDateFilter('')
+              }}
+              className="px-4 py-3 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition-all whitespace-nowrap"
+            >
+              Reset Filter
+            </button>
+          )}
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -282,13 +341,35 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Metode</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Dikonfirmasi Oleh</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">Bukti Transfer</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Detail Transaksi</th>
               </tr>
             </thead>
             <tbody>
-              {payments
-                .filter((p: any) => p.status === 'confirmed' || (p.status === undefined && p.confirmed_by !== null))
-                .map((payment: any) => {
+              {(() => {
+                let filteredPayments = payments.filter((p: any) => p.status === 'confirmed' || (p.status === undefined && p.confirmed_by !== null))
+                
+                // Filter by search query
+                if (searchQuery.trim()) {
+                  const query = searchQuery.toLowerCase().trim()
+                  filteredPayments = filteredPayments.filter((payment: any) => {
+                    const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
+                    const checkInRequest = payment.check_in_request
+                    const tenantName = tenant?.full_name || checkInRequest?.full_name || ''
+                    const roomInfo = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || ''
+                    return tenantName.toLowerCase().includes(query) || roomInfo.toLowerCase().includes(query)
+                  })
+                }
+                
+                // Filter by date
+                if (dateFilter) {
+                  filteredPayments = filteredPayments.filter((payment: any) => {
+                    const paymentDate = new Date(payment.payment_date).toISOString().split('T')[0]
+                    return paymentDate === dateFilter
+                  })
+                }
+                
+                return filteredPayments
+              })().map((payment: any) => {
                   // Get tenant info from payment relation or from tenants list
                   const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
                   
@@ -343,27 +424,46 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">{confirmedByName}</td>
                       <td className="py-3 px-4">
-                        {paymentProofUrl ? (
-                          <button
-                            onClick={() => {
-                              setSelectedPaymentProof(paymentProofUrl)
-                              setIsProofModalOpen(true)
-                            }}
-                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold hover:bg-blue-200 transition-all duration-150 active:scale-95"
-                          >
-                            Lihat Bukti
-                          </button>
-                        ) : (
-                          <span className="text-gray-400 text-sm">-</span>
-                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedPayment(payment)
+                            setIsDetailModalOpen(true)
+                          }}
+                          className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-sm font-semibold hover:bg-indigo-200 transition-all duration-150 active:scale-95 flex items-center gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          Detail
+                        </button>
                       </td>
                     </tr>
                   )
                 })}
-              {payments.filter((p: any) => p.status === 'confirmed' || (p.status === undefined && p.confirmed_by !== null)).length === 0 && (
+              {(() => {
+                let filtered = payments.filter((p: any) => p.status === 'confirmed' || (p.status === undefined && p.confirmed_by !== null))
+                if (searchQuery.trim()) {
+                  const query = searchQuery.toLowerCase().trim()
+                  filtered = filtered.filter((payment: any) => {
+                    const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
+                    const checkInRequest = payment.check_in_request
+                    const tenantName = tenant?.full_name || checkInRequest?.full_name || ''
+                    const roomInfo = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || ''
+                    return tenantName.toLowerCase().includes(query) || roomInfo.toLowerCase().includes(query)
+                  })
+                }
+                if (dateFilter) {
+                  filtered = filtered.filter((payment: any) => {
+                    const paymentDate = new Date(payment.payment_date).toISOString().split('T')[0]
+                    return paymentDate === dateFilter
+                  })
+                }
+                return filtered.length === 0
+              })() && (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-gray-500">
-                    Belum ada pembayaran yang dikonfirmasi
+                    {searchQuery || dateFilter ? 'Tidak ada pembayaran yang sesuai dengan filter' : 'Belum ada pembayaran yang dikonfirmasi'}
                   </td>
                 </tr>
               )}
@@ -391,13 +491,24 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
               </p>
               <p className="text-sm text-gray-600 mb-1 mt-3">Harga Sewa</p>
               <p className="font-semibold text-gray-900 text-lg">
-                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(selectedTenant.rooms?.price || 0)}
+                {selectedTenant.check_in_request?.total_amount 
+                  ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(selectedTenant.check_in_request.total_amount))
+                  : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(selectedTenant.rooms?.price || 0)
+                }
               </p>
+              {selectedTenant.check_in_request && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedTenant.check_in_request.rental_duration === 'daily' 
+                    ? `Sewa Harian (${selectedTenant.check_in_request.rental_days} hari)`
+                    : 'Sewa Bulanan (6 bulan)'
+                  }
+                </p>
+              )}
             </div>
             {!getPaymentStatus(selectedTenant).hasPaid ? (
               <form action={paymentAction} className="space-y-5">
                 <input type="hidden" name="tenant_id" value={selectedTenant.id} />
-                <input type="hidden" name="amount" value={selectedTenant.rooms?.price || 0} />
+                <input type="hidden" name="amount" value={selectedTenant.check_in_request?.total_amount || selectedTenant.rooms?.price || 0} />
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Tanggal Pembayaran</label>
                   <input 
@@ -447,12 +558,13 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                   >
                     Batal
                   </button>
-                  <button 
-                    type="submit" 
-                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+                  <SubmitButton
+                    variant="success"
+                    className="flex-1 px-4 py-3"
+                    loadingText="Menyimpan..."
                   >
                     Tandai Sudah Bayar
-                  </button>
+                  </SubmitButton>
                 </div>
               </form>
             ) : (
@@ -477,49 +589,148 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
         )}
       </Modal>
 
-      {/* Payment Proof Modal */}
-      <Modal isOpen={isProofModalOpen} onClose={() => {
-        setIsProofModalOpen(false)
-        setSelectedPaymentProof(null)
+      {/* Payment Detail Modal */}
+      <Modal isOpen={isDetailModalOpen} onClose={() => {
+        setIsDetailModalOpen(false)
+        setSelectedPayment(null)
       }}>
-        {selectedPaymentProof && (
-          <>
-            <h2 className="text-2xl font-bold mb-6 text-gray-900">Bukti Transfer</h2>
-            <div className="relative w-full max-w-2xl mx-auto">
-              <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden">
-                <img
-                  src={selectedPaymentProof}
-                  alt="Bukti Transfer"
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement
-                    target.src = '/placeholder-image.png'
-                    target.alt = 'Gambar tidak dapat dimuat'
-                  }}
-                />
+        {selectedPayment && (() => {
+          const tenant = selectedPayment.tenants || tenants.find((t: any) => t.id === selectedPayment.tenant_id)
+          const checkInRequest = selectedPayment.check_in_request
+          
+          // Get tenant name
+          const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Unknown'
+          
+          // Get room info
+          let roomInfo = '-'
+          if (tenant?.rooms) {
+            roomInfo = `No. ${tenant.rooms.room_number} - ${tenant.rooms.floors?.branches?.name || ''}`
+          } else if (checkInRequest?.rooms) {
+            roomInfo = `No. ${checkInRequest.rooms.room_number} - ${checkInRequest.rooms.floors?.branches?.name || ''}`
+          }
+          
+          // Get assigned date (checkout date)
+          const assignedAt = checkInRequest?.assigned_at || tenant?.check_in_date
+          let assignedDateStr = '-'
+          let assignedDayStr = '-'
+          let assignedTimeStr = '-'
+          if (assignedAt) {
+            const assignedDate = new Date(assignedAt)
+            assignedDateStr = assignedDate.toLocaleDateString('id-ID', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })
+            assignedDayStr = assignedDate.toLocaleDateString('id-ID', { weekday: 'long' })
+            assignedTimeStr = assignedDate.toLocaleTimeString('id-ID', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })
+          }
+          
+          // Get rental duration
+          let rentalDurationStr = '-'
+          if (checkInRequest?.rental_duration === 'daily' && checkInRequest?.rental_days) {
+            rentalDurationStr = `Sewa Harian (${checkInRequest.rental_days} hari)`
+          } else if (checkInRequest?.rental_duration === 'monthly' || checkInRequest?.rental_duration === '6months') {
+            rentalDurationStr = 'Sewa Bulanan (6 bulan)'
+          }
+          
+          // Get NIK
+          const nik = checkInRequest?.id_card_number || tenant?.id_card_number || '-'
+          
+          // Get payment proof URL
+          const paymentProofUrl = checkInRequest?.payment_proof_url || null
+          
+          return (
+            <>
+              <h2 className="text-2xl font-bold mb-6 text-gray-900">Detail Transaksi</h2>
+              
+              {/* Transaction Details */}
+              <div className="space-y-4 mb-6">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Nama</p>
+                  <p className="font-semibold text-gray-900 text-lg">{tenantName}</p>
+                </div>
+                
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Kamar yang Diassign</p>
+                  <p className="font-semibold text-gray-900">{roomInfo}</p>
+                </div>
+                
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Tanggal Checkout</p>
+                  <p className="font-semibold text-gray-900">
+                    {assignedDateStr !== '-' ? `${assignedDayStr}, ${assignedDateStr}` : '-'}
+                  </p>
+                  {assignedTimeStr !== '-' && (
+                    <p className="text-sm text-gray-600 mt-1">Pukul {assignedTimeStr} WIB</p>
+                  )}
+                </div>
+                
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Durasi Sewa</p>
+                  <p className="font-semibold text-gray-900">{rentalDurationStr}</p>
+                </div>
+                
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">NIK</p>
+                  <p className="font-semibold text-gray-900">{nik}</p>
+                </div>
               </div>
-              <div className="mt-4 flex justify-center gap-3">
-                <a
-                  href={selectedPaymentProof}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all duration-150 active:scale-95"
-                >
-                  Buka di Tab Baru
-                </a>
+              
+              {/* Payment Proof Image */}
+              {paymentProofUrl ? (
+                <div className="mb-6">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Foto Bukti Transfer</p>
+                  <div className="relative w-full max-w-2xl mx-auto">
+                    <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                      <img
+                        src={paymentProofUrl}
+                        alt="Bukti Transfer"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = '/placeholder-image.png'
+                          target.alt = 'Gambar tidak dapat dimuat'
+                        }}
+                      />
+                    </div>
+                    <div className="mt-3 flex justify-center gap-3">
+                      <a
+                        href={paymentProofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all duration-150 active:scale-95 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        Buka di Tab Baru
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">Bukti transfer tidak tersedia</p>
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-3">
                 <button
                   onClick={() => {
-                    setIsProofModalOpen(false)
-                    setSelectedPaymentProof(null)
+                    setIsDetailModalOpen(false)
+                    setSelectedPayment(null)
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-all duration-150 active:scale-95"
                 >
                   Tutup
                 </button>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )
+        })()}
       </Modal>
     </div>
   )
