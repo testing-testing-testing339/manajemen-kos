@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createStaff, updateStaff, deleteStaff, changeStaffPassword } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
+import SubmitButton from '@/components/ui/SubmitButton'
 
 export default function StaffList({ initialStaff, initialBranches }: { initialStaff: any[], initialBranches: any[] }) {
   const [staff, setStaff] = useState(initialStaff)
@@ -117,12 +118,13 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
         </button>
         <form action={deleteAction}>
           <input type="hidden" name="staff_id" value={staffMember.id} />
-          <button 
-            type="submit" 
-            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-all duration-150 active:scale-95 active:bg-red-200 text-sm"
+          <SubmitButton
+            variant="danger"
+            className="px-3 py-1.5 text-sm font-medium"
+            loadingText="Menghapus..."
           >
             Hapus
-          </button>
+          </SubmitButton>
         </form>
       </div>
     ]
@@ -291,12 +293,13 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
-                  className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+                <SubmitButton
+                  variant="success"
+                  className="flex-1 px-4 py-3"
+                  loadingText="Mengganti password..."
                 >
                   Ganti Password
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </>
@@ -491,12 +494,13 @@ function StaffForm({
         >
           Batal
         </button>
-        <button 
-          type="submit" 
-          className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+        <SubmitButton
+          variant="primary"
+          className="flex-1 px-4 py-3"
+          loadingText={staff ? 'Mengupdate...' : 'Menambahkan...'}
         >
           {staff ? 'Update Staff' : 'Tambah Staff'}
-        </button>
+        </SubmitButton>
       </div>
     </form>
   )

@@ -1611,9 +1611,19 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="submit"
               disabled={loading || !formData.payment_proof}
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100"
+              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 flex items-center justify-center gap-2"
             >
-              {loading ? 'Mengirim...' : 'Kirim Permintaan'}
+              {loading ? (
+                <>
+                  <div className="relative">
+                    <div className="h-4 w-4 border-2 border-white/30 rounded-full"></div>
+                    <div className="absolute inset-0 h-4 w-4 border-2 border-transparent border-t-white rounded-full animate-spin"></div>
+                  </div>
+                  <span className="animate-pulse">Mengirim permintaan...</span>
+                </>
+              ) : (
+                'Kirim Permintaan'
+              )}
             </button>
           </div>
         </div>

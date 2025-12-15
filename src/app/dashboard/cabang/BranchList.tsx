@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { addBranch, deleteBranch } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
+import SubmitButton from '@/components/ui/SubmitButton'
 
 export default function BranchList({ initialBranches, userRole }: { initialBranches: any[], userRole: string | null }) {
   const [branches, setBranches] = useState(initialBranches)
@@ -38,12 +39,13 @@ export default function BranchList({ initialBranches, userRole }: { initialBranc
       row.push(
         <form action={deleteAction} key={branch.id}>
           <input type="hidden" name="id" value={branch.id} />
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors"
+          <SubmitButton
+            variant="danger"
+            className="px-4 py-2 text-sm font-medium"
+            loadingText="Menghapus..."
           >
             Hapus
-          </button>
+          </SubmitButton>
         </form>
       )
     }
@@ -108,12 +110,13 @@ export default function BranchList({ initialBranches, userRole }: { initialBranc
             >
               Batal
             </button>
-            <button 
-              type="submit" 
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+            <SubmitButton
+              variant="primary"
+              className="flex-1 px-4 py-3"
+              loadingText="Menambahkan..."
             >
               Tambah Cabang
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Modal>

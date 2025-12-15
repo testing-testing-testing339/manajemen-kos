@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { createTenant, deleteTenant } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
+import SubmitButton from '@/components/ui/SubmitButton'
 
 export default function TenantList({ 
   initialTenants, 
@@ -183,13 +184,14 @@ export default function TenantList({
           }}
         >
           <input type="hidden" name="id" value={tenant.id} />
-          <button 
-            type="submit" 
+          <SubmitButton
+            variant="warning"
+            className="px-4 py-2 text-sm font-medium"
             disabled={deletingId === tenant.id}
-            className="px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 font-medium transition-all duration-150 active:scale-95 active:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            loadingText="Memproses..."
           >
-            {deletingId === tenant.id ? 'Memproses...' : 'Check-out'}
-          </button>
+            Check-out
+          </SubmitButton>
         </form>
       </div>
     ]
@@ -368,8 +370,13 @@ export default function TenantList({
               {availableRooms.length === 0 ? (
                 <option value="" disabled>Tidak ada kamar tersedia</option>
               ) : (
-                availableRooms.map(room => {
-                  const label = `No. ${room.room_number} - ${room.floors?.branches?.name} (Rp ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(room.price)})`
+                [...availableRooms].sort((a, b) => {
+                  // Sort by room_number (handle both string and number)
+                  const numA = parseInt(a.room_number) || 0
+                  const numB = parseInt(b.room_number) || 0
+                  return numA - numB
+                }).map(room => {
+                  const label = `No. ${room.room_number} - ${room.floors?.branches?.name || '-'} - ${room.floors?.name || '-'}`
                   return <option key={room.id} value={room.id}>{label}</option>
                 })
               )}
@@ -439,12 +446,13 @@ export default function TenantList({
             >
               Batal
             </button>
-            <button 
-              type="submit" 
-              className="flex-1 bg-gradient-to-r from-pink-600 to-rose-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-pink-700 hover:to-rose-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+            <SubmitButton
+              variant="primary"
+              className="flex-1 px-4 py-3"
+              loadingText="Memproses..."
             >
               Check-in
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Modal>

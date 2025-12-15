@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { addBranch, deleteBranch, addFloor, deleteFloor, createRoom, deleteRoom, updateRoom, bulkCreateRooms } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
+import SubmitButton from '@/components/ui/SubmitButton'
 
 type TabType = 'branches' | 'floors' | 'rooms'
 
@@ -14,12 +15,14 @@ export default function PropertiList({
   initialFloors,
   initialRooms,
   initialFloorsForRooms,
+  initialTenants,
   userRole
 }: {
   initialBranches: any[]
   initialFloors: any[]
   initialRooms: any[]
   initialFloorsForRooms: any[]
+  initialTenants: any[]
   userRole: string | null
 }) {
   const [activeTab, setActiveTab] = useState<TabType>('branches')
@@ -27,11 +30,14 @@ export default function PropertiList({
   const [floors, setFloors] = useState(initialFloors)
   const [rooms, setRooms] = useState(initialRooms)
   const [floorsForRooms, setFloorsForRooms] = useState(initialFloorsForRooms)
+  const [tenants, setTenants] = useState(initialTenants)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isBulkAddModalOpen, setIsBulkAddModalOpen] = useState(false)
   const [selectedRoom, setSelectedRoom] = useState<any>(null)
   const [selectedBranch, setSelectedBranch] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedFloorFilter, setSelectedFloorFilter] = useState<string>('')
   const router = useRouter()
 
   const [addBranchState, addBranchAction] = useActionState(addBranch, null)
@@ -48,7 +54,8 @@ export default function PropertiList({
     setFloors(initialFloors)
     setRooms(initialRooms)
     setFloorsForRooms(initialFloorsForRooms)
-  }, [initialBranches, initialFloors, initialRooms, initialFloorsForRooms])
+    setTenants(initialTenants)
+  }, [initialBranches, initialFloors, initialRooms, initialFloorsForRooms, initialTenants])
 
   useEffect(() => {
     if (addBranchState?.success || deleteBranchState?.success || 
@@ -76,12 +83,13 @@ export default function PropertiList({
       row.push(
         <form action={deleteBranchAction} key={branch.id}>
           <input type="hidden" name="id" value={branch.id} />
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-all duration-150 active:scale-95 active:bg-red-200"
+          <SubmitButton
+            variant="danger"
+            className="px-4 py-2 text-sm font-medium"
+            loadingText="Menghapus..."
           >
             Hapus
-          </button>
+          </SubmitButton>
         </form>
       )
     }
@@ -96,39 +104,130 @@ export default function PropertiList({
       row.push(
         <form action={deleteFloorAction} key={floor.id}>
           <input type="hidden" name="id" value={floor.id} />
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-all duration-150 active:scale-95 active:bg-red-200"
+          <SubmitButton
+            variant="danger"
+            className="px-4 py-2 text-sm font-medium"
+            loadingText="Menghapus..."
           >
             Hapus
-          </button>
+          </SubmitButton>
         </form>
       )
     }
     return row
   })
 
+  // Filter and search rooms
+  const filteredRooms = useMemo(() => {
+    let filtered = [...rooms]
+
+    // Filter by floor
+    if (selectedFloorFilter) {
+      filtered = filtered.filter(room => room.floor_id === selectedFloorFilter)
+    }
+
+    // Search by room number or tenant name
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter(room => {
+        // Search by room number
+        const roomNumberMatch = room.room_number?.toLowerCase().includes(query)
+        
+        // Search by tenant name
+        const roomTenant = tenants.find(t => t.room_id === room.id)
+        const tenantNameMatch = roomTenant?.full_name?.toLowerCase().includes(query)
+        
+        return roomNumberMatch || tenantNameMatch
+      })
+    }
+
+    // Sort by room number
+    return filtered.sort((a, b) => {
+      const numA = parseInt(a.room_number) || 0
+      const numB = parseInt(b.room_number) || 0
+      return numA - numB
+    })
+  }, [rooms, selectedFloorFilter, searchQuery, tenants])
+
+  // Create tenant map for quick lookup
+  const tenantMap = useMemo(() => {
+    const map = new Map()
+    tenants.forEach(tenant => {
+      map.set(tenant.room_id, tenant)
+    })
+    return map
+  }, [tenants])
+
   // Rooms table
-  const roomHeaders = userRole === 'owner' ? ['No. Kamar', 'Lantai', 'Harga', 'Fasilitas', 'Status', 'Aksi'] : ['No. Kamar', 'Lantai', 'Harga', 'Fasilitas', 'Status']
-  const roomRows = rooms.map(room => {
+  const roomHeaders = userRole === 'owner' ? ['No. Kamar', 'Lantai', 'Harga', 'Fasilitas', 'Penghuni', 'Status', 'Aksi'] : ['No. Kamar', 'Lantai', 'Harga', 'Fasilitas', 'Penghuni', 'Status']
+  const roomRows = filteredRooms.map(room => {
+    const tenant = tenantMap.get(room.id)
     const row = [
       room.room_number,
       room.floors?.name || 'Unknown',
-      <div key={`price-${room.id}`}>
-        <div className="text-sm font-semibold">
-          {room.price_per_day ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_day) : '-'} /hari
-        </div>
+      <div key={`price-${room.id}`} className="space-y-1">
+        {room.price_per_day ? (
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-semibold text-gray-900">
+              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_day)}
+            </span>
+            <span className="text-xs text-gray-500">/hari</span>
+          </div>
+        ) : (
+          <span className="text-sm text-gray-400">-</span>
+        )}
         {room.price_per_month && (
-          <div className="text-xs text-gray-500">
-            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_month)} /bulan
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-indigo-600">
+              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_month)}
+            </span>
+            <span className="text-xs text-gray-500">/bulan</span>
+          </div>
+        )}
+        {room.price_per_6months && (
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-purple-600">
+              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_6months)}
+            </span>
+            <span className="text-xs text-gray-500">/6 bulan</span>
           </div>
         )}
       </div>,
-      room.facilities?.join(', ') || '',
+      <div key={`facilities-${room.id}`} className="max-w-xs">
+        <div className="flex flex-wrap gap-1">
+          {room.facilities?.slice(0, 3).map((facility: string, idx: number) => (
+            <span key={idx} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-xs font-medium">
+              {facility}
+            </span>
+          ))}
+          {room.facilities && room.facilities.length > 3 && (
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-xs font-medium">
+              +{room.facilities.length - 3}
+            </span>
+          )}
+        </div>
+      </div>,
+      <div key={`tenant-${room.id}`}>
+        {tenant ? (
+          <span className="text-sm font-medium text-gray-900">{tenant.full_name}</span>
+        ) : (
+          <span className="text-sm text-gray-400">-</span>
+        )}
+      </div>,
       room.is_occupied ? (
-        <span key={`status-${room.id}`} className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">Terisi</span>
+        <span key={`status-${room.id}`} className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          Terisi
+        </span>
       ) : (
-        <span key={`status-${room.id}`} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">Kosong</span>
+        <span key={`status-${room.id}`} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          Kosong
+        </span>
       )
     ]
     if (userRole === 'owner') {
@@ -145,12 +244,13 @@ export default function PropertiList({
           </button>
           <form action={deleteRoomAction} className="inline">
             <input type="hidden" name="id" value={room.id} />
-            <button 
-              type="submit" 
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-all duration-150 active:scale-95 active:bg-red-200"
+            <SubmitButton
+              variant="danger"
+              className="px-4 py-2 text-sm font-medium"
+              loadingText="Menghapus..."
             >
               Hapus
-            </button>
+            </SubmitButton>
           </form>
         </div>
       )
@@ -244,19 +344,106 @@ export default function PropertiList({
       {/* Rooms Tab */}
       {activeTab === 'rooms' && (
         <div className="space-y-4">
-          {userRole === 'owner' && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          {/* Action Bar */}
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            {/* Search and Filter */}
+            <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full sm:w-auto">
+              {/* Search Input */}
+              <div className="relative flex-1 sm:flex-initial sm:w-80">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Cari no. kamar atau nama penghuni..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white shadow-sm"
+                />
+              </div>
+              
+              {/* Floor Filter */}
+              <div className="relative sm:w-64">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                </div>
+                <select
+                  value={selectedFloorFilter}
+                  onChange={(e) => setSelectedFloorFilter(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white shadow-sm appearance-none cursor-pointer"
+                >
+                  <option value="">Semua Lantai</option>
+                  {floorsForRooms.map(floor => (
+                    <option key={floor.id} value={floor.id}>
+                      {floor.name} - {floor.branches?.name || ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Add Button */}
+            {userRole === 'owner' && (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-indigo-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Tambah Kamar
+              </button>
+            )}
+          </div>
+
+          {/* Results Count */}
+          {(selectedFloorFilter || searchQuery) && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2 flex items-center gap-2">
+              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Tambah Kamar
-            </button>
+              <span className="text-sm font-medium text-indigo-900">
+                Menampilkan {filteredRooms.length} dari {rooms.length} kamar
+              </span>
+              {(selectedFloorFilter || searchQuery) && (
+                <button
+                  onClick={() => {
+                    setSelectedFloorFilter('')
+                    setSearchQuery('')
+                  }}
+                  className="ml-auto text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Reset Filter
+                </button>
+              )}
+            </div>
           )}
+
+          {/* Table */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <Table headers={roomHeaders} rows={roomRows} />
+            {filteredRooms.length === 0 ? (
+              <div className="p-12 text-center">
+                <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-sm font-medium text-gray-900 mb-1">Tidak ada kamar ditemukan</h3>
+                <p className="text-sm text-gray-500">
+                  {searchQuery || selectedFloorFilter 
+                    ? 'Coba ubah filter atau kata kunci pencarian'
+                    : 'Belum ada kamar yang tersedia'
+                  }
+                </p>
+              </div>
+            ) : (
+              <Table headers={roomHeaders} rows={roomRows} />
+            )}
           </div>
         </div>
       )}
@@ -283,9 +470,13 @@ export default function PropertiList({
             <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95">
               Batal
             </button>
-            <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl">
+            <SubmitButton
+              variant="primary"
+              className="flex-1 px-4 py-3"
+              loadingText="Menambahkan..."
+            >
               Tambah Cabang
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Modal>
@@ -316,9 +507,13 @@ export default function PropertiList({
             <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">
               Batal
             </button>
-            <button type="submit" className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl">
+            <SubmitButton
+              variant="primary"
+              className="flex-1 px-4 py-3"
+              loadingText="Menambahkan..."
+            >
               Tambah Lantai
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Modal>
@@ -395,9 +590,13 @@ export default function PropertiList({
             <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">
               Batal
             </button>
-            <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-blue-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl">
+            <SubmitButton
+              variant="primary"
+              className="flex-1 px-4 py-3"
+              loadingText="Menambahkan..."
+            >
               Tambah Kamar
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Modal>
@@ -483,9 +682,13 @@ export default function PropertiList({
               }} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95">
                 Batal
               </button>
-              <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-blue-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl">
+              <SubmitButton
+                variant="primary"
+                className="flex-1 px-4 py-3"
+                loadingText="Menyimpan..."
+              >
                 Simpan Perubahan
-              </button>
+              </SubmitButton>
             </div>
           </form>
         )}
@@ -574,9 +777,13 @@ export default function PropertiList({
             <button type="button" onClick={() => setIsBulkAddModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95">
               Batal
             </button>
-            <button type="submit" className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-150 active:scale-95 shadow-lg hover:shadow-xl">
+            <SubmitButton
+              variant="primary"
+              className="flex-1 px-4 py-3"
+              loadingText="Menambahkan..."
+            >
               Tambah Kamar
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Modal>

@@ -6,6 +6,7 @@ import { useActionState } from 'react'
 import { approveCheckIn, rejectCheckIn, assignRoom } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
+import SubmitButton from '@/components/ui/SubmitButton'
 import QRCode from 'qrcode'
 
 type TabType = 'checkins' | 'qrcode'
@@ -120,20 +121,16 @@ export default function CheckInManager({
     return '-'
   }
 
-  // Helper function to get room info with branch
-  const getRoomInfo = (checkIn: any) => {
-    if (checkIn.assigned_room_id && checkIn.rooms) {
-      const branchName = checkIn.rooms.floors?.branches?.name || checkIn.branches?.name || '-'
-      return `No. ${checkIn.rooms.room_number} - ${branchName}`
-    }
-    return checkIn.selected_room_type || '-'
+  // Helper function to get branch name
+  const getBranchName = (checkIn: any) => {
+    return checkIn.branches?.name || '-'
   }
 
-  const headers = ['Nama', 'No. Telepon', 'Kamar Dipilih', 'Durasi Sewa', 'Total', 'Status', 'Tanggal', 'Aksi']
+  const headers = ['Nama', 'No. Telepon', 'Cabang Kost Yang Dipesan', 'Durasi Sewa', 'Total', 'Status', 'Tanggal', 'Aksi']
   const rows = checkIns.map(checkIn => [
     checkIn.full_name,
     checkIn.phone,
-    getRoomInfo(checkIn),
+    getBranchName(checkIn),
     formatRentalDuration(checkIn),
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(checkIn.total_amount)),
     getStatusBadge(checkIn.status),
@@ -152,21 +149,23 @@ export default function CheckInManager({
         <>
           <form action={approveAction}>
             <input type="hidden" name="check_in_id" value={checkIn.id} />
-            <button
-              type="submit"
-              className="px-3 py-1 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 text-sm font-medium"
+            <SubmitButton
+              variant="success"
+              className="px-3 py-1 text-sm font-medium"
+              loadingText="Menyetujui..."
             >
               Setujui
-            </button>
+            </SubmitButton>
           </form>
           <form action={rejectAction}>
             <input type="hidden" name="check_in_id" value={checkIn.id} />
-            <button
-              type="submit"
-              className="px-3 py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-sm font-medium"
+            <SubmitButton
+              variant="danger"
+              className="px-3 py-1 text-sm font-medium"
+              loadingText="Menolak..."
             >
               Tolak
-            </button>
+            </SubmitButton>
           </form>
         </>
       )}
@@ -282,9 +281,19 @@ export default function CheckInManager({
           <button
             onClick={() => generateQR(selectedBranch)}
             disabled={loading || !selectedBranch}
-            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? 'Generating...' : 'Generate QR Code'}
+            {loading ? (
+              <>
+                <div className="relative">
+                  <div className="h-4 w-4 border-2 border-white/30 rounded-full"></div>
+                  <div className="absolute inset-0 h-4 w-4 border-2 border-transparent border-t-white rounded-full animate-spin"></div>
+                </div>
+                <span>Membuat QR Code...</span>
+              </>
+            ) : (
+              'Generate QR Code'
+            )}
           </button>
 
           {qrCodeUrl && (
@@ -395,9 +404,14 @@ export default function CheckInManager({
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
               <option value="">Pilih Kamar</option>
-              {availableRooms.map(room => (
+              {[...availableRooms].sort((a, b) => {
+                // Sort by room_number (handle both string and number)
+                const numA = parseInt(a.room_number) || 0
+                const numB = parseInt(b.room_number) || 0
+                return numA - numB
+              }).map(room => (
                 <option key={room.id} value={room.id}>
-                  No. {room.room_number} - {room.floors?.branches?.name || '-'} - {room.floors?.name || '-'} - {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(room.price)}
+                  No. {room.room_number} - {room.floors?.branches?.name || '-'} - {room.floors?.name || '-'}
                 </option>
               ))}
             </select>
@@ -417,12 +431,13 @@ export default function CheckInManager({
             >
               Batal
             </button>
-            <button
-              type="submit"
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700"
+            <SubmitButton
+              variant="primary"
+              className="flex-1 px-4 py-3"
+              loadingText="Mengassign..."
             >
               Assign Kamar
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Modal>

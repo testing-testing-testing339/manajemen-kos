@@ -1,4 +1,6 @@
-export default function Table({ headers, rows }: { headers: string[], rows: (string | React.ReactNode)[][] }) {
+import { memo } from 'react'
+
+function Table({ headers, rows }: { headers: string[], rows: (string | React.ReactNode)[][] }) {
   if (rows.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
@@ -49,3 +51,5 @@ export default function Table({ headers, rows }: { headers: string[], rows: (str
     </div>
   )
 }
+
+export default memo(Table)

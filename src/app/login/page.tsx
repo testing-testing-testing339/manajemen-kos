@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useRef } from 'react'
 import { login } from './actions'
+import SubmitButton from '@/components/ui/SubmitButton'
 
 export default function LoginPage() {
   const [state, formAction] = useActionState(login, null)
@@ -150,12 +151,13 @@ export default function LoginPage() {
               )}
             </div>
 
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transform transition-all duration-200 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+            <SubmitButton
+              variant="primary"
+              className="w-full py-3 px-4"
+              loadingText="Masuk..."
             >
               Masuk
-            </button>
+            </SubmitButton>
           </form>
 
           {/* Footer */}

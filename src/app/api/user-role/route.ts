@@ -35,3 +35,4 @@ export async function GET() {
   return NextResponse.json({ role: profile?.role || null })
 }
 
+

@@ -88,7 +88,7 @@ export default async function DashboardPage() {
     }
   }
 
-  // Get statistics
+  // Optimize: Parallel fetch all statistics
   const [branchesCount, floorsCount, roomsCount, tenantsCount, occupiedRoomsCount] = await Promise.all([
     branchesQuery,
     floorsQuery,
@@ -97,69 +97,41 @@ export default async function DashboardPage() {
     occupiedRoomsQuery,
   ])
 
-  // Get payments (handle case if table doesn't exist yet)
+  // Get payments (handle case if table doesn't exist yet) - optimized with parallel queries
   let paymentsData: any[] = []
   try {
-    // Filter payments for staff - only payments from tenants in their branch
     if (userRole === 'staff' && userBranchId && floorsData.length > 0) {
-      // Get room IDs in staff's branch
-      const { data: staffRooms } = await supabase
-        .from('rooms')
-        .select('id')
-        .in('floor_id', floorsData.map(f => f.id))
+      const floorIds = floorsData.map(f => f.id)
+      const [staffRoomsResult, nullPaymentsResult] = await Promise.all([
+        supabase.from('rooms').select('id').in('floor_id', floorIds),
+        supabase.from('payments').select('amount, payment_date, tenant_id').is('tenant_id', null)
+      ])
       
-      if (staffRooms && staffRooms.length > 0) {
+      const staffRooms = staffRoomsResult.data || []
+      if (staffRooms.length > 0) {
         const roomIds = staffRooms.map(r => r.id)
-        // Get tenant IDs in those rooms
-        const { data: staffTenants } = await supabase
-          .from('tenants')
-          .select('id')
-          .in('room_id', roomIds)
+        const staffTenantsResult = await supabase.from('tenants').select('id').in('room_id', roomIds)
+        const tenantIds = staffTenantsResult.data?.map(t => t.id) || []
         
-        if (staffTenants && staffTenants.length > 0) {
-          const tenantIds = staffTenants.map(t => t.id)
-          // Get payments from these tenants
-          const { data: branchPayments } = await supabase
+        if (tenantIds.length > 0) {
+          const branchPaymentsResult = await supabase
             .from('payments')
             .select('amount, payment_date, tenant_id')
             .in('tenant_id', tenantIds)
           
-          // Also get payments with null tenant_id (for revenue tracking after checkout)
-          // Note: We can't filter null tenant_id by branch, so we include all null payments
-          // This ensures revenue tracking persists even after tenant checkout
-          const { data: nullTenantPayments } = await supabase
-            .from('payments')
-            .select('amount, payment_date, tenant_id')
-            .is('tenant_id', null)
-          
           paymentsData = [
-            ...(branchPayments || []),
-            ...(nullTenantPayments || [])
+            ...(branchPaymentsResult.data || []),
+            ...(nullPaymentsResult.data || [])
           ]
         } else {
-          // No tenants in their branch, but still include null tenant_id payments for revenue tracking
-          const { data: nullTenantPayments } = await supabase
-            .from('payments')
-            .select('amount, payment_date, tenant_id')
-            .is('tenant_id', null)
-          
-          paymentsData = nullTenantPayments || []
+          paymentsData = nullPaymentsResult.data || []
         }
       } else {
-        // No rooms, only include null tenant_id payments for revenue tracking
-        const { data: nullTenantPayments } = await supabase
-          .from('payments')
-          .select('amount, payment_date, tenant_id')
-          .is('tenant_id', null)
-        
-        paymentsData = nullTenantPayments || []
+        paymentsData = nullPaymentsResult.data || []
       }
     } else {
-      // Owner can see all payments
-      const { data, error } = await supabase.from('payments').select('amount, payment_date, tenant_id')
-      if (!error) {
-        paymentsData = data || []
-      }
+      const { data } = await supabase.from('payments').select('amount, payment_date, tenant_id')
+      paymentsData = data || []
     }
   } catch (error) {
     // Table might not exist yet, that's okay

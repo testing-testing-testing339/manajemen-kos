@@ -88,7 +88,7 @@ export default async function PenghuniPage() {
   }
 
   const { data: tenantsData, error: tenantsError } = await tenantsQuery
-  const { data: availableRoomsData, error: roomsError } = await availableRoomsQuery
+  const { data: availableRoomsData, error: roomsError } = await availableRoomsQuery.order('room_number', { ascending: true })
 
   // Fetch check_in_requests for tenants (match by assigned_room_id -> room_id)
   let checkInRequestsData: any[] = []

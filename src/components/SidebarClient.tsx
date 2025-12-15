@@ -1,9 +1,10 @@
 'use client'
 
+import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-export default function SidebarClient({ userRole }: { userRole: string | null }) {
+function SidebarClient({ userRole }: { userRole: string | null }) {
   const pathname = usePathname()
 
   const menuItems = [
@@ -71,4 +72,6 @@ export default function SidebarClient({ userRole }: { userRole: string | null })
     </div>
   )
 }
+
+export default memo(SidebarClient)
 

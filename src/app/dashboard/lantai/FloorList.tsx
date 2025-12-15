@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { addFloor, deleteFloor } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
+import SubmitButton from '@/components/ui/SubmitButton'
 
 export default function FloorList({ initialFloors, initialBranches, userRole }: { initialFloors: any[], initialBranches: any[], userRole: string | null }) {
   const [floors, setFloors] = useState(initialFloors)
@@ -41,12 +42,13 @@ export default function FloorList({ initialFloors, initialBranches, userRole }: 
       row.push(
         <form action={deleteAction} key={floor.id}>
           <input type="hidden" name="id" value={floor.id} />
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors"
+          <SubmitButton
+            variant="danger"
+            className="px-4 py-2 text-sm font-medium"
+            loadingText="Menghapus..."
           >
             Hapus
-          </button>
+          </SubmitButton>
         </form>
       )
     }
@@ -122,12 +124,13 @@ export default function FloorList({ initialFloors, initialBranches, userRole }: 
             >
               Batal
             </button>
-            <button 
-              type="submit" 
-              className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+            <SubmitButton
+              variant="primary"
+              className="flex-1 px-4 py-3"
+              loadingText="Menambahkan..."
             >
               Tambah Lantai
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </Modal>

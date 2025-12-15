@@ -68,7 +68,7 @@ export default async function CheckInsPage() {
     }
   }
 
-  const { data: availableRooms, error: roomsError } = await roomsQuery
+  const { data: availableRooms, error: roomsError } = await roomsQuery.order('room_number', { ascending: true })
 
   // Get branches for QR generator
   let branchesQuery = supabase.from('branches').select('id, name, address, qr_code_url')

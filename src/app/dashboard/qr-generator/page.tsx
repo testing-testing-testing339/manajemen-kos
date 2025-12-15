@@ -49,3 +49,4 @@ export default async function QRGeneratorPage() {
   return <QRGenerator branches={branches || []} userRole={profile?.role || null} />
 }
 
+

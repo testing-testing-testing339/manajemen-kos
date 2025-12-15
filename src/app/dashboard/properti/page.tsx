@@ -66,14 +66,42 @@ export default async function PropertiPage() {
   }
   const { data: roomsData } = await roomsQuery
 
+  // Fetch tenants for search functionality (to search by tenant name)
+  let tenantsQuery = supabase
+    .from('tenants')
+    .select('id, full_name, room_id')
+  
+  if (profile?.role === 'staff' && profile.branch_id && floorsForRoomsData) {
+    const floorIds = floorsForRoomsData.map(f => f.id)
+    if (floorIds.length > 0) {
+      const { data: staffRooms } = await supabase
+        .from('rooms')
+        .select('id')
+        .in('floor_id', floorIds)
+      
+      if (staffRooms && staffRooms.length > 0) {
+        const roomIds = staffRooms.map(r => r.id)
+        tenantsQuery = tenantsQuery.in('room_id', roomIds)
+      } else {
+        tenantsQuery = tenantsQuery.eq('room_id', '00000000-0000-0000-0000-000000000000')
+      }
+    } else {
+      tenantsQuery = tenantsQuery.eq('room_id', '00000000-0000-0000-0000-000000000000')
+    }
+  }
+  
+  const { data: tenantsData } = await tenantsQuery
+
   return (
     <PropertiList
       initialBranches={branchesData || []}
       initialFloors={floorsData || []}
       initialRooms={roomsData || []}
       initialFloorsForRooms={floorsForRoomsData || []}
+      initialTenants={tenantsData || []}
       userRole={profile?.role || null}
     />
   )
 }
+
 

@@ -1,41 +1,42 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import CheckInForm from './CheckInForm'
+import { useEffect, useState, Suspense } from 'react'
+import { useParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
-export default function CheckInPage() {
+// Dynamic import untuk optimasi
+const CheckInForm = dynamic(() => import('./CheckInForm'), {
+  ssr: false,
+  loading: () => <LoadingSpinner size="lg" text="Memuat formulir..." />,
+})
+
+function CheckInPageContent() {
   const params = useParams()
   const branchId = params?.branchId as string | undefined
   const [branchData, setBranchData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Fetch branch data
+    if (!branchId || branchId === 'undefined') {
+      setError('Branch ID tidak ditemukan di URL')
+      return
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(branchId)) {
+      setError(`Format Branch ID tidak valid: ${branchId}`)
+      return
+    }
+
+    // Fetch branch data dengan cache
     const fetchBranch = async () => {
-      // Debug logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Branch ID from params:', branchId)
-        console.log('All params:', params)
-      }
-
-      if (!branchId || branchId === 'undefined') {
-        setError('Branch ID tidak ditemukan di URL')
-        setLoading(false)
-        return
-      }
-
-      // Validate UUID format
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      if (!uuidRegex.test(branchId)) {
-        setError(`Format Branch ID tidak valid: ${branchId}`)
-        setLoading(false)
-        return
-      }
-
       try {
-        const response = await fetch(`/api/branch/${branchId}`)
+        const response = await fetch(`/api/branch/${branchId}`, {
+          cache: 'force-cache',
+          next: { revalidate: 3600 } // Cache 1 hour
+        })
         if (response.ok) {
           const data = await response.json()
           setBranchData(data)
@@ -43,31 +44,16 @@ export default function CheckInPage() {
         } else {
           const errorData = await response.json().catch(() => ({ error: 'Branch not found' }))
           setError(errorData.error || 'Cabang tidak ditemukan')
-          console.error('Error fetching branch:', errorData.error)
         }
       } catch (error: any) {
         setError('Terjadi kesalahan saat memuat data cabang')
-        console.error('Error fetching branch:', error)
-      } finally {
-        setLoading(false)
       }
     }
 
     fetchBranch()
   }, [branchId])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuat halaman...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !branchData || !branchId) {
+  if (error || (!branchData && branchId)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
         <div className="text-center max-w-md mx-auto px-4">
@@ -86,6 +72,14 @@ export default function CheckInPage() {
     )
   }
 
+  if (!branchData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+        <LoadingSpinner size="lg" text="Memuat data cabang..." />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 py-8 px-4">
       <div className="max-w-2xl mx-auto">
@@ -99,10 +93,20 @@ export default function CheckInPage() {
             <p className="text-sm text-gray-500 mt-2">{branchData.address}</p>
           </div>
           
-          <CheckInForm branchId={branchId} branchName={branchData.name} />
+          <Suspense fallback={null}>
+            <CheckInForm branchId={branchId!} branchName={branchData.name} />
+          </Suspense>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CheckInPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckInPageContent />
+    </Suspense>
   )
 }
 
