@@ -22,3 +22,4 @@ $$ language plpgsql security definer;
 -- Create trigger to auto-sync email (optional, can be done manually)
 -- This is just for reference, you may need to update emails manually or via application
 
+

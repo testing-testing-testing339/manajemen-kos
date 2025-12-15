@@ -13,3 +13,4 @@ CREATE POLICY "Public can read floors for check-in"
     TO anon, authenticated
     USING (true);
 
+

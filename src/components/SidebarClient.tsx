@@ -1,11 +1,26 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-function SidebarClient({ userRole }: { userRole: string | null }) {
+function SidebarClient({ userRole, initialOpenTicketsCount = 0 }: { userRole: string | null, initialOpenTicketsCount?: number }) {
   const pathname = usePathname()
+  const [openTicketsCount, setOpenTicketsCount] = useState(initialOpenTicketsCount)
+
+  // Listen for real-time ticket updates
+  useEffect(() => {
+    setOpenTicketsCount(initialOpenTicketsCount)
+    
+    const handleTicketsUpdate = (event: CustomEvent) => {
+      setOpenTicketsCount(event.detail)
+    }
+
+    window.addEventListener('tickets-updated', handleTicketsUpdate as EventListener)
+    return () => {
+      window.removeEventListener('tickets-updated', handleTicketsUpdate as EventListener)
+    }
+  }, [initialOpenTicketsCount])
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: '📊' },
@@ -13,6 +28,7 @@ function SidebarClient({ userRole }: { userRole: string | null }) {
     { href: '/dashboard/penghuni', label: 'Penghuni', icon: '👥' },
     { href: '/dashboard/pembayaran', label: 'Pembayaran', icon: '💰' },
     { href: '/dashboard/check-ins', label: 'Check-in', icon: '📱' },
+    { href: '/dashboard/komplain', label: 'Komplain', icon: '📝', badge: (userRole === 'owner' || userRole === 'staff') ? openTicketsCount : undefined },
   ]
 
   // Add staff management menu only for owner
@@ -49,7 +65,17 @@ function SidebarClient({ userRole }: { userRole: string | null }) {
                 >
                   <span className={`text-xl ${isActive ? 'scale-110' : ''} transition-transform`}>{item.icon}</span>
                   <span className="font-semibold">{item.label}</span>
-                  {isActive && (
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] text-center">
+                      {item.badge}
+                    </span>
+                  )}
+                  {isActive && item.badge === undefined && (
+                    <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  {isActive && item.badge !== undefined && item.badge === 0 && (
                     <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>

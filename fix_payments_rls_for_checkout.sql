@@ -93,3 +93,4 @@ CREATE POLICY "Staff can update their branch payments"
         OR check_user_role(auth.uid()) = 'owner'
     );
 
+

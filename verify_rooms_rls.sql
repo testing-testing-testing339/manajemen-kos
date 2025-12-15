@@ -51,3 +51,4 @@ JOIN branches b ON f.branch_id = b.id
 WHERE r.is_occupied = false
 LIMIT 10;
 
+

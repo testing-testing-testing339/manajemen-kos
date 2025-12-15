@@ -38,3 +38,4 @@ WHERE tc.table_name = 'payments'
   AND tc.constraint_type = 'FOREIGN KEY'
   AND kcu.column_name = 'tenant_id';
 
+

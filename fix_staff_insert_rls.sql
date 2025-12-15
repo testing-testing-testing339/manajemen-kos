@@ -22,3 +22,4 @@ CREATE POLICY "Owner can insert profiles"
 -- Test the function
 SELECT check_user_role(auth.uid()) as current_user_role;
 
+

@@ -35,3 +35,4 @@ GRANT EXECUTE ON FUNCTION check_user_role(uuid) TO authenticated;
 -- Alternative: Test with current user
 -- SELECT check_user_role(auth.uid());
 
+

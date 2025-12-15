@@ -31,3 +31,4 @@ on storage.objects for delete
 to authenticated
 using (bucket_id = 'staff-photos');
 
+

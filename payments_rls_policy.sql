@@ -33,3 +33,4 @@ create policy "Allow authenticated users to delete payments"
     to authenticated
     using (true);
 
+
