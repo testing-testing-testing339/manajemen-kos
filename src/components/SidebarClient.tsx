@@ -55,6 +55,11 @@ function SidebarClient({
     { href: '/dashboard/komplain', label: 'Komplain', icon: '📝', badge: (userRole === 'owner' || userRole === 'staff') ? openTicketsCount : undefined },
   ]
 
+  // Add QR Generator for owner and staff
+  if (userRole === 'owner' || userRole === 'staff') {
+    menuItems.push({ href: '/dashboard/qr-generator', label: 'QR Generator', icon: '🔲' })
+  }
+
   // Add staff management menu only for owner
   if (userRole === 'owner') {
     menuItems.push({ href: '/dashboard/staff', label: 'Manajemen Staff', icon: '👔' })
