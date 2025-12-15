@@ -34,7 +34,17 @@ export async function POST(request: Request) {
   )
 
   try {
-    const body = await request.json()
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError)
+      return NextResponse.json(
+        { error: 'Format data tidak valid. Silakan coba lagi.' },
+        { status: 400 }
+      )
+    }
+    
     const { full_name, phone, email, room_number, title, category, priority, description, branch_id } = body
 
     // Validate required fields
@@ -124,8 +134,9 @@ export async function POST(request: Request) {
     
     if (roomsError) {
       console.error('Error finding room:', roomsError)
+      console.error('Room error details:', JSON.stringify(roomsError, null, 2))
       return NextResponse.json(
-        { error: 'Terjadi kesalahan saat mencari kamar. Silakan coba lagi.' },
+        { error: `Terjadi kesalahan saat mencari kamar: ${roomsError.message || 'Unknown error'}. Silakan coba lagi.` },
         { status: 500 }
       )
     }
@@ -211,10 +222,19 @@ export async function POST(request: Request) {
     const roomId = room.id
 
     // Find tenant in this room - try by name first (case insensitive)
-    const { data: allTenantsInRoom } = await supabaseAdmin
+    const { data: allTenantsInRoom, error: tenantsError } = await supabaseAdmin
       .from('tenants')
       .select('id, full_name, phone, email')
       .eq('room_id', roomId)
+
+    if (tenantsError) {
+      console.error('Error finding tenants:', tenantsError)
+      console.error('Tenants error details:', JSON.stringify(tenantsError, null, 2))
+      return NextResponse.json(
+        { error: `Terjadi kesalahan saat mencari data penyewa: ${tenantsError.message || 'Unknown error'}. Silakan coba lagi.` },
+        { status: 500 }
+      )
+    }
 
     if (!allTenantsInRoom) {
       console.error('Error: allTenantsInRoom is null')
@@ -297,8 +317,16 @@ export async function POST(request: Request) {
     )
   } catch (error: any) {
     console.error('Error in complaint API:', error)
+    console.error('Error stack:', error?.stack)
+    console.error('Error details:', JSON.stringify(error, null, 2))
+    
+    // Return more detailed error in development
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? `Terjadi kesalahan server: ${error?.message || 'Unknown error'}. Silakan coba lagi.`
+      : 'Terjadi kesalahan server. Silakan coba lagi.'
+    
     return NextResponse.json(
-      { error: 'Terjadi kesalahan server. Silakan coba lagi.' },
+      { error: errorMessage },
       { status: 500 }
     )
   }
