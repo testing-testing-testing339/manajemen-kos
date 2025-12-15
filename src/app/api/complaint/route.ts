@@ -77,54 +77,80 @@ export async function POST(request: Request) {
     // First, find the room by room number
     let roomsQuery = supabase
       .from('rooms')
-      .select('id, room_number, floor_id, floors(branch_id)')
+      .select('id, room_number, floor_id')
       .eq('room_number', sanitizedRoomNumber)
     
-    // If branch_id provided, filter by branch
-    if (branch_id) {
-      roomsQuery = roomsQuery.eq('floors.branch_id', branch_id)
-    }
-    
-    const { data: rooms, error: roomsError } = await roomsQuery.limit(1)
+    const { data: rooms, error: roomsError } = await roomsQuery
 
-    if (roomsError || !rooms || rooms.length === 0) {
+    if (roomsError) {
+      console.error('Error finding room:', roomsError)
+      return NextResponse.json(
+        { error: 'Terjadi kesalahan saat mencari kamar. Silakan coba lagi.' },
+        { status: 500 }
+      )
+    }
+
+    if (!rooms || rooms.length === 0) {
       return NextResponse.json(
         { error: 'Kamar tidak ditemukan. Pastikan nomor kamar yang Anda masukkan benar.' },
         { status: 404 }
       )
     }
 
-    const room = rooms[0]
+    // If branch_id provided, filter rooms by branch
+    let filteredRooms = rooms
+    if (branch_id) {
+      // Get floors in the branch
+      const { data: floors } = await supabase
+        .from('floors')
+        .select('id')
+        .eq('branch_id', branch_id)
+      
+      if (floors && floors.length > 0) {
+        const floorIds = floors.map((f: any) => f.id)
+        filteredRooms = rooms.filter((r: any) => floorIds.includes(r.floor_id))
+      } else {
+        filteredRooms = []
+      }
+    }
+
+    if (filteredRooms.length === 0) {
+      return NextResponse.json(
+        { error: 'Kamar tidak ditemukan di cabang ini. Pastikan nomor kamar yang Anda masukkan benar.' },
+        { status: 404 }
+      )
+    }
+
+    const room = filteredRooms[0]
     const roomId = room.id
 
-    // Find tenant in this room
-    const { data: tenants, error: tenantsError } = await supabase
+    // Find tenant in this room - try by name first (case insensitive)
+    const { data: allTenantsInRoom } = await supabase
       .from('tenants')
       .select('id, full_name, phone, email')
       .eq('room_id', roomId)
-      .eq('full_name', sanitizedName)
-      .limit(1)
 
-    if (tenantsError) {
-      console.error('Error finding tenant:', tenantsError)
+    if (!allTenantsInRoom) {
+      console.error('Error: allTenantsInRoom is null')
       return NextResponse.json(
-        { error: 'Terjadi kesalahan saat mencari data penyewa' },
+        { error: 'Terjadi kesalahan saat mencari data penyewa. Silakan coba lagi.' },
         { status: 500 }
       )
     }
 
-    // If tenant not found by name, try by phone
-    let tenant = tenants && tenants.length > 0 ? tenants[0] : null
+    // Try to find tenant by name (case insensitive)
+    let tenant = allTenantsInRoom.find((t: any) => 
+      t.full_name.toLowerCase().trim() === sanitizedName.toLowerCase().trim()
+    )
     
+    // If not found by name, try by phone
     if (!tenant) {
-      const { data: tenantsByPhone } = await supabase
-        .from('tenants')
-        .select('id, full_name, phone, email')
-        .eq('room_id', roomId)
-        .eq('phone', sanitizedPhone)
-        .limit(1)
-
-      tenant = tenantsByPhone && tenantsByPhone.length > 0 ? tenantsByPhone[0] : null
+      tenant = allTenantsInRoom.find((t: any) => {
+        // Normalize phone numbers for comparison
+        const tenantPhone = t.phone?.replace(/[^\d]/g, '')
+        const inputPhone = sanitizedPhone.replace(/[^\d]/g, '')
+        return tenantPhone === inputPhone
+      })
     }
 
     if (!tenant) {
