@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import SubmitButton from '@/components/ui/SubmitButton'
 
-export default function PublicComplaintForm() {
+export default function PublicComplaintForm({ branchId, branchName }: { branchId?: string, branchName?: string }) {
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
@@ -14,6 +14,7 @@ export default function PublicComplaintForm() {
     category: 'other',
     priority: 'medium',
     description: '',
+    branch_id: branchId || '',
   })
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)

@@ -169,7 +169,12 @@ export default function TicketList({
                         <span>👤 {ticket.tenants.full_name}</span>
                       )}
                       {ticket.rooms && (
-                        <span>🚪 Kamar No. {ticket.rooms.room_number}</span>
+                        <>
+                          <span>🚪 Kamar No. {ticket.rooms.room_number}</span>
+                          {ticket.rooms.floors?.branches && (
+                            <span>🏢 {ticket.rooms.floors.branches.name}</span>
+                          )}
+                        </>
                       )}
                       <span>🕐 {new Date(ticket.created_at).toLocaleDateString('id-ID')}</span>
                     </div>

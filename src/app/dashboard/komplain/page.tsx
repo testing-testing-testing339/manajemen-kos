@@ -109,6 +109,8 @@ export default async function KomplainPage() {
           <p className="text-gray-600 mt-1">
             {profile?.role === 'tenant' 
               ? 'Laporkan masalah dengan kamar Anda' 
+              : profile?.role === 'staff'
+              ? `Kelola tiket komplain di cabang Anda`
               : 'Kelola tiket komplain dari penyewa'}
           </p>
         </div>

@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { full_name, phone, email, room_number, title, category, priority, description } = body
+    const { full_name, phone, email, room_number, title, category, priority, description, branch_id } = body
 
     // Validate required fields
     if (!full_name || !phone || !room_number || !title || !category || !priority || !description) {
@@ -75,11 +75,17 @@ export async function POST(request: Request) {
 
     // Find tenant by room number and name/phone
     // First, find the room by room number
-    const { data: rooms, error: roomsError } = await supabase
+    let roomsQuery = supabase
       .from('rooms')
       .select('id, room_number, floor_id, floors(branch_id)')
       .eq('room_number', sanitizedRoomNumber)
-      .limit(1)
+    
+    // If branch_id provided, filter by branch
+    if (branch_id) {
+      roomsQuery = roomsQuery.eq('floors.branch_id', branch_id)
+    }
+    
+    const { data: rooms, error: roomsError } = await roomsQuery.limit(1)
 
     if (roomsError || !rooms || rooms.length === 0) {
       return NextResponse.json(
