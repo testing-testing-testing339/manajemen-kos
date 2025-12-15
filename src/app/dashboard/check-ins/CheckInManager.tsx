@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useActionState } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import { approveCheckIn, rejectCheckIn, assignRoom } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
@@ -42,6 +43,39 @@ export default function CheckInManager({
   useEffect(() => {
     setCheckIns(initialCheckIns)
   }, [initialCheckIns])
+
+  // Real-time subscription for check-in requests
+  useEffect(() => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    // Subscribe to check-in request changes
+    const channel = supabase
+      .channel('check-ins-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'check_in_requests',
+        },
+        (payload) => {
+          console.log('Check-in change detected:', payload)
+          // Refresh the page to get updated data
+          router.refresh()
+          
+          // Update badge in sidebar
+          window.dispatchEvent(new CustomEvent('checkin-updated'))
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [router])
 
   useEffect(() => {
     if (approveState?.success || rejectState?.success || assignState?.success) {

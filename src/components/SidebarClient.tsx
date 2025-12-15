@@ -4,9 +4,18 @@ import { memo, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-function SidebarClient({ userRole, initialOpenTicketsCount = 0 }: { userRole: string | null, initialOpenTicketsCount?: number }) {
+function SidebarClient({ 
+  userRole, 
+  initialOpenTicketsCount = 0,
+  initialPendingCheckInsCount = 0 
+}: { 
+  userRole: string | null
+  initialOpenTicketsCount?: number
+  initialPendingCheckInsCount?: number
+}) {
   const pathname = usePathname()
   const [openTicketsCount, setOpenTicketsCount] = useState(initialOpenTicketsCount)
+  const [pendingCheckInsCount, setPendingCheckInsCount] = useState(initialPendingCheckInsCount)
 
   // Listen for real-time ticket updates
   useEffect(() => {
@@ -22,12 +31,27 @@ function SidebarClient({ userRole, initialOpenTicketsCount = 0 }: { userRole: st
     }
   }, [initialOpenTicketsCount])
 
+  // Listen for real-time check-in updates
+  useEffect(() => {
+    setPendingCheckInsCount(initialPendingCheckInsCount)
+    
+    const handleCheckInUpdate = () => {
+      // Increment count temporarily until page refresh
+      setPendingCheckInsCount((prev) => prev + 1)
+    }
+
+    window.addEventListener('checkin-updated', handleCheckInUpdate)
+    return () => {
+      window.removeEventListener('checkin-updated', handleCheckInUpdate)
+    }
+  }, [initialPendingCheckInsCount])
+
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: '📊' },
     { href: '/dashboard/properti', label: 'Properti', icon: '🏢' },
     { href: '/dashboard/penghuni', label: 'Penghuni', icon: '👥' },
     { href: '/dashboard/pembayaran', label: 'Pembayaran', icon: '💰' },
-    { href: '/dashboard/check-ins', label: 'Check-in', icon: '📱' },
+    { href: '/dashboard/check-ins', label: 'Check-in', icon: '📱', badge: (userRole === 'owner' || userRole === 'staff') ? pendingCheckInsCount : undefined },
     { href: '/dashboard/komplain', label: 'Komplain', icon: '📝', badge: (userRole === 'owner' || userRole === 'staff') ? openTicketsCount : undefined },
   ]
 
