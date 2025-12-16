@@ -93,3 +93,5 @@ grant execute on function check_user_role(uuid) to authenticated;
 grant execute on function get_staff_branch(uuid) to authenticated;
 
 
+
+

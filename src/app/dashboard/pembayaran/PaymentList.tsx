@@ -7,6 +7,7 @@ import { recordPayment, confirmPayment } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
+import Invoice from '@/components/Invoice'
 
 export default function PaymentList({ initialTenants, initialPayments }: { initialTenants: any[], initialPayments: any[] }) {
   const [tenants, setTenants] = useState(initialTenants)
@@ -15,6 +16,8 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
   const [selectedTenant, setSelectedTenant] = useState<any>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<any>(null)
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false)
+  const [invoicePayment, setInvoicePayment] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [paymentState, paymentAction] = useActionState(recordPayment, null)
@@ -35,55 +38,65 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
     }
   }, [paymentState, confirmState, router])
 
+  // OPTIMIZATION: Memoize payment status calculations
+  const today = useMemo(() => new Date(), [])
+  const currentMonth = today.getMonth()
+  const currentYear = today.getFullYear()
+  
   // Helper function to check if tenant has paid for current period
-  const getPaymentStatus = (tenant: any) => {
-    const today = new Date()
-    const dueDate = new Date(tenant.payment_due_date)
-    const currentMonth = today.getMonth()
-    const currentYear = today.getFullYear()
-    
-    // Check if there's a CONFIRMED payment for current month/year
-    // If status column doesn't exist, treat all payments as confirmed (backward compatibility)
-    const hasPaid = payments.some((payment: any) => {
+  // OPTIMIZATION: Create a Set of paid tenant IDs for faster lookup
+  const paidTenantIds = useMemo(() => {
+    const paidIds = new Set<string>()
+    payments.forEach((payment: any) => {
       const paymentDate = new Date(payment.payment_date)
-      // If status is undefined/null, treat as confirmed (backward compatibility)
       const isConfirmed = payment.status === undefined || payment.status === null || payment.status === 'confirmed'
-      return (
-        payment.tenant_id === tenant.id &&
+      if (
         isConfirmed &&
         paymentDate.getMonth() === currentMonth &&
-        paymentDate.getFullYear() === currentYear
-      )
+        paymentDate.getFullYear() === currentYear &&
+        payment.tenant_id
+      ) {
+        paidIds.add(payment.tenant_id)
+      }
     })
-
+    return paidIds
+  }, [payments, currentMonth, currentYear])
+  
+  const getPaymentStatus = (tenant: any) => {
+    const dueDate = new Date(tenant.payment_due_date)
+    const hasPaid = paidTenantIds.has(tenant.id)
     const isOverdue = dueDate < today && !hasPaid
-
     return { hasPaid, isOverdue, dueDate }
   }
 
-  // Calculate statistics
-  const totalTenants = tenants.length
-  const paidTenants = tenants.filter(t => getPaymentStatus(t).hasPaid).length
-  const unpaidTenants = totalTenants - paidTenants
-  const overdueTenants = tenants.filter(t => getPaymentStatus(t).isOverdue).length
-  
-  // Only count confirmed payments for revenue
-  // If status column doesn't exist, treat all payments as confirmed (backward compatibility)
-  const confirmedPayments = payments.filter((p: any) => {
-    return p.status === undefined || p.status === null || p.status === 'confirmed'
-  })
-  const totalRevenue = confirmedPayments.reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0)
-  const monthlyRevenue = confirmedPayments
-    .filter((p: any) => {
-      const paymentDate = new Date(p.payment_date)
-      const today = new Date()
-      return paymentDate.getMonth() === today.getMonth() && 
-             paymentDate.getFullYear() === today.getFullYear()
+  // OPTIMIZATION: Memoize statistics calculations
+  const statistics = useMemo(() => {
+    const totalTenants = tenants.length
+    const paidTenants = tenants.filter(t => getPaymentStatus(t).hasPaid).length
+    const unpaidTenants = totalTenants - paidTenants
+    const overdueTenants = tenants.filter(t => getPaymentStatus(t).isOverdue).length
+    
+    // Only count confirmed payments for revenue
+    const confirmedPayments = payments.filter((p: any) => {
+      return p.status === undefined || p.status === null || p.status === 'confirmed'
     })
-    .reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0)
+    const totalRevenue = confirmedPayments.reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0)
+    const monthlyRevenue = confirmedPayments
+      .filter((p: any) => {
+        const paymentDate = new Date(p.payment_date)
+        return paymentDate.getMonth() === currentMonth && 
+               paymentDate.getFullYear() === currentYear
+      })
+      .reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0)
+    
+    return { totalTenants, paidTenants, unpaidTenants, overdueTenants, totalRevenue, monthlyRevenue }
+  }, [tenants, payments, paidTenantIds, currentMonth, currentYear, today])
+  
+  const { totalTenants, paidTenants, unpaidTenants, overdueTenants, totalRevenue, monthlyRevenue } = statistics
 
-  const headers = ['Nama Penghuni', 'Kamar', 'Harga Sewa', 'Jatuh Tempo', 'Status Pembayaran', 'Aksi']
-  const rows = tenants.map(tenant => {
+  // OPTIMIZATION: Memoize table rows to prevent unnecessary re-renders
+  const headers = useMemo(() => ['Nama Penghuni', 'Kamar', 'Harga Sewa', 'Jatuh Tempo', 'Status Pembayaran', 'Aksi'], [])
+  const rows = useMemo(() => tenants.map(tenant => {
     const status = getPaymentStatus(tenant)
     const roomLabel = `No. ${tenant.rooms?.room_number} - ${tenant.rooms?.floors?.branches?.name}`
     // Use total_amount from check_in_request if available, otherwise use room price
@@ -140,7 +153,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
         {status.hasPaid ? 'Lihat Detail' : 'Tandai Bayar'}
       </button>
     ]
-  })
+  }), [tenants, paidTenantIds, today])
 
   return (
     <div className="space-y-6">
@@ -345,7 +358,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
               </tr>
             </thead>
             <tbody>
-              {(() => {
+              {useMemo(() => {
                 let filteredPayments = payments.filter((p: any) => p.status === 'confirmed' || (p.status === undefined && p.confirmed_by !== null))
                 
                 // Filter by search query
@@ -369,7 +382,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                 }
                 
                 return filteredPayments
-              })().map((payment: any) => {
+              }, [payments, searchQuery, dateFilter, tenants]).map((payment: any) => {
                   // Get tenant info from payment relation or from tenants list
                   const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
                   
@@ -396,7 +409,31 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                     roomInfo = 'Kamar tidak tersedia'
                   }
                   
-                  const confirmedByName = payment.profiles?.full_name || '-'
+                  // Get confirmed by name - check if profiles data exists
+                  let confirmedByName = '-'
+                  if (payment.profiles && payment.profiles.full_name) {
+                    confirmedByName = payment.profiles.full_name
+                  } else if (payment.confirmed_by) {
+                    // If we have confirmed_by but no profiles, it means fetch failed
+                    confirmedByName = '-' // Keep as '-' since we don't have the data
+                  }
+                  
+                  // Debug log in development
+                  if (process.env.NODE_ENV === 'development' && payment.confirmed_by) {
+                    if (!payment.profiles) {
+                      console.log('Payment has confirmed_by but no profiles data:', {
+                        paymentId: payment.id,
+                        confirmed_by: payment.confirmed_by,
+                        profiles: payment.profiles
+                      })
+                    } else {
+                      console.log('Payment profiles data:', {
+                        paymentId: payment.id,
+                        confirmed_by: payment.confirmed_by,
+                        profileName: payment.profiles.full_name
+                      })
+                    }
+                  }
                   const paymentProofUrl = checkInRequest?.payment_proof_url || null
                   
                   return (
@@ -424,19 +461,34 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">{confirmedByName}</td>
                       <td className="py-3 px-4">
-                        <button
-                          onClick={() => {
-                            setSelectedPayment(payment)
-                            setIsDetailModalOpen(true)
-                          }}
-                          className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-sm font-semibold hover:bg-indigo-200 transition-all duration-150 active:scale-95 flex items-center gap-1"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          Detail
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedPayment(payment)
+                              setIsDetailModalOpen(true)
+                            }}
+                            className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-sm font-semibold hover:bg-indigo-200 transition-all duration-150 active:scale-95 flex items-center gap-1"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            Detail
+                          </button>
+                          <button
+                            onClick={() => {
+                              setInvoicePayment(payment)
+                              setIsInvoiceModalOpen(true)
+                            }}
+                            className="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-sm font-semibold hover:bg-green-200 transition-all duration-150 active:scale-95 flex items-center gap-1"
+                            title="Cetak Invoice"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            Invoice
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -729,6 +781,40 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                 </button>
               </div>
             </>
+          )
+        })()}
+      </Modal>
+
+      {/* Invoice Modal */}
+      <Modal isOpen={isInvoiceModalOpen} onClose={() => {
+        setIsInvoiceModalOpen(false)
+        setInvoicePayment(null)
+      }} size="large">
+        {invoicePayment && (() => {
+          const tenant = invoicePayment.tenants || tenants.find((t: any) => t.id === invoicePayment.tenant_id)
+          const checkInRequest = invoicePayment.check_in_request
+          const confirmedBy = invoicePayment.profiles
+          
+          return (
+            <div className="max-h-[90vh] overflow-y-auto">
+              <Invoice 
+                payment={invoicePayment}
+                tenant={tenant}
+                checkInRequest={checkInRequest}
+                confirmedBy={confirmedBy}
+              />
+              <div className="mt-4 flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setIsInvoiceModalOpen(false)
+                    setInvoicePayment(null)
+                  }}
+                  className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-all duration-150 active:scale-95"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
           )
         })()}
       </Modal>

@@ -28,3 +28,5 @@ COMMENT ON COLUMN check_in_requests.rental_duration IS 'Durasi sewa: daily, mont
 COMMENT ON COLUMN check_in_requests.rental_days IS 'Jumlah hari untuk sewa harian';
 
 
+
+

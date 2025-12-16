@@ -36,3 +36,5 @@ GRANT EXECUTE ON FUNCTION check_user_role(uuid) TO authenticated;
 -- SELECT check_user_role(auth.uid());
 
 
+
+

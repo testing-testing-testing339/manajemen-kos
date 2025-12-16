@@ -23,7 +23,6 @@ export default async function SidebarServer() {
   // Get user role for sidebar
   const { data: { user } } = await supabase.auth.getUser()
   let userRole: string | null = null
-  let openTicketsCount = 0
   let pendingCheckInsCount = 0
   
   if (user) {
@@ -56,50 +55,8 @@ export default async function SidebarServer() {
       } else if (profile) {
         userRole = profile.role || null
         
-        // Get open tickets count for owner/staff
+        // Get pending check-ins count for owner/staff
         if (profile.role === 'owner' || profile.role === 'staff') {
-          try {
-            if (profile.role === 'owner') {
-              // Owner can see all open tickets
-              const { count } = await supabase
-                .from('tickets')
-                .select('*', { count: 'exact', head: true })
-                .in('status', ['open', 'in_progress'])
-              
-              openTicketsCount = count || 0
-            } else if (profile.role === 'staff' && profile.branch_id) {
-              // Staff can only see tickets in their branch
-              // Get all rooms in their branch via floors
-              const { data: floors } = await supabase
-                .from('floors')
-                .select('id')
-                .eq('branch_id', profile.branch_id)
-              
-              if (floors && floors.length > 0) {
-                const floorIds = floors.map((f: any) => f.id)
-                const { data: rooms } = await supabase
-                  .from('rooms')
-                  .select('id')
-                  .in('floor_id', floorIds)
-                
-                if (rooms && rooms.length > 0) {
-                  const roomIds = rooms.map((r: any) => r.id)
-                  const { count } = await supabase
-                    .from('tickets')
-                    .select('*', { count: 'exact', head: true })
-                    .in('status', ['open', 'in_progress'])
-                    .in('room_id', roomIds)
-                  
-                  openTicketsCount = count || 0
-                }
-              }
-            }
-          } catch (error) {
-            // Silently fail - don't break sidebar if tickets query fails
-            openTicketsCount = 0
-          }
-
-          // Get pending check-ins count for owner/staff
           try {
             let checkInsQuery = supabase
               .from('check_in_requests')
@@ -128,7 +85,6 @@ export default async function SidebarServer() {
 
   return <SidebarClient 
     userRole={userRole} 
-    initialOpenTicketsCount={openTicketsCount}
     initialPendingCheckInsCount={pendingCheckInsCount}
   />
 }

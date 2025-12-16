@@ -6,30 +6,13 @@ import { usePathname } from 'next/navigation'
 
 function SidebarClient({ 
   userRole, 
-  initialOpenTicketsCount = 0,
   initialPendingCheckInsCount = 0 
 }: { 
   userRole: string | null
-  initialOpenTicketsCount?: number
   initialPendingCheckInsCount?: number
 }) {
   const pathname = usePathname()
-  const [openTicketsCount, setOpenTicketsCount] = useState(initialOpenTicketsCount)
   const [pendingCheckInsCount, setPendingCheckInsCount] = useState(initialPendingCheckInsCount)
-
-  // Listen for real-time ticket updates
-  useEffect(() => {
-    setOpenTicketsCount(initialOpenTicketsCount)
-    
-    const handleTicketsUpdate = (event: CustomEvent) => {
-      setOpenTicketsCount(event.detail)
-    }
-
-    window.addEventListener('tickets-updated', handleTicketsUpdate as EventListener)
-    return () => {
-      window.removeEventListener('tickets-updated', handleTicketsUpdate as EventListener)
-    }
-  }, [initialOpenTicketsCount])
 
   // Listen for real-time check-in updates
   useEffect(() => {
@@ -52,7 +35,6 @@ function SidebarClient({
     { href: '/dashboard/penghuni', label: 'Penghuni', icon: '👥' },
     { href: '/dashboard/pembayaran', label: 'Pembayaran', icon: '💰' },
     { href: '/dashboard/check-ins', label: 'Check-in', icon: '📱', badge: (userRole === 'owner' || userRole === 'staff') ? pendingCheckInsCount : undefined },
-    { href: '/dashboard/komplain', label: 'Komplain', icon: '📝', badge: (userRole === 'owner' || userRole === 'staff') ? openTicketsCount : undefined },
   ]
 
   // Add QR Generator for owner and staff

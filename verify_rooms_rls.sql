@@ -52,3 +52,5 @@ WHERE r.is_occupied = false
 LIMIT 10;
 
 
+
+

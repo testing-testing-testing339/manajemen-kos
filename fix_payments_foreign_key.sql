@@ -39,3 +39,5 @@ WHERE tc.table_name = 'payments'
   AND kcu.column_name = 'tenant_id';
 
 
+
+

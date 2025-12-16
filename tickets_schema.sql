@@ -121,3 +121,5 @@ CREATE POLICY "Staff and owner can update tickets"
 -- Enable Realtime for tickets table
 ALTER PUBLICATION supabase_realtime ADD TABLE tickets;
 
+
+

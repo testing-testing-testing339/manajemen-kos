@@ -63,42 +63,8 @@ export default function NotificationManager({
       )
       .subscribe()
 
-    // Subscribe to new tickets (if not already handled)
-    const ticketChannel = supabase
-      .channel('ticket-notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'tickets',
-          filter: 'status=eq.open',
-        },
-        (payload) => {
-          console.log('New ticket:', payload)
-          
-          // Play notification sound
-          playNotificationSound()
-          
-          // Show notification
-          const newNotification: NotificationItem = {
-            id: `ticket-${payload.new.id}-${Date.now()}`,
-            title: 'Komplain Baru! 📝',
-            message: `Ada komplain baru: ${payload.new.title || 'Komplain'}`,
-            type: 'warning',
-          }
-          
-          setNotifications((prev) => [...prev, newNotification])
-          
-          // Update badge in sidebar
-          window.dispatchEvent(new CustomEvent('tickets-updated', { detail: 1 }))
-        }
-      )
-      .subscribe()
-
     return () => {
       supabase.removeChannel(checkInChannel)
-      supabase.removeChannel(ticketChannel)
     }
   }, [userId, userRole])
 

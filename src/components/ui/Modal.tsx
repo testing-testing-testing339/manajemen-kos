@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-export default function Modal({ isOpen, onClose, children }: { isOpen: boolean, onClose: () => void, children: React.ReactNode }) {
+export default function Modal({ isOpen, onClose, children, size = 'normal' }: { isOpen: boolean, onClose: () => void, children: React.ReactNode, size?: 'normal' | 'large' }) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -22,7 +22,7 @@ export default function Modal({ isOpen, onClose, children }: { isOpen: boolean, 
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 text-gray-900 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+        className={`bg-white rounded-2xl shadow-2xl ${size === 'large' ? 'max-w-4xl' : 'max-w-lg'} w-full mx-4 text-gray-900 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-2xl">

@@ -12,3 +12,5 @@ CREATE POLICY "Public can read branches for check-in"
 -- Only SELECT is allowed, INSERT/UPDATE/DELETE still require authentication.
 
 
+
+

@@ -14,3 +14,5 @@ CREATE POLICY "Public can read floors for check-in"
     USING (true);
 
 
+
+

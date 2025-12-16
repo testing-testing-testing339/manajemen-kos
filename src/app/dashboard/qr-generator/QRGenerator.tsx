@@ -3,10 +3,7 @@
 import { useState } from 'react'
 import QRCode from 'qrcode'
 
-type TabType = 'checkin' | 'complaint'
-
 export default function QRGenerator({ branches, userRole }: { branches: any[], userRole: string | null }) {
-  const [activeTab, setActiveTab] = useState<TabType>('checkin')
   const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || '')
   const [qrCodeUrl, setQrCodeUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -51,44 +48,11 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
     }
   }
 
-  const generateComplaintQR = async (branchId: string) => {
-    setLoading(true)
-    try {
-      const siteUrl = window.location.origin
-      const complaintUrl = `${siteUrl}/komplain/${branchId}`
-      
-      // Generate QR code
-      const qrDataUrl = await QRCode.toDataURL(complaintUrl, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      })
-
-      setQrCodeUrl(qrDataUrl)
-    } catch (error) {
-      console.error('Error generating QR code:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const generateQR = (branchId: string) => {
-    if (activeTab === 'checkin') {
-      generateCheckInQR(branchId)
-    } else {
-      generateComplaintQR(branchId)
-    }
-  }
-
   const downloadQR = () => {
     if (!qrCodeUrl) return
     
     const link = document.createElement('a')
-    const type = activeTab === 'checkin' ? 'checkin' : 'komplain'
-    link.download = `qr-code-${type}-${selectedBranch}.png`
+    link.download = `qr-code-checkin-${selectedBranch}.png`
     link.href = qrCodeUrl
     link.click()
   }
@@ -99,37 +63,7 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Generator QR Code</h1>
-        <p className="text-gray-600">Generate QR code untuk check-in dan komplain di setiap cabang</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm p-1 border border-gray-200 inline-flex">
-        <button
-          onClick={() => {
-            setActiveTab('checkin')
-            setQrCodeUrl('')
-          }}
-          className={`px-6 py-2 rounded-lg font-semibold transition-all ${
-            activeTab === 'checkin'
-              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Check-in
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('complaint')
-            setQrCodeUrl('')
-          }}
-          className={`px-6 py-2 rounded-lg font-semibold transition-all ${
-            activeTab === 'complaint'
-              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Komplain
-        </button>
+        <p className="text-gray-600">Generate QR code untuk check-in di setiap cabang</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
@@ -157,7 +91,7 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
         )}
 
         <button
-          onClick={() => generateQR(selectedBranch)}
+          onClick={() => generateCheckInQR(selectedBranch)}
           disabled={loading || !selectedBranch}
           className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -170,7 +104,7 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
               <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
             </div>
             <p className="text-sm text-gray-600 mt-4 mb-2">
-              Scan QR code ini untuk {activeTab === 'checkin' ? 'check-in' : 'mengisi komplain'} di cabang <span className="font-semibold">{selectedBranchData?.name}</span>
+              Scan QR code ini untuk check-in di cabang <span className="font-semibold">{selectedBranchData?.name}</span>
             </p>
             <button
               onClick={downloadQR}

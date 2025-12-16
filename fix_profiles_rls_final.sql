@@ -109,3 +109,5 @@ grant execute on function is_owner(uuid) to authenticated;
 grant execute on function get_user_branch_id(uuid) to authenticated;
 
 
+
+
