@@ -1,21 +1,23 @@
 -- ============================================
--- SCRIPT RESET DATA PENGHUNI & KEUANGAN
+-- SCRIPT CLEAN DATA TRANSAKSIONAL
 -- ============================================
--- PERINGATAN: Script ini akan menghapus:
+-- PERINGATAN: Script ini akan menghapus BERSIH:
 --   ✓ Semua penghuni (tenants)
 --   ✓ Semua data pembayaran (payments)
 --   ✓ Semua riwayat check-in requests
---   ✓ Reset semua kamar menjadi kosong
+--   ✓ Reset semua kamar menjadi kosong (is_occupied = false)
 --
--- Data yang TIDAK akan dihapus:
---   ✗ Cabang (branches)
---   ✗ Lantai (floors)
---   ✗ Kamar (rooms) - hanya direset statusnya
---   ✗ Staff/User accounts (profiles)
+-- Data yang TIDAK akan dihapus (TETAP ADA):
+--   ✗ Cabang (branches) - tetap utuh
+--   ✗ Lantai (floors) - tetap utuh
+--   ✗ Kamar (rooms) - tetap utuh, hanya direset status is_occupied = false
+--   ✗ User/Staff accounts (profiles) - tetap utuh
 --
 -- Gunakan script ini HANYA untuk testing/development!
 -- JANGAN jalankan di production tanpa backup!
 -- ============================================
+
+BEGIN;
 
 DO $$
 DECLARE
@@ -36,7 +38,7 @@ BEGIN
   SELECT COUNT(*) INTO occupied_rooms_before FROM rooms WHERE is_occupied = true;
   
   RAISE NOTICE '========================================';
-  RAISE NOTICE 'DATA SEBELUM RESET:';
+  RAISE NOTICE 'DATA SEBELUM CLEAN:';
   RAISE NOTICE 'Total Penghuni: %', tenant_count_before;
   RAISE NOTICE 'Total Pembayaran: %', payment_count_before;
   RAISE NOTICE 'Total Check-in Requests: %', checkin_count_before;
@@ -44,11 +46,11 @@ BEGIN
   RAISE NOTICE '========================================';
   RAISE NOTICE '';
 
-  -- 1. Hapus semua riwayat check-in requests (harus pertama karena foreign key)
+  -- 1. Hapus semua riwayat check-in requests (harus pertama karena foreign key constraint)
   DELETE FROM check_in_requests;
   RAISE NOTICE '✓ Riwayat check-in requests telah dihapus';
 
-  -- 2. Hapus semua data pembayaran
+  -- 2. Hapus semua data pembayaran (harus sebelum hapus tenants karena foreign key)
   DELETE FROM payments;
   RAISE NOTICE '✓ Data pembayaran telah dihapus';
 
@@ -58,7 +60,7 @@ BEGIN
 
   -- 4. Reset semua kamar menjadi kosong
   UPDATE rooms SET is_occupied = false;
-  RAISE NOTICE '✓ Semua kamar telah direset menjadi kosong';
+  RAISE NOTICE '✓ Semua kamar telah direset menjadi kosong (is_occupied = false)';
 
   -- Ambil data setelah reset
   SELECT COUNT(*) INTO tenant_count_after FROM tenants;
@@ -69,7 +71,7 @@ BEGIN
   
   RAISE NOTICE '';
   RAISE NOTICE '========================================';
-  RAISE NOTICE 'DATA SETELAH RESET:';
+  RAISE NOTICE 'DATA SETELAH CLEAN:';
   RAISE NOTICE 'Total Penghuni: %', tenant_count_after;
   RAISE NOTICE 'Total Pembayaran: %', payment_count_after;
   RAISE NOTICE 'Total Check-in Requests: %', checkin_count_after;
@@ -78,14 +80,16 @@ BEGIN
   RAISE NOTICE 'Kamar Kosong: %', (room_count - occupied_rooms_after);
   RAISE NOTICE '========================================';
   RAISE NOTICE '';
-  RAISE NOTICE 'RESET SELESAI!';
-  RAISE NOTICE 'Data penghuni, keuangan, dan check-in telah dihapus.';
-  RAISE NOTICE 'Semua kamar telah direset menjadi kosong.';
+  RAISE NOTICE 'CLEAN DATA SELESAI!';
+  RAISE NOTICE 'Semua data transaksional telah dihapus.';
+  RAISE NOTICE 'Data cabang, lantai, kamar, dan user tetap utuh.';
   RAISE NOTICE '========================================';
 END $$;
 
+COMMIT;
+
 -- ============================================
--- VERIFIKASI HASIL RESET
+-- VERIFIKASI HASIL CLEAN
 -- ============================================
 SELECT 
   'Tenants' as tabel,
@@ -113,29 +117,42 @@ FROM rooms
 WHERE is_occupied = true
 ORDER BY tabel;
 
--- Tampilkan ringkasan struktur data yang tetap ada
+-- ============================================
+-- TAMPILKAN STRUKTUR DATA YANG TETAP ADA
+-- ============================================
 SELECT 
-  'Branches' as struktur_data,
+  'Branches (Cabang)' as struktur_data,
   COUNT(*) as jumlah
 FROM branches
 UNION ALL
 SELECT 
-  'Floors' as struktur_data,
+  'Floors (Lantai)' as struktur_data,
   COUNT(*) as jumlah
 FROM floors
 UNION ALL
 SELECT 
-  'Rooms' as struktur_data,
+  'Rooms (Kamar)' as struktur_data,
   COUNT(*) as jumlah
 FROM rooms
 UNION ALL
 SELECT 
-  'Profiles (Staff/Owner)' as struktur_data,
+  'Profiles (User/Staff)' as struktur_data,
   COUNT(*) as jumlah
 FROM profiles
 ORDER BY struktur_data;
 
-
-
+-- ============================================
+-- RINGKASAN KAMAR PER CABANG (jika ingin melihat detail)
+-- ============================================
+SELECT 
+  b.name as cabang,
+  COUNT(r.id) as total_kamar,
+  COUNT(CASE WHEN r.is_occupied = true THEN 1 END) as kamar_terisi,
+  COUNT(CASE WHEN r.is_occupied = false THEN 1 END) as kamar_kosong
+FROM branches b
+LEFT JOIN floors f ON f.branch_id = b.id
+LEFT JOIN rooms r ON r.floor_id = f.id
+GROUP BY b.id, b.name
+ORDER BY b.name;
 
 

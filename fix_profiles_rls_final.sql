@@ -111,3 +111,4 @@ grant execute on function get_user_branch_id(uuid) to authenticated;
 
 
 
+

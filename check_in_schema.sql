@@ -91,3 +91,4 @@ ADD COLUMN IF NOT EXISTS qr_code_data text; -- Store QR data for regeneration
 
 
 
+

@@ -1,0 +1,49 @@
+name: Keep Supabase Database Alive
+
+on:
+  schedule:
+    # Berjalan setiap 2 hari sekali pada pukul 00:00 UTC (07:00 WIB)
+    - cron: '0 0 */2 * *'
+  # Memungkinkan untuk dijalankan secara manual dari tab Actions di GitHub
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    name: Ping Database & Keep Alive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database Directly via REST API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://vjpbptaessvffhoeltjl.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqcGJwdGFlc3N2ZmZob2VsdGpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NDgyNDQsImV4cCI6MjA4MTIyNDI0NH0.maMAnRsDAjvZqcO9HIy_vOTeoNLSKQmjkjetVTYp47w' }}
+        run: |
+          echo "Sending query to Supabase PostgreSQL database..."
+          HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
+            -X GET "${SUPABASE_URL}/rest/v1/branches?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          
+          echo "Supabase Response Code: $HTTP_STATUS"
+          cat response.json
+          echo ""
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Database is active and query succeeded!"
+          else
+            echo "⚠️ Direct query returned status $HTTP_STATUS, trying fallback query on profiles..."
+            HTTP_STATUS_FALLBACK=$(curl -s -o response2.json -w "%{http_code}" \
+              -X GET "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+            echo "Fallback Response Code: $HTTP_STATUS_FALLBACK"
+            cat response2.json
+            echo ""
+          fi
+
+      - name: Optional Ping to Live Web Endpoint
+        if: ${{ env.PRODUCTION_URL != '' }}
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          echo "Pinging web keep-alive endpoint..."
+          curl -s -f "${PRODUCTION_URL}/api/keep-alive" || echo "Web ping skipped or failed"

@@ -38,3 +38,4 @@ GRANT EXECUTE ON FUNCTION check_user_role(uuid) TO authenticated;
 
 
 
+

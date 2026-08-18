@@ -2,7 +2,15 @@
 
 import { useEffect } from 'react'
 
-export default function Modal({ isOpen, onClose, children, size = 'normal' }: { isOpen: boolean, onClose: () => void, children: React.ReactNode, size?: 'normal' | 'large' }) {
+interface ModalProps {
+  isOpen: boolean
+  onClose: () => void
+  children: React.ReactNode
+  size?: 'sm' | 'md' | 'lg' | 'large' | 'xl' | '2xl' | 'full'
+  className?: string
+}
+
+export default function Modal({ isOpen, onClose, children, size = 'md', className = '' }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -16,30 +24,21 @@ export default function Modal({ isOpen, onClose, children, size = 'normal' }: { 
 
   if (!isOpen) return null
 
+  const sizeClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-2xl',
+    large: 'max-w-3xl',
+    xl: 'max-w-4xl',
+    '2xl': 'max-w-6xl',
+    full: 'max-w-full m-4',
+  }[size] || 'max-w-md'
+
   return (
-    <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <div 
-        className={`bg-white rounded-2xl shadow-2xl ${size === 'large' ? 'max-w-4xl' : 'max-w-lg'} w-full mx-4 text-gray-900 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-2xl">
-          <div className="w-8"></div>
-          <button 
-            onClick={onClose} 
-            className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
-            aria-label="Close"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className="p-6">
-          {children}
-        </div>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      <div className={`bg-white p-6 rounded-lg ${sizeClasses} w-full text-gray-900 shadow-xl relative ${className}`}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl font-semibold leading-none">&times;</button>
+        {children}
       </div>
     </div>
   )

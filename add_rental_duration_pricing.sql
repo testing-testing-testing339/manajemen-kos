@@ -30,3 +30,4 @@ COMMENT ON COLUMN check_in_requests.rental_days IS 'Jumlah hari untuk sewa haria
 
 
 
+

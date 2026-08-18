@@ -2,7 +2,6 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { revalidatePath } from 'next/cache'
 
 export async function addFloor(prevState: any, formData: FormData) {
   const branch_id = formData.get('branch_id') as string
@@ -27,25 +26,10 @@ export async function addFloor(prevState: any, formData: FormData) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  // Check if user is owner
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'owner') {
-    return { error: 'Only owner can add floors' }
-  }
-
   const { error } = await supabase.from('floors').insert({ branch_id, name })
 
   if (error) return { error: error.message }
 
-  revalidatePath('/dashboard/lantai')
   return { success: true }
 }
 
@@ -71,24 +55,9 @@ export async function deleteFloor(prevState: any, formData: FormData) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  // Check if user is owner
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'owner') {
-    return { error: 'Only owner can delete floors' }
-  }
-
   const { error } = await supabase.from('floors').delete().eq('id', id)
 
   if (error) return { error: error.message }
 
-  revalidatePath('/dashboard/lantai')
   return { success: true }
 }

@@ -31,9 +31,6 @@ export async function createTenant(prevState: any, formData: FormData) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
   // Insert tenant
   const { error: insertError } = await supabase.from('tenants').insert({
     room_id,
@@ -79,16 +76,10 @@ export async function deleteTenant(prevState: any, formData: FormData) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
   // Get room_id
   const { data: tenant } = await supabase.from('tenants').select('room_id').eq('id', id).single()
 
   if (!tenant) return { error: 'Tenant not found' }
-
-  // Don't delete payments - keep them for revenue tracking
-  // Just delete the tenant record and update room status
 
   // Delete tenant
   const { error: deleteError } = await supabase.from('tenants').delete().eq('id', id)
