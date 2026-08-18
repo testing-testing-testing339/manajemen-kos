@@ -55,38 +55,52 @@ export default async function DashboardPage() {
   const { data: branches, count: totalBranches } = await branchesQuery
 
   // Fetch rooms data
-  let roomsQuery = supabase.from('rooms').select('id, room_number, is_occupied, status, floor_id, floors!inner(branch_id)')
+  let roomsQuery = supabase.from('rooms').select('id, room_number, is_occupied, floor_id, floors(id, name, branch_id)')
   if (profile?.branch_id && !isOwner) {
     roomsQuery = roomsQuery.eq('floors.branch_id', profile.branch_id)
   }
   const { data: rooms } = await roomsQuery
 
   const totalRooms = rooms?.length || 0
-  const occupiedRooms = rooms?.filter(r => r.is_occupied || r.status === 'occupied').length || 0
+  const occupiedRooms = rooms?.filter(r => r.is_occupied === true).length || 0
   const availableRooms = totalRooms - occupiedRooms
   const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
 
   // Fetch active tenants count
-  let tenantsQuery = supabase.from('tenants').select('id, full_name, room_id, rooms!inner(floors!inner(branch_id))', { count: 'exact' })
+  let tenantsQuery = supabase.from('tenants').select('id, full_name, room_id, rooms(id, floor_id, floors(branch_id))', { count: 'exact' })
   if (profile?.branch_id && !isOwner) {
     tenantsQuery = tenantsQuery.eq('rooms.floors.branch_id', profile.branch_id)
   }
   const { count: totalTenants } = await tenantsQuery
 
-  // Fetch pending check-ins count
-  let checkInsQuery = supabase.from('check_in_requests').select('id, full_name, phone_number, created_at, status, branch_id', { count: 'exact' })
+  // Fetch pending check-ins count specifically
+  let pendingCheckInsQuery = supabase
+    .from('check_in_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending')
   if (profile?.branch_id && !isOwner) {
-    checkInsQuery = checkInsQuery.eq('branch_id', profile.branch_id)
+    pendingCheckInsQuery = pendingCheckInsQuery.eq('branch_id', profile.branch_id)
   }
-  const { data: recentCheckIns, count: pendingCheckIns } = await checkInsQuery
+  const { count: pendingCheckIns } = await pendingCheckInsQuery
+
+  // Fetch recent check-ins for the table
+  let recentCheckInsQuery = supabase
+    .from('check_in_requests')
+    .select('id, full_name, phone, created_at, status, branch_id, total_amount')
+  if (profile?.branch_id && !isOwner) {
+    recentCheckInsQuery = recentCheckInsQuery.eq('branch_id', profile.branch_id)
+  }
+  const { data: recentCheckIns } = await recentCheckInsQuery
     .order('created_at', { ascending: false })
     .limit(5)
 
   // Fetch payments summary
-  let paymentsQuery = supabase.from('payments').select('id, amount, payment_type, status, payment_date, tenant_id, tenants(full_name, rooms(room_number))')
-  const { data: recentPayments } = await paymentsQuery
+  let paymentsQuery = supabase
+    .from('payments')
+    .select('id, amount, status, payment_date, payment_method, notes, tenant_id, tenants(full_name, rooms(room_number))')
     .order('created_at', { ascending: false })
     .limit(5)
+  const { data: recentPayments } = await paymentsQuery
 
   const pendingPayments = recentPayments?.filter(p => p.status === 'pending')?.length || 0
 
@@ -330,17 +344,17 @@ export default async function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{ci.full_name}</p>
-                      <p className="text-xs text-slate-400">{ci.phone_number || 'Tanpa no. hp'}</p>
+                      <p className="text-xs text-slate-400">{ci.phone || 'Tanpa no. hp'}</p>
                     </div>
                   </div>
                   <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full capitalize ${
-                    ci.status === 'approved' 
+                    ci.status === 'approved' || ci.status === 'completed'
                       ? 'bg-emerald-100 text-emerald-700'
                       : ci.status === 'rejected'
                       ? 'bg-red-100 text-red-700'
                       : 'bg-amber-100 text-amber-700'
                   }`}>
-                    {ci.status || 'Pending'}
+                    {ci.status === 'completed' ? 'Selesai' : ci.status === 'approved' ? 'Disetujui' : ci.status === 'rejected' ? 'Ditolak' : 'Pending'}
                   </span>
                 </div>
               ))
@@ -380,10 +394,10 @@ export default async function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {p.tenants?.full_name || 'Penghuni'}
+                        {p.tenants?.full_name || 'Pembayaran Tamu'}
                       </p>
                       <p className="text-xs text-slate-400">
-                        Kamar {p.tenants?.rooms?.room_number || '-'} • {p.payment_type || 'Bulanan'}
+                        {p.tenants?.rooms?.room_number ? `Kamar ${p.tenants.rooms.room_number} • ` : ''}{p.payment_method ? `Metode: ${p.payment_method}` : (p.notes || 'Transfer')}
                       </p>
                     </div>
                   </div>
@@ -392,11 +406,11 @@ export default async function DashboardPage() {
                       Rp {Number(p.amount || 0).toLocaleString('id-ID')}
                     </p>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                      p.status === 'confirmed' || p.status === 'verified'
+                      p.status === 'confirmed' || p.status === 'verified' || p.status === 'completed'
                         ? 'bg-emerald-100 text-emerald-700'
                         : 'bg-amber-100 text-amber-700'
                     }`}>
-                      {p.status || 'Pending'}
+                      {p.status === 'confirmed' ? 'Terkonfirmasi' : p.status || 'Pending'}
                     </span>
                   </div>
                 </div>
