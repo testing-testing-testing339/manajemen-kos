@@ -3,13 +3,13 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createTenant, deleteTenant } from './actions'
+import Link from 'next/link'
+import { deleteTenant } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
 import { 
   Users, 
-  UserPlus, 
   Search, 
   Filter, 
   Building2, 
@@ -23,8 +23,9 @@ import {
   LogOut,
   ExternalLink,
   Zap,
-  Phone,
-  DoorClosed
+  DoorClosed,
+  UserCheck,
+  QrCode
 } from 'lucide-react'
 
 interface TenantListProps {
@@ -44,10 +45,8 @@ export default function TenantList({
 }: TenantListProps) {
   const router = useRouter()
   const [tenants, setTenants] = useState(initialTenants)
-  const [availableRooms, setAvailableRooms] = useState(initialAvailableRooms)
   
-  // Modals state
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  // Checkout Modal state
   const [checkoutTenant, setCheckoutTenant] = useState<any>(null)
   
   // Filter States
@@ -56,20 +55,11 @@ export default function TenantList({
   const [selectedFloor, setSelectedFloor] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
 
-  const [createState, createAction] = useActionState(createTenant, null)
   const [deleteState, deleteAction] = useActionState(deleteTenant, null)
 
   useEffect(() => {
     setTenants(initialTenants)
-    setAvailableRooms(initialAvailableRooms)
-  }, [initialTenants, initialAvailableRooms])
-
-  useEffect(() => {
-    if (createState?.success) {
-      setIsModalOpen(false)
-      router.refresh()
-    }
-  }, [createState, router])
+  }, [initialTenants])
 
   useEffect(() => {
     if (deleteState?.success) {
@@ -255,13 +245,22 @@ export default function TenantList({
           </p>
         </div>
 
-        <button 
-          onClick={() => setIsModalOpen(true)} 
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
-        >
-          <UserPlus className="w-4.5 h-4.5" />
-          Check-in Penghuni Baru
-        </button>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/dashboard/check-ins"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-md shadow-indigo-500/25 transition-all duration-200"
+          >
+            <UserCheck className="w-4 h-4" />
+            Permintaan Check-in Tamu
+          </Link>
+          <Link
+            href="/dashboard/qr-generator"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all duration-200"
+          >
+            <QrCode className="w-4 h-4 text-indigo-600" />
+            QR Check-in
+          </Link>
+        </div>
       </div>
 
       {/* KPI Stats Cards */}
@@ -419,147 +418,6 @@ export default function TenantList({
           )}
         </div>
       )}
-
-      {/* Modal Check-In Baru */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="lg">
-        <div className="mb-6">
-          <div className="flex items-center gap-2.5 mb-1">
-            <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-              <UserPlus className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Check-in Penghuni Baru
-            </h2>
-          </div>
-          <p className="text-xs text-slate-500">
-            Daftarkan penghuni ke kamar yang tersedia dan atur tanggal tagihan
-          </p>
-        </div>
-
-        <form action={createAction} className="space-y-4">
-          {/* Kamar Dropdown */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              Pilih Kamar Tersedia
-            </label>
-            <div className="relative">
-              <select 
-                name="room_id" 
-                required 
-                className="w-full appearance-none pl-3.5 pr-8 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
-              >
-                <option value="">-- Pilih Kamar Kos --</option>
-                {availableRooms.map(room => {
-                  const branch = room.floors?.branches?.name || 'Cabang'
-                  const floor = room.floors?.name || 'Lantai'
-                  const priceStr = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price || 0)
-                  return (
-                    <option key={room.id} value={room.id}>
-                      Kamar {room.room_number} - {branch} ({floor}) • {priceStr}/bulan
-                    </option>
-                  )
-                })}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <ChevronDown className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Nama Lengkap Penghuni
-              </label>
-              <input 
-                name="full_name" 
-                type="text" 
-                required 
-                placeholder="cth: Ahmad Fauzi"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all" 
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Link Foto KTP / Dokumen
-              </label>
-              <input 
-                name="id_card_url" 
-                type="text" 
-                required 
-                placeholder="https://... atau nomor NIK"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all" 
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Tanggal Masuk
-              </label>
-              <input 
-                name="check_in_date" 
-                type="date" 
-                required 
-                defaultValue={new Date().toISOString().split('T')[0]}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all" 
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Jatuh Tempo Pembayaran
-              </label>
-              <input 
-                name="payment_due_date" 
-                type="date" 
-                required 
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all" 
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              Angka Meteran Listrik Awal (kWh)
-            </label>
-            <input 
-              name="electricity_meter_start" 
-              type="number" 
-              step="any"
-              required 
-              defaultValue="0"
-              placeholder="0"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all" 
-            />
-          </div>
-
-          {createState?.error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
-              {createState.error}
-            </div>
-          )}
-
-          <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              Batal
-            </button>
-            <SubmitButton
-              variant="primary"
-              className="py-2.5 px-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer"
-              loadingText="Menyimpan..."
-            >
-              Simpan & Check-in
-            </SubmitButton>
-          </div>
-        </form>
-      </Modal>
 
       {/* Modal Konfirmasi Check-Out */}
       <Modal isOpen={!!checkoutTenant} onClose={() => setCheckoutTenant(null)} size="sm">
