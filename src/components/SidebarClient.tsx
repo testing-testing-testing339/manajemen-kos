@@ -3,6 +3,17 @@
 import { memo, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { 
+  LayoutDashboard, 
+  Building2, 
+  Users, 
+  CreditCard, 
+  UserCheck, 
+  QrCode, 
+  ShieldCheck, 
+  Sparkles,
+  ChevronRight
+} from 'lucide-react'
 
 function SidebarClient({ 
   userRole, 
@@ -19,7 +30,6 @@ function SidebarClient({
     setPendingCheckInsCount(initialPendingCheckInsCount)
     
     const handleCheckInUpdate = () => {
-      // Increment count temporarily until page refresh
       setPendingCheckInsCount((prev) => prev + 1)
     }
 
@@ -30,66 +40,76 @@ function SidebarClient({
   }, [initialPendingCheckInsCount])
 
   const menuItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-    { href: '/dashboard/properti', label: 'Properti', icon: '🏢' },
-    { href: '/dashboard/penghuni', label: 'Penghuni', icon: '👥' },
-    { href: '/dashboard/pembayaran', label: 'Pembayaran', icon: '💰' },
-    { href: '/dashboard/check-ins', label: 'Check-in', icon: '📱', badge: (userRole === 'owner' || userRole === 'staff') ? pendingCheckInsCount : undefined },
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/dashboard/properti', label: 'Properti & Kamar', icon: Building2 },
+    { href: '/dashboard/penghuni', label: 'Penghuni', icon: Users },
+    { href: '/dashboard/pembayaran', label: 'Pembayaran', icon: CreditCard },
+    { 
+      href: '/dashboard/check-ins', 
+      label: 'Permintaan Check-in', 
+      icon: UserCheck, 
+      badge: (userRole === 'owner' || userRole === 'staff') ? pendingCheckInsCount : undefined 
+    },
   ]
 
-  // Add QR Generator for owner and staff
   if (userRole === 'owner' || userRole === 'staff') {
-    menuItems.push({ href: '/dashboard/qr-generator', label: 'QR Generator', icon: '🔲' })
+    menuItems.push({ href: '/dashboard/qr-generator', label: 'QR Check-in', icon: QrCode, badge: undefined })
   }
 
-  // Add staff management menu only for owner
   if (userRole === 'owner') {
-    menuItems.push({ href: '/dashboard/staff', label: 'Manajemen Staff', icon: '👔' })
+    menuItems.push({ href: '/dashboard/staff', label: 'Manajemen Staff', icon: ShieldCheck, badge: undefined })
   }
 
   return (
-    <div className="bg-white text-gray-700 w-64 min-h-screen border-r border-gray-200 shadow-sm flex flex-col">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg">
-            <span className="text-white text-2xl font-bold">GA</span>
+    <aside className="bg-white text-slate-700 w-64 min-h-screen border-r border-slate-200/80 shadow-xs flex flex-col flex-shrink-0 select-none">
+      {/* Brand Header */}
+      <div className="p-6 border-b border-slate-100">
+        <Link href="/dashboard" className="flex items-center gap-3 group">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/25 group-hover:scale-105 transition-transform duration-200">
+            <Building2 className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-gray-900 leading-tight">Graha Aisyah</h2>
-            <p className="text-xs text-gray-500">Mainframe System</p>
+            <h2 className="text-base font-extrabold text-slate-900 leading-none tracking-tight">
+              Graha Aisyah
+            </h2>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Management
+              </p>
+            </div>
           </div>
-        </div>
+        </Link>
       </div>
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
+
+      {/* Navigation */}
+      <nav className="flex-1 p-3.5 space-y-1">
+        <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          Menu Utama
+        </p>
+        <ul className="space-y-1">
           {menuItems.map((item) => {
+            const Icon = item.icon
             const isActive = pathname === item.href
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-3 py-3 px-4 rounded-xl transition-all duration-200 ${
+                  className={`flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-medium text-sm transition-all duration-200 ${
                     isActive
-                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg transform scale-105'
-                      : 'text-gray-700 hover:bg-gray-50 hover:transform hover:translate-x-1'
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20 font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
-                  <span className={`text-xl ${isActive ? 'scale-110' : ''} transition-transform`}>{item.icon}</span>
-                  <span className="font-semibold">{item.label}</span>
+                  <Icon className={`w-4.5 h-4.5 transition-transform ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <span className="truncate">{item.label}</span>
                   {item.badge !== undefined && item.badge > 0 && (
-                    <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] text-center">
+                    <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-[11px] font-bold rounded-full min-w-[20px] text-center shadow-xs animate-bounce">
                       {item.badge}
                     </span>
                   )}
-                  {isActive && item.badge === undefined && (
-                    <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                  {isActive && item.badge !== undefined && item.badge === 0 && (
-                    <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
+                  {isActive && (
+                    <ChevronRight className="w-4 h-4 ml-auto text-white/80 flex-shrink-0" />
                   )}
                 </Link>
               </li>
@@ -97,16 +117,28 @@ function SidebarClient({
           })}
         </ul>
       </nav>
-      <div className="p-4 border-t border-gray-200">
-        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100">
-          <p className="text-xs font-semibold text-indigo-900 mb-1">💡 Tips</p>
-          <p className="text-xs text-indigo-700">Gunakan menu di atas untuk navigasi cepat</p>
-          {userRole && process.env.NODE_ENV === 'development' && (
-            <p className="text-xs text-indigo-600 mt-2 font-semibold">Role: {userRole}</p>
+
+      {/* System Badge */}
+      <div className="p-4 border-t border-slate-100">
+        <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 rounded-2xl p-3.5 border border-indigo-100/80">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles className="w-4 h-4 text-indigo-600" />
+            <p className="text-xs font-bold text-indigo-950">Sistem Manajemen</p>
+          </div>
+          <p className="text-[11px] text-indigo-700/90 leading-relaxed">
+            Kelola operasional kamar & pembayaran secara realtime
+          </p>
+          {userRole && (
+            <div className="mt-2 pt-2 border-t border-indigo-100/60 flex items-center justify-between">
+              <span className="text-[10px] text-indigo-500 font-medium uppercase">Role</span>
+              <span className="text-[11px] font-bold px-2 py-0.5 bg-indigo-600 text-white rounded-full capitalize">
+                {userRole}
+              </span>
+            </div>
           )}
         </div>
       </div>
-    </div>
+    </aside>
   )
 }
 
