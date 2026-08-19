@@ -19,7 +19,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Graha Aisyah Menteng - Sistem Manajemen Kost",
-  description: "Sistem manajemen operasional Graha Aisyah Menteng (53 Kamar: 13 VIP & 40 Non-VIP)",
+  description: "Sistem manajemen operasional Graha Aisyah Menteng",
 };
 
 export default function RootLayout({

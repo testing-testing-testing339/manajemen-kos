@@ -63,12 +63,6 @@ export default function LoginPage() {
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               Graha Aisyah Menteng
             </h1>
-            <div className="flex items-center justify-center gap-1.5 mt-1">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                53 Kamar • Management System
-              </span>
-            </div>
             <p className="text-sm text-slate-500 mt-2">
               Masuk ke akun administrator & staff kos
             </p>

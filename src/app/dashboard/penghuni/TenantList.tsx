@@ -310,7 +310,7 @@ export default function TenantList({
             <Users className="w-4 h-4 text-indigo-600" />
           </div>
           <p className="text-2xl font-black text-slate-900">{stats.total}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Kapasitas total 53 Kamar</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Penghuni Aktif Graha Aisyah</p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">

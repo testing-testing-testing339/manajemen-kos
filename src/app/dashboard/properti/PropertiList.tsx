@@ -284,10 +284,10 @@ export default function PropertiList({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Daftar & Manajemen 53 Kamar
+            Daftar & Manajemen Kamar
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Graha Aisyah Menteng • 13 Kamar VIP & 40 Kamar Non-VIP (Tarif Seragam Rp 100.000/malam)
+            Graha Aisyah Menteng • Kamar VIP & Kamar Non-VIP (Tarif Rp 100.000/malam)
           </p>
         </div>
 

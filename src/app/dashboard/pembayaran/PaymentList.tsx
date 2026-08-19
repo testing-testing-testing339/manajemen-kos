@@ -214,7 +214,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
             <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Graha Aisyah Menteng (53 Kamar)</span>
+            <span>Graha Aisyah Menteng</span>
           </span>
         </div>
       </div>
