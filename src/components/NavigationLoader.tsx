@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { usePathname } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
 
 export default function NavigationLoader() {
   const pathname = usePathname()
@@ -11,11 +12,9 @@ export default function NavigationLoader() {
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Reset loading when pathname changes
+  // Reset loading when pathname changes (navigation completed)
   useEffect(() => {
-    // If pathname changed, we've navigated - hide loader
     if (previousPathname.current !== pathname) {
-      // Clear intervals
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current)
         progressIntervalRef.current = null
@@ -25,14 +24,14 @@ export default function NavigationLoader() {
         loadingTimeoutRef.current = null
       }
       
-      // Complete progress and hide
       setProgress(100)
-      setTimeout(() => {
+      const t = setTimeout(() => {
         setIsLoading(false)
         setProgress(0)
-      }, 200)
+      }, 250)
       
       previousPathname.current = pathname
+      return () => clearTimeout(t)
     }
   }, [pathname])
 
@@ -43,11 +42,9 @@ export default function NavigationLoader() {
       
       if (link) {
         const href = link.getAttribute('href')
-        // Only handle internal links
+        // Only handle internal relative links
         if (href && href.startsWith('/') && !href.startsWith('#') && !href.startsWith('http') && !href.startsWith('mailto:')) {
-          // Check if it's a different route
           if (href !== pathname) {
-            // Clear any existing timeouts/intervals
             if (progressIntervalRef.current) {
               clearInterval(progressIntervalRef.current)
             }
@@ -55,21 +52,20 @@ export default function NavigationLoader() {
               clearTimeout(loadingTimeoutRef.current)
             }
             
-            // Show loading immediately
             setIsLoading(true)
-            setProgress(0)
+            setProgress(15)
             
-            // Simulate progress
-            let currentProgress = 0
+            // Progressive smooth loading increments
+            let currentProgress = 15
             progressIntervalRef.current = setInterval(() => {
-              currentProgress += Math.random() * 15
-              if (currentProgress > 90) {
-                currentProgress = 90 // Don't complete until navigation finishes
+              currentProgress += (90 - currentProgress) * 0.15
+              if (currentProgress > 92) {
+                currentProgress = 92
               }
               setProgress(currentProgress)
-            }, 100)
+            }, 80)
             
-            // Safety timeout - hide after 5 seconds max
+            // Safety timeout
             loadingTimeoutRef.current = setTimeout(() => {
               if (progressIntervalRef.current) {
                 clearInterval(progressIntervalRef.current)
@@ -77,13 +73,12 @@ export default function NavigationLoader() {
               }
               setIsLoading(false)
               setProgress(0)
-            }, 5000)
+            }, 6000)
           }
         }
       }
     }
 
-    // Use capture phase to catch events early, before Next.js handles them
     document.addEventListener('click', handleClick, true)
     
     return () => {
@@ -97,24 +92,29 @@ export default function NavigationLoader() {
     }
   }, [pathname])
 
-  if (!isLoading) return null
+  if (!isLoading && progress === 0) return null
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg">
-      <div className="h-1 bg-white/20 relative overflow-hidden">
-        <div 
-          className="h-full bg-white transition-all duration-300 ease-out"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-      <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-3">
-        <div className="relative">
-          <div className="h-4 w-4 border-2 border-white/30 rounded-full"></div>
-          <div className="absolute inset-0 h-4 w-4 border-2 border-transparent border-t-white rounded-full animate-spin"></div>
+    <>
+      {/* Top Gradient Progress Bar */}
+      <div className="fixed top-0 left-0 right-0 z-[99999] pointer-events-none">
+        <div className="h-1 w-full bg-slate-900/10 backdrop-blur-xs">
+          <div 
+            className="h-full bg-gradient-to-r from-indigo-600 via-purple-500 to-emerald-400 transition-all duration-200 ease-out shadow-[0_0_12px_rgba(99,102,241,0.8)]"
+            style={{ width: `${progress}%` }}
+          />
         </div>
-        <p className="text-xs font-semibold">Memuat halaman...</p>
       </div>
-    </div>
+
+      {/* Floating Top Right Glass Indicator */}
+      {isLoading && (
+        <div className="fixed top-4 right-4 z-[99999] pointer-events-none animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="bg-slate-900/90 text-white backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-xl border border-slate-700/60 flex items-center gap-2.5">
+            <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+            <span className="text-xs font-bold text-slate-200">Memuat halaman...</span>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
-

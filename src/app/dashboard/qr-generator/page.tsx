@@ -38,13 +38,13 @@ export default async function QRGeneratorPage() {
     redirect('/dashboard')
   }
 
-  // Get branches
-  let branchesQuery = supabase.from('branches').select('id, name, address, qr_code_url')
-  if (profile?.role === 'staff' && profile.branch_id) {
-    branchesQuery = branchesQuery.eq('id', profile.branch_id)
-  }
+  // Get branches (Graha Aisyah Menteng)
+  let branchesQuery = supabase
+    .from('branches')
+    .select('id, name, address, qr_code_url')
+    .ilike('name', '%Menteng%')
 
-  const { data: branches } = await branchesQuery.order('name', { ascending: true })
+  const { data: branches } = await branchesQuery.limit(1)
 
   return <QRGenerator branches={branches || []} userRole={profile?.role || null} />
 }

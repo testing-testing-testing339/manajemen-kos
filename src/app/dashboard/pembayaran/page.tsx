@@ -202,10 +202,9 @@ export default async function PembayaranPage() {
       const paymentsWithConfirmedBy = paymentsData.filter((p: any) => p.confirmed_by)
       const confirmedByIds = [...new Set(paymentsWithConfirmedBy.map((p: any) => p.confirmed_by).filter(Boolean))]
       
-      // Prepare check-in requests query for payments (for checkout tenants)
       let checkInRequestsQuery = supabase
         .from('check_in_requests')
-        .select('id, full_name, phone, payment_proof_url, total_amount, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, rooms(room_number, floors(branches(name)))')
+        .select('id, full_name, phone, payment_proof_url, id_card_photo_url, selfie_photo_url, total_amount, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, rooms(room_number, floors(branches(name)))')
         .eq('status', 'completed')
       
       if (userRole === 'staff' && userBranchId) {

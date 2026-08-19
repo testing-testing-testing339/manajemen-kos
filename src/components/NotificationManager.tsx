@@ -50,7 +50,7 @@ export default function NotificationManager({
           // Show notification
           const newNotification: NotificationItem = {
             id: `checkin-${payload.new.id}-${Date.now()}`,
-            title: 'Check-in Baru! 🎉',
+            title: 'Permintaan Check-in Baru',
             message: `Ada permintaan check-in baru dari ${payload.new.full_name || 'Penyewa'}`,
             type: 'info',
           }

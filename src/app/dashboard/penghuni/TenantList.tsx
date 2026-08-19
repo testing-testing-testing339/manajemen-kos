@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { deleteTenant } from './actions'
+import { processCheckout } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
@@ -25,7 +25,11 @@ import {
   Zap,
   DoorClosed,
   UserCheck,
-  QrCode
+  QrCode,
+  ShieldCheck,
+  Banknote,
+  DollarSign,
+  AlertCircle
 } from 'lucide-react'
 
 interface TenantListProps {
@@ -46,33 +50,68 @@ export default function TenantList({
   const router = useRouter()
   const [tenants, setTenants] = useState(initialTenants)
   
-  // Checkout Modal state
+  // Checkout Modal states
   const [checkoutTenant, setCheckoutTenant] = useState<any>(null)
+  const [checkoutTime, setCheckoutTime] = useState<string>('')
+  const [damageFee, setDamageFee] = useState<number>(0)
+  const [checkoutNotes, setCheckoutNotes] = useState<string>('')
   
   // Filter States
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedBranch, setSelectedBranch] = useState('all')
   const [selectedFloor, setSelectedFloor] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
 
-  const [deleteState, deleteAction] = useActionState(deleteTenant, null)
+  const [checkoutState, checkoutAction] = useActionState(processCheckout, null)
 
   useEffect(() => {
     setTenants(initialTenants)
   }, [initialTenants])
 
   useEffect(() => {
-    if (deleteState?.success) {
+    if (checkoutState?.success) {
       setCheckoutTenant(null)
       router.refresh()
     }
-  }, [deleteState, router])
+  }, [checkoutState, router])
 
-  // Filter floors based on selected branch
-  const availableFloors = useMemo(() => {
-    if (selectedBranch === 'all') return floors
-    return floors.filter(f => f.branch_id === selectedBranch)
-  }, [floors, selectedBranch])
+  // Set default current time when checkout modal opens
+  useEffect(() => {
+    if (checkoutTenant) {
+      const now = new Date()
+      const hours = String(now.getHours()).padStart(2, '0')
+      const mins = String(now.getMinutes()).padStart(2, '0')
+      setCheckoutTime(`${hours}:${mins}`)
+      setDamageFee(0)
+      setCheckoutNotes('')
+    }
+  }, [checkoutTenant])
+
+  // Calculate late fee based on checkout time
+  const calculatedLateFee = useMemo(() => {
+    if (!checkoutTime) return 0
+    const [hStr, mStr] = checkoutTime.split(':')
+    const hours = parseInt(hStr) || 0
+    const minutes = parseInt(mStr) || 0
+    const totalMinutes = hours * 60 + minutes
+
+    const checkoutStandardMinutes = 12 * 60 // 12:00
+    const threePMMinutes = 15 * 60 // 15:00
+    const fivePMMinutes = 17 * 60 // 17:00
+
+    if (totalMinutes <= checkoutStandardMinutes) {
+      return 0
+    } else if (totalMinutes <= threePMMinutes) {
+      return 50000 // Telat s/d jam 15:00 (3 sore)
+    } else if (totalMinutes <= fivePMMinutes) {
+      return 100000 // Telat jam 15:00 s/d 17:00 (5 sore)
+    } else {
+      return 100000 // Telat lewat jam 17:00 (denda 1 hari)
+    }
+  }, [checkoutTime])
+
+  const initialDeposit = 100000
+  const netRefund = Math.max(0, initialDeposit - calculatedLateFee - damageFee)
+  const additionalPayNeeded = Math.max(0, (calculatedLateFee + damageFee) - initialDeposit)
 
   // Helper to determine due date status
   const getDueStatus = (dueDateStr: string) => {
@@ -97,12 +136,8 @@ export default function TenantList({
       const q = searchQuery.toLowerCase()
       const nameMatch = tenant.full_name?.toLowerCase().includes(q)
       const roomMatch = tenant.rooms?.room_number?.toString().toLowerCase().includes(q)
-      const phoneMatch = tenant.phone_number?.toLowerCase().includes(q)
+      const phoneMatch = tenant.phone?.toLowerCase().includes(q) || tenant.phone_number?.toLowerCase().includes(q)
       if (searchQuery && !nameMatch && !roomMatch && !phoneMatch) return false
-
-      // Branch filter
-      const tenantBranchId = tenant.rooms?.floors?.branches?.id || tenant.rooms?.floors?.branch_id
-      if (selectedBranch !== 'all' && tenantBranchId !== selectedBranch) return false
 
       // Floor filter
       const tenantFloorId = tenant.rooms?.floor_id || tenant.rooms?.floors?.id
@@ -116,7 +151,7 @@ export default function TenantList({
 
       return true
     })
-  }, [tenants, searchQuery, selectedBranch, selectedFloor, selectedStatus])
+  }, [tenants, searchQuery, selectedFloor, selectedStatus])
 
   // Statistics calculation
   const stats = useMemo(() => {
@@ -134,21 +169,20 @@ export default function TenantList({
     return { total: tenants.length, active, near, overdue }
   }, [tenants])
 
-  const hasActiveFilters = searchQuery !== '' || selectedBranch !== 'all' || selectedFloor !== 'all' || selectedStatus !== 'all'
+  const hasActiveFilters = searchQuery !== '' || selectedFloor !== 'all' || selectedStatus !== 'all'
 
   const resetFilters = () => {
     setSearchQuery('')
-    setSelectedBranch('all')
     setSelectedFloor('all')
     setSelectedStatus('all')
   }
 
-  const headers = ['Penghuni', 'Kamar & Lokasi', 'Tgl Masuk', 'Jatuh Tempo', 'Meteran Listrik', 'Aksi']
+  const headers = ['Penghuni', 'Kamar', 'Tgl Masuk', 'Jatuh Tempo / Selesai', 'Uang Deposit', 'Aksi']
   
   const rows = filteredTenants.map(tenant => {
-    const branchName = tenant.rooms?.floors?.branches?.name || 'Cabang'
     const floorName = tenant.rooms?.floors?.name || 'Lantai'
     const roomNumber = tenant.rooms?.room_number || '-'
+    const isVip = roomNumber.toLowerCase().includes('vip')
     const dueStatus = getDueStatus(tenant.payment_due_date)
     const dueDate = tenant.payment_due_date ? new Date(tenant.payment_due_date) : null
 
@@ -166,7 +200,7 @@ export default function TenantList({
               rel="noreferrer" 
               className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-0.5 mt-0.5"
             >
-              KTP/Identitas <ExternalLink className="w-3 h-3" />
+              Foto KTP <ExternalLink className="w-3 h-3" />
             </a>
           )}
         </div>
@@ -175,10 +209,15 @@ export default function TenantList({
       <div key={`room-${tenant.id}`}>
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs">
           <DoorClosed className="w-3.5 h-3.5 text-indigo-600" />
-          Kamar {roomNumber}
+          <span>{roomNumber}</span>
+          {isVip && (
+            <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 text-[10px] font-extrabold rounded">
+              VIP
+            </span>
+          )}
         </div>
         <p className="text-[11px] text-slate-400 mt-1 font-medium">
-          {branchName} • {floorName}
+          Graha Aisyah Menteng • {floorName}
         </p>
       </div>,
 
@@ -202,7 +241,7 @@ export default function TenantList({
               {dueDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
             <p className="text-[10px] text-slate-400 mt-0.5 pl-1">
-              {dueStatus === 'overdue' ? 'Menunggak' : dueStatus === 'near' ? 'Jatuh tempo segera' : 'Lancar'}
+              {dueStatus === 'overdue' ? 'Lewat tempo' : dueStatus === 'near' ? 'Jatuh tempo segera' : 'Aktif'}
             </p>
           </div>
         ) : (
@@ -210,38 +249,38 @@ export default function TenantList({
         )}
       </div>,
 
-      <div key={`meter-${tenant.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
-        <Zap className="w-3.5 h-3.5 text-amber-500" />
-        <span>{tenant.electricity_meter_start || 0} kWh</span>
+      <div key={`deposit-${tenant.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60">
+        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+        <span>Rp 100.000</span>
       </div>,
 
       <button
         key={`action-${tenant.id}`}
         type="button"
         onClick={() => setCheckoutTenant(tenant)}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200/80 hover:border-red-600 transition-all duration-150 cursor-pointer shadow-xs"
+        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 transition-all duration-150 cursor-pointer shadow-xs"
       >
         <LogOut className="w-3.5 h-3.5" />
-        Check-out
+        Proses Check-out
       </button>
     ]
   })
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
-      {/* Top Header & Action */}
+      {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Data Penghuni
+              Penghuni Graha Aisyah Menteng
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-              {filteredTenants.length} dari {tenants.length}
+              {filteredTenants.length} dari {tenants.length} Aktif
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Kelola data penyewa kos, status sewa, dan pengingat jatuh tempo
+            Kelola data penyewa, pengembalian deposit Rp 100.000, dan kalkulasi denda keterlambatan check-out
           </p>
         </div>
 
@@ -251,7 +290,7 @@ export default function TenantList({
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-md shadow-indigo-500/25 transition-all duration-200"
           >
             <UserCheck className="w-4 h-4" />
-            Permintaan Check-in Tamu
+            Permintaan Check-in
           </Link>
           <Link
             href="/dashboard/qr-generator"
@@ -271,6 +310,7 @@ export default function TenantList({
             <Users className="w-4 h-4 text-indigo-600" />
           </div>
           <p className="text-2xl font-black text-slate-900">{stats.total}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Kapasitas total 53 Kamar</p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -279,6 +319,7 @@ export default function TenantList({
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-black text-emerald-600">{stats.active}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Pembayaran tepat waktu</p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -287,23 +328,25 @@ export default function TenantList({
             <Clock className="w-4 h-4 text-amber-600" />
           </div>
           <p className="text-2xl font-black text-amber-600">{stats.near}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Perlu konfirmasi perpanjangan</p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Menunggak</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Menunggak / Telat</span>
             <AlertTriangle className="w-4 h-4 text-red-600" />
           </div>
           <p className="text-2xl font-black text-red-600">{stats.overdue}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Melewati batas waktu sewa</p>
         </div>
       </div>
 
-      {/* Advanced Filter Panel & Custom Dropdowns */}
+      {/* Filter & Search Bar */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
             <Filter className="w-4 h-4 text-indigo-600" />
-            <span>Filter & Pencarian Penghuni</span>
+            <span>Pencarian & Filter Penghuni</span>
           </div>
           {hasActiveFilters && (
             <button
@@ -316,7 +359,7 @@ export default function TenantList({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Search Box */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -326,32 +369,9 @@ export default function TenantList({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama / no. kamar..."
+              placeholder="Cari nama / no. kamar (VIP / 201)..."
               className="w-full pl-9.5 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
             />
-          </div>
-
-          {/* Branch Dropdown */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <Building2 className="w-4 h-4 text-indigo-500" />
-            </div>
-            <select
-              value={selectedBranch}
-              onChange={(e) => {
-                setSelectedBranch(e.target.value)
-                setSelectedFloor('all')
-              }}
-              className="w-full appearance-none pl-9.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
-            >
-              <option value="all">🏢 Semua Cabang Kos</option>
-              {branches.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-              <ChevronDown className="w-4 h-4" />
-            </div>
           </div>
 
           {/* Floor Dropdown */}
@@ -365,7 +385,7 @@ export default function TenantList({
               className="w-full appearance-none pl-9.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
             >
               <option value="all">🪜 Semua Lantai</option>
-              {availableFloors.map(f => (
+              {floors.map(f => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
@@ -384,10 +404,10 @@ export default function TenantList({
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="w-full appearance-none pl-9.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
             >
-              <option value="all">⚡ Semua Status Jatuh Tempo</option>
-              <option value="active">🟢 Pembayaran Lancar</option>
-              <option value="near">🟡 Segera Jatuh Tempo (&le; 7 Hari)</option>
-              <option value="overdue">🔴 Menunggak (Lewat Jatuh Tempo)</option>
+              <option value="all">Semua Status</option>
+              <option value="active">Status Lancar</option>
+              <option value="near">Segera Jatuh Tempo (&le; 7 Hari)</option>
+              <option value="overdue">Menunggak / Melewati Tempo</option>
             </select>
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
               <ChevronDown className="w-4 h-4" />
@@ -404,54 +424,160 @@ export default function TenantList({
           <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
             <Search className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-bold text-slate-800">Tidak ada penghuni yang sesuai</h3>
+          <h3 className="text-base font-bold text-slate-800">Tidak ada data penghuni yang cocok</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            Coba ubah kata kunci pencarian atau reset filter di atas untuk melihat seluruh data penghuni kos.
+            Ubah kata kunci pencarian atau reset filter di atas untuk melihat seluruh penghuni Graha Aisyah Menteng.
           </p>
-          {hasActiveFilters && (
-            <button
-              onClick={resetFilters}
-              className="mt-4 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
-            >
-              Reset Filter
-            </button>
-          )}
         </div>
       )}
 
-      {/* Modal Konfirmasi Check-Out */}
-      <Modal isOpen={!!checkoutTenant} onClose={() => setCheckoutTenant(null)} size="sm">
+      {/* =========================================================================
+          MODAL CHECK-OUT DENGAN KALKULASI DENDA TELAT & PENGEMBALIAN DEPOSIT
+      ========================================================================= */}
+      <Modal isOpen={!!checkoutTenant} onClose={() => setCheckoutTenant(null)} size="md">
         {checkoutTenant && (
-          <div className="text-center py-2">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3">
-              <LogOut className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900">Konfirmasi Check-out</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Apakah Anda yakin ingin memproses check-out untuk penghuni <strong className="text-slate-800">{checkoutTenant.full_name}</strong> dari <strong className="text-slate-800">Kamar {checkoutTenant.rooms?.room_number}</strong>?
-            </p>
-            <p className="text-[11px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200/60 mt-3 text-left">
-              ⚠️ Status kamar akan otomatis berubah menjadi kosong / siap dihuni kembali.
-            </p>
+          <form action={checkoutAction} className="space-y-4 py-1">
+            <input type="hidden" name="id" value={checkoutTenant.id} />
+            <input type="hidden" name="late_fee" value={calculatedLateFee} />
+            <input type="hidden" name="deposit_refund" value={netRefund} />
 
-            <form action={deleteAction} className="mt-5 flex items-center justify-center gap-3">
-              <input type="hidden" name="id" value={checkoutTenant.id} />
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+              <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+                <LogOut className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Proses Check-Out Penghuni</h3>
+                <p className="text-xs text-slate-500">
+                  {checkoutTenant.full_name} • Kamar {checkoutTenant.rooms?.room_number}
+                </p>
+              </div>
+            </div>
+
+            {/* Jam Checkout & Perhitungan Denda */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800">
+                    Jam Check-Out Tamu:
+                  </label>
+                  <p className="text-[11px] text-slate-500">Batas normal: 12:00 WIB</p>
+                </div>
+                <input
+                  type="time"
+                  required
+                  value={checkoutTime}
+                  onChange={(e) => setCheckoutTime(e.target.value)}
+                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              {/* Denda Rule Indicator */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 font-medium">Status Waktu Check-Out:</span>
+                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                    calculatedLateFee === 0
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {calculatedLateFee === 0 ? 'Tepat Waktu (\u2264 12:00)' : `Telat (${checkoutTime} WIB)`}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 font-medium">Denda Keterlambatan:</span>
+                  <span className={`font-black ${calculatedLateFee > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-100">
+                  * Aturan denda: s/d 15:00 denda Rp 50.000 | 15:00–17:00 denda Rp 100.000 | &gt; 17:00 denda Rp 100.000 (1 hari).
+                </p>
+              </div>
+
+              {/* Input Biaya Kerusakan / Tambahan */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Biaya Kerusakan / Kebersihan Lainnya (Opsional):
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-400 font-semibold">Rp</span>
+                  <input
+                    type="number"
+                    name="damage_fee"
+                    min="0"
+                    step="1000"
+                    value={damageFee || ''}
+                    onChange={(e) => setDamageFee(parseFloat(e.target.value) || 0)}
+                    placeholder="0"
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Rincian Pengembalian Deposit */}
+            <div className="bg-emerald-950/10 p-4 rounded-2xl border border-emerald-500/30 space-y-2 text-xs">
+              <div className="flex justify-between text-slate-700">
+                <span>Uang Deposit Terdaftar:</span>
+                <span className="font-bold text-slate-900">Rp 100.000</span>
+              </div>
+              <div className="flex justify-between text-red-600">
+                <span>Potongan Denda Telat:</span>
+                <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}</span>
+              </div>
+              {damageFee > 0 && (
+                <div className="flex justify-between text-red-600">
+                  <span>Potongan Biaya Lain:</span>
+                  <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(damageFee)}</span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-emerald-200/60 flex justify-between items-center text-sm font-extrabold">
+                <span className="text-emerald-900">Uang Kembali ke Tamu:</span>
+                <span className="text-emerald-700 text-base">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(netRefund)}
+                </span>
+              </div>
+              {additionalPayNeeded > 0 && (
+                <p className="text-[11px] text-red-600 font-bold bg-red-50 p-2 rounded-lg border border-red-200">
+                  Denda melebihi deposit! Tamu harus membayar kekurangan sebesar: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(additionalPayNeeded)}
+                </p>
+              )}
+            </div>
+
+            {/* Catatan Check-Out */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Catatan Pemeriksaan Kamar / Serah Terima Kunci:
+              </label>
+              <textarea
+                name="notes"
+                rows={2}
+                value={checkoutNotes}
+                onChange={(e) => setCheckoutNotes(e.target.value)}
+                placeholder="Contoh: Kunci kamar diserahkan lengkap, AC dan fasilitas berfungsi baik."
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setCheckoutTenant(null)}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Batal
               </button>
               <SubmitButton
                 variant="danger"
-                className="py-2.5 px-5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer"
-                loadingText="Memproses..."
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                loadingText="Memproses Check-out..."
               >
-                Ya, Check-out
+                Konfirmasi Check-out
               </SubmitButton>
-            </form>
-          </div>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

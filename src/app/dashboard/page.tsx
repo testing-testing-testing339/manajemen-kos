@@ -219,29 +219,26 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Cabang Properti */}
+        {/* Total Kapasitas Kamar Graha Aisyah Menteng */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Total Cabang
+              Total Kapasitas
             </span>
             <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
               <Building2 className="w-5 h-5" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900">{totalBranches || 1}</span>
+            <span className="text-2xl font-black text-slate-900">53</span>
             <span className="text-xs font-semibold text-purple-600">
-              Lokasi Kos
+              Kamar
             </span>
           </div>
-          <div className="mt-3">
-            <Link 
-              href="/dashboard/properti"
-              className="text-xs font-bold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1"
-            >
-              Kelola Properti <ArrowUpRight className="w-3.5 h-3.5" />
-            </Link>
+          <div className="mt-3 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <span className="text-purple-600">13 VIP</span>
+            <span>•</span>
+            <span className="text-indigo-600">40 Non-VIP</span>
           </div>
         </div>
       </div>

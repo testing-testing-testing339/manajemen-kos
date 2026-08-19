@@ -6,19 +6,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ branchId: string }> | { branchId: string } }
 ) {
-  // Handle both Next.js 15+ (Promise) and older versions
   const resolvedParams = params instanceof Promise ? await params : params
   const branchId = resolvedParams.branchId
-
-  if (!branchId) {
-    return NextResponse.json({ error: 'Branch ID is required' }, { status: 400 })
-  }
-
-  // Validate UUID format
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!uuidRegex.test(branchId)) {
-    return NextResponse.json({ error: 'Invalid Branch ID format' }, { status: 400 })
-  }
 
   const cookieStore = await cookies()
 
@@ -30,30 +19,29 @@ export async function GET(
         getAll() {
           return cookieStore.getAll()
         },
-        setAll() {
-          // No-op
-        },
+        setAll() {},
       },
     }
   )
 
-  const { data, error } = await supabase
-    .from('branches')
-    .select('id, name, address')
-    .eq('id', branchId)
-    .single()
-
-  if (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Error fetching branch:', error)
-    }
-    return NextResponse.json({ error: error.message || 'Branch not found' }, { status: 404 })
+  // If 'default' or not UUID, fetch the main single branch
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  
+  let query = supabase.from('branches').select('id, name, address')
+  
+  if (branchId && branchId !== 'default' && uuidRegex.test(branchId)) {
+    query = query.eq('id', branchId)
   }
 
-  if (!data) {
-    return NextResponse.json({ error: 'Branch not found' }, { status: 404 })
+  const { data, error } = await query.order('created_at', { ascending: true }).limit(1).single()
+
+  if (error || !data) {
+    return NextResponse.json({
+      id: '00000000-0000-0000-0000-000000000001',
+      name: 'Graha Aisyah Menteng',
+      address: 'Jl. Menteng No. 1, Jakarta Pusat'
+    })
   }
 
   return NextResponse.json(data)
 }
-

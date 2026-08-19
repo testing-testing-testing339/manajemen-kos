@@ -1,20 +1,25 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import NavigationLoader from "@/components/NavigationLoader";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Graha Aisyah Mainframe System",
-  description: "Sistem manajemen kost Graha Aisyah untuk mengelola cabang, lantai, kamar, penghuni, dan pembayaran",
+  title: "Graha Aisyah Menteng - Sistem Manajemen Kost",
+  description: "Sistem manajemen operasional Graha Aisyah Menteng (53 Kamar: 13 VIP & 40 Non-VIP)",
 };
 
 export default function RootLayout({
@@ -23,10 +28,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="id" className={`${plusJakartaSans.variable} ${jetbrainsMono.variable}`}>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className="font-sans antialiased bg-slate-50 text-slate-900 tracking-normal selection:bg-indigo-600 selection:text-white"
       >
+        <NavigationLoader />
         {children}
       </body>
     </html>

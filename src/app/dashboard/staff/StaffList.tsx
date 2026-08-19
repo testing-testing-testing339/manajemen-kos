@@ -136,12 +136,12 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
       <div className="flex justify-between items-center">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <span className="text-white text-lg font-bold">GA</span>
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-black text-base">
+              KM
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Manajemen Staff</h1>
-              <p className="text-gray-600">Graha Aisyah Mainframe System</p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Manajemen Staff</h1>
+              <p className="text-xs sm:text-sm text-slate-500">Graha Aisyah Menteng • Hak Akses Administrator & Resepsionis</p>
             </div>
           </div>
         </div>

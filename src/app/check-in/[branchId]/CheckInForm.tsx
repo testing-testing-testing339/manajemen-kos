@@ -2,25 +2,58 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { 
   validateFullName, 
   validatePhone, 
   validateEmail, 
   validateIdCardNumber,
   validateFile,
-  validateAmount,
-  validateJSON,
   sanitizeString
 } from '@/lib/validation'
+import { 
+  CreditCard, 
+  Camera, 
+  User, 
+  Phone, 
+  Mail, 
+  ShieldCheck, 
+  Sparkles, 
+  CheckCircle2, 
+  Clock, 
+  AlertCircle, 
+  Building, 
+  BedDouble, 
+  Calendar, 
+  ArrowRight, 
+  ArrowLeft, 
+  RefreshCw, 
+  Upload, 
+  Banknote, 
+  QrCode, 
+  Check, 
+  Tv, 
+  Wifi, 
+  Wind, 
+  Bath, 
+  HelpCircle,
+  RotateCcw
+} from 'lucide-react'
 
 interface CheckInFormProps {
   branchId: string
   branchName: string
 }
 
+type RoomCategory = 'vip' | 'non_vip'
+type DurationType = 'daily' | 'weekly' | 'monthly'
+type PaymentMethod = 'qris' | 'cash'
+
 export default function CheckInForm({ branchId, branchName }: CheckInFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(1)
+
+  // Form State
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
@@ -28,30 +61,38 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     id_card_number: '',
     id_card_photo: null as File | null,
     selfie_photo: null as File | null,
-    selected_room_type: '',
     terms_accepted: false,
     payment_proof: null as File | null,
   })
-  const [rooms, setRooms] = useState<any[]>([])
-  const [selectedRoomType, setSelectedRoomType] = useState<{
-    key: string
-    price: number
-    price_per_day?: number | null
-    price_per_month?: number | null
-    price_per_6months?: number | null
-    facilities: string[]
-    count: number
-  } | null>(null)
-  const [rentalDuration, setRentalDuration] = useState<'daily' | '6months'>('daily')
-  const [rentalDays, setRentalDays] = useState<number>(1) // For daily rental
-  const [rentalDaysInput, setRentalDaysInput] = useState<string>('1') // For input field (allows empty)
-  const [totalAmount, setTotalAmount] = useState(0)
-  const [paymentDestination, setPaymentDestination] = useState('')
+
+  // Room & Duration selections
+  const [roomCategory, setRoomCategory] = useState<RoomCategory>('vip')
+  const [durationType, setDurationType] = useState<DurationType>('daily')
+  const [dailyDays, setDailyDays] = useState<number>(1)
+  const [weeklyWeeks, setWeeklyWeeks] = useState<number>(1)
+  const [monthlyMonths, setMonthlyMonths] = useState<number>(1)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('qris')
+
+  // Pricing Constants
+  const BASE_PRICE_PER_DAY = 100000
+  const BASE_PRICE_PER_WEEK = 700000 // 7 x 100rb
+  const BASE_PRICE_PER_MONTH = 3000000 // 30 x 100rb
+  const DEPOSIT_AMOUNT = 100000 // Refundable Deposit
+
+  // Calculated Totals
+  const rentSubtotal = 
+    durationType === 'daily' ? BASE_PRICE_PER_DAY * dailyDays :
+    durationType === 'weekly' ? BASE_PRICE_PER_WEEK * weeklyWeeks :
+    BASE_PRICE_PER_MONTH * monthlyMonths
+
+  const totalAmount = rentSubtotal + DEPOSIT_AMOUNT
+
+  // UI States
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt')
   const [cameraLoading, setCameraLoading] = useState(false)
+  const [cameraActive, setCameraActive] = useState<'id_card' | 'selfie' | null>(null)
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
 
   const idCardVideoRef = useRef<HTMLVideoElement>(null)
@@ -59,674 +100,553 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const idCardStreamRef = useRef<MediaStream | null>(null)
   const selfieStreamRef = useRef<MediaStream | null>(null)
 
-  // Fetch available rooms
-  useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        const response = await fetch(`/api/branch/${branchId}/rooms`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.error) {
-            console.error('API Error:', data.error)
-            setError(`Error: ${data.error}`)
-          } else {
-            setRooms(data || [])
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Fetched rooms:', data)
-            }
-          }
-        } else {
-          const errorData = await response.json().catch(() => ({ error: 'Failed to fetch rooms' }))
-          console.error('Failed to fetch rooms:', errorData)
-          setError(`Gagal memuat kamar: ${errorData.error || 'Unknown error'}`)
-        }
-      } catch (error) {
-        console.error('Error fetching rooms:', error)
-        setError('Gagal memuat daftar kamar. Silakan coba lagi.')
-      }
-    }
-    fetchRooms()
-  }, [branchId])
-
-  // Fetch payment destination
-  useEffect(() => {
-    const fetchPaymentInfo = async () => {
-      try {
-        const response = await fetch(`/api/branch/${branchId}/payment-info`)
-        if (response.ok) {
-          const data = await response.json()
-          setPaymentDestination(data.destination || '')
-        }
-      } catch (error) {
-        console.error('Error fetching payment info:', error)
-      }
-    }
-    fetchPaymentInfo()
-  }, [branchId])
-
-  const startCamera = async (videoRef: React.RefObject<HTMLVideoElement | null>, streamRef: React.MutableRefObject<MediaStream | null>) => {
-    // Prevent multiple simultaneous calls
+  // Camera Management
+  const startCamera = async (type: 'id_card' | 'selfie') => {
     if (cameraLoading) return
-    
     try {
       setCameraLoading(true)
       setError('')
-      
-      // Stop any existing stream first to prevent conflicts
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
-          track.stop()
-        })
-        streamRef.current = null
-      }
-      
-      // Also stop the other camera stream if it's active
-      if (videoRef === idCardVideoRef && selfieStreamRef.current) {
-        selfieStreamRef.current.getTracks().forEach(track => track.stop())
-        selfieStreamRef.current = null
-        if (selfieVideoRef.current) {
-          selfieVideoRef.current.srcObject = null
-        }
-      } else if (videoRef === selfieVideoRef && idCardStreamRef.current) {
-        idCardStreamRef.current.getTracks().forEach(track => track.stop())
+
+      // Stop any existing stream
+      if (idCardStreamRef.current) {
+        idCardStreamRef.current.getTracks().forEach(t => t.stop())
         idCardStreamRef.current = null
-        if (idCardVideoRef.current) {
-          idCardVideoRef.current.srcObject = null
-        }
       }
-      
-      // Wait a bit to ensure cleanup is complete
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Request camera access
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: videoRef === selfieVideoRef ? 'user' : 'environment',
+      if (selfieStreamRef.current) {
+        selfieStreamRef.current.getTracks().forEach(t => t.stop())
+        selfieStreamRef.current = null
+      }
+
+      await new Promise(r => setTimeout(r, 100))
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: type === 'id_card' ? { ideal: 'environment' } : 'user',
           width: { ideal: 1280 },
           height: { ideal: 720 }
-        } 
+        }
       })
-      
-      // Check if component is still mounted and video ref is still valid
-      if (videoRef.current && stream) {
-        videoRef.current.srcObject = stream
-        streamRef.current = stream
-        setCameraPermission('granted')
-        
-        // Handle video load errors
-        videoRef.current.onloadedmetadata = () => {
-          if (videoRef.current) {
-            videoRef.current.play().catch(err => {
-              console.error('Error playing video:', err)
-            })
-          }
-        }
-      } else {
-        // Cleanup if ref is no longer valid
-        stream.getTracks().forEach(track => track.stop())
+
+      const targetVideo = type === 'id_card' ? idCardVideoRef.current : selfieVideoRef.current
+      const targetStreamRef = type === 'id_card' ? idCardStreamRef : selfieStreamRef
+
+      if (targetVideo && stream) {
+        targetVideo.srcObject = stream
+        targetStreamRef.current = stream
+        setCameraActive(type)
+        await targetVideo.play().catch(() => {})
       }
-    } catch (error: any) {
-      console.error('Error accessing camera:', error)
-      setCameraPermission('denied')
-      
-      // Cleanup on error
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
-        streamRef.current = null
-      }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null
-      }
-      
-      // Set appropriate error message
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        setError('Izin kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda, lalu refresh halaman.')
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        setError('Kamera tidak ditemukan. Pastikan perangkat Anda memiliki kamera.')
-      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        setError('Kamera sedang digunakan oleh aplikasi lain. Silakan tutup aplikasi lain yang menggunakan kamera.')
-      } else if (error.name === 'OverconstrainedError') {
-        setError('Kamera tidak mendukung mode yang diminta. Mencoba mode alternatif...')
-        // Try with simpler constraints
-        try {
-          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true })
-          if (videoRef.current && fallbackStream) {
-            videoRef.current.srcObject = fallbackStream
-            streamRef.current = fallbackStream
-            setCameraPermission('granted')
-            setError('')
-          }
-        } catch (fallbackError) {
-          setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan.')
-        }
-      } else {
-        setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan.')
-      }
+    } catch (err: any) {
+      console.error('Camera access error:', err)
+      setError('Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan di browser.')
     } finally {
       setCameraLoading(false)
     }
   }
 
-  const stopCamera = (streamRef: React.MutableRefObject<MediaStream | null>, videoRef?: React.RefObject<HTMLVideoElement | null>) => {
-    try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
-          track.stop()
-          track.enabled = false
-        })
-        streamRef.current = null
-      }
-      if (videoRef?.current) {
-        videoRef.current.srcObject = null
-        videoRef.current.pause()
-      }
-    } catch (error) {
-      console.error('Error stopping camera:', error)
-    }
-  }
-  
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopCamera(idCardStreamRef, idCardVideoRef)
-      stopCamera(selfieStreamRef, selfieVideoRef)
-    }
-  }, [])
+  const stopCamera = (type: 'id_card' | 'selfie') => {
+    const streamRef = type === 'id_card' ? idCardStreamRef : selfieStreamRef
+    const videoRef = type === 'id_card' ? idCardVideoRef : selfieVideoRef
 
-  const capturePhoto = (videoRef: React.RefObject<HTMLVideoElement | null>, type: 'id_card' | 'selfie') => {
-    if (!videoRef.current) return
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setCameraActive(null)
+  }
+
+  const capturePhoto = (type: 'id_card' | 'selfie') => {
+    const video = type === 'id_card' ? idCardVideoRef.current : selfieVideoRef.current
+    if (!video) return
 
     const canvas = document.createElement('canvas')
-    canvas.width = videoRef.current.videoWidth
-    canvas.height = videoRef.current.videoHeight
+    canvas.width = video.videoWidth || 1280
+    canvas.height = video.videoHeight || 720
     const ctx = canvas.getContext('2d')
     if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0)
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
       canvas.toBlob((blob) => {
         if (blob) {
           const file = new File([blob], `${type}-${Date.now()}.jpg`, { type: 'image/jpeg' })
-          
-          // Validate file
-          const fileValidation = validateFile(file, ['image/'], 5)
-          if (!fileValidation.valid) {
-            setError(fileValidation.error || 'File tidak valid')
-            return
-          }
-          
           if (type === 'id_card') {
-            setFormData({ ...formData, id_card_photo: file })
-            setValidationErrors({ ...validationErrors, id_card_photo: '' })
+            setFormData(prev => ({ ...prev, id_card_photo: file }))
+            setValidationErrors(prev => ({ ...prev, id_card_photo: '' }))
           } else {
-            setFormData({ ...formData, selfie_photo: file })
-            setValidationErrors({ ...validationErrors, selfie_photo: '' })
+            setFormData(prev => ({ ...prev, selfie_photo: file }))
+            setValidationErrors(prev => ({ ...prev, selfie_photo: '' }))
           }
-          setError('')
-          stopCamera(
-            type === 'id_card' ? idCardStreamRef : selfieStreamRef,
-            type === 'id_card' ? idCardVideoRef : selfieVideoRef
-          )
+          stopCamera(type)
         }
-      }, 'image/jpeg', 0.9)
+      }, 'image/jpeg', 0.92)
     }
   }
 
-  // Validate form data
-  const validateForm = (): boolean => {
-    const errors: { [key: string]: string } = {}
-
-    // Validate full name
-    const nameValidation = validateFullName(formData.full_name)
-    if (!nameValidation.valid) {
-      errors.full_name = 'Nama lengkap harus 2-100 karakter dan hanya mengandung huruf, spasi, titik, atau tanda hubung'
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera('id_card')
+      stopCamera('selfie')
     }
+  }, [])
 
-    // Validate phone
-    const phoneValidation = validatePhone(formData.phone)
-    if (!phoneValidation.valid) {
-      errors.phone = 'Nomor telepon tidak valid. Gunakan format: 08xxxxxxxxxx atau +628xxxxxxxxxx'
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'id_card_photo' | 'selfie_photo' | 'payment_proof') => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      const validation = validateFile(file, ['image/'], 8)
+      if (!validation.valid) {
+        setError(validation.error || 'File tidak valid')
+        return
+      }
+      setFormData(prev => ({ ...prev, [field]: file }))
+      setValidationErrors(prev => ({ ...prev, [field]: '' }))
+      setError('')
     }
+  }
 
-    // Validate email (optional but must be valid if provided)
+  // Validation
+  const validateStep1 = () => {
+    const errs: { [key: string]: string } = {}
+    const nameV = validateFullName(formData.full_name)
+    if (!nameV.valid) errs.full_name = 'Nama lengkap minimal 2 karakter (hanya huruf dan spasi)'
+    
+    const phoneV = validatePhone(formData.phone)
+    if (!phoneV.valid) errs.phone = 'Nomor telepon tidak valid (contoh: 08123456789)'
+
     if (formData.email) {
-      const emailValidation = validateEmail(formData.email)
-      if (!emailValidation.valid) {
-        errors.email = 'Format email tidak valid'
-      }
+      const emailV = validateEmail(formData.email)
+      if (!emailV.valid) errs.email = 'Format email tidak valid'
     }
 
-    // Validate ID card number
-    const idCardValidation = validateIdCardNumber(formData.id_card_number)
-    if (!idCardValidation.valid) {
-      errors.id_card_number = 'Nomor KTP harus 16 digit angka'
-    }
+    const idCardV = validateIdCardNumber(formData.id_card_number)
+    if (!idCardV.valid) errs.id_card_number = 'Nomor KTP harus 16 digit angka'
 
-    // Validate photos
-    if (!formData.id_card_photo) {
-      errors.id_card_photo = 'Foto KTP wajib diisi'
-    } else {
-      const idCardFileValidation = validateFile(formData.id_card_photo, ['image/'], 5)
-      if (!idCardFileValidation.valid) {
-        errors.id_card_photo = idCardFileValidation.error || 'Foto KTP tidak valid'
-      }
-    }
-
-    if (!formData.selfie_photo) {
-      errors.selfie_photo = 'Foto selfie wajib diisi'
-    } else {
-      const selfieFileValidation = validateFile(formData.selfie_photo, ['image/'], 5)
-      if (!selfieFileValidation.valid) {
-        errors.selfie_photo = selfieFileValidation.error || 'Foto selfie tidak valid'
-      }
-    }
-
-    // Validate room type selection
-    if (!selectedRoomType) {
-      errors.room_type = 'Jenis kamar harus dipilih'
-    }
-
-    // Validate payment proof
-    if (!formData.payment_proof) {
-      errors.payment_proof = 'Bukti transfer wajib diisi'
-    } else {
-      const proofFileValidation = validateFile(formData.payment_proof, ['image/'], 5)
-      if (!proofFileValidation.valid) {
-        errors.payment_proof = proofFileValidation.error || 'Bukti transfer tidak valid'
-      }
-    }
-
-    // Validate terms acceptance
-    if (!formData.terms_accepted) {
-      errors.terms_accepted = 'Anda harus menyetujui kebijakan dan aturan kost'
-    }
-
-    // Validate amount
-    const amountValidation = validateAmount(totalAmount)
-    if (!amountValidation.valid) {
-      errors.amount = 'Jumlah pembayaran tidak valid'
-    }
-
-    setValidationErrors(errors)
-    return Object.keys(errors).length === 0
+    setValidationErrors(errs)
+    return Object.keys(errs).length === 0
   }
 
+  // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setValidationErrors({})
 
-    // Client-side validation
-    if (!validateForm()) {
-      setError('Harap perbaiki kesalahan pada form sebelum melanjutkan')
+    if (paymentMethod === 'qris' && !formData.payment_proof) {
+      setError('Harap lampirkan bukti pembayaran QRIS')
       setLoading(false)
       return
     }
 
     try {
-      // Sanitize inputs
-      const sanitizedName = sanitizeString(formData.full_name)
-      const phoneValidation = validatePhone(formData.phone)
-      const emailValidation = formData.email ? validateEmail(formData.email) : { sanitized: '' }
-      const idCardValidation = validateIdCardNumber(formData.id_card_number)
-
       const submitData = new FormData()
       submitData.append('branch_id', branchId)
-      submitData.append('full_name', sanitizedName)
-      submitData.append('phone', phoneValidation.sanitized)
-      submitData.append('email', emailValidation.sanitized)
-      submitData.append('id_card_number', idCardValidation.sanitized)
-      
-      // Send room type info (price and facilities) instead of specific room
-      if (selectedRoomType) {
-        const roomTypeData = {
-          price: selectedRoomType.price,
-          facilities: selectedRoomType.facilities
-        }
-        submitData.append('selected_room_type', JSON.stringify(roomTypeData))
-      }
-      
+      submitData.append('full_name', sanitizeString(formData.full_name))
+      submitData.append('phone', sanitizeString(formData.phone))
+      submitData.append('email', sanitizeString(formData.email || ''))
+      submitData.append('id_card_number', sanitizeString(formData.id_card_number))
+      submitData.append('room_category', roomCategory)
+      submitData.append('rental_duration', durationType)
+      submitData.append('rental_days', durationType === 'daily' ? dailyDays.toString() : (durationType === 'weekly' ? (weeklyWeeks * 7).toString() : (monthlyMonths * 30).toString()))
+      submitData.append('rental_weeks', weeklyWeeks.toString())
+      submitData.append('rental_months', monthlyMonths.toString())
+      submitData.append('deposit_amount', DEPOSIT_AMOUNT.toString())
       submitData.append('total_amount', totalAmount.toString())
-      submitData.append('payment_destination', sanitizeString(paymentDestination))
+      submitData.append('payment_method', paymentMethod)
+      submitData.append('payment_destination', paymentMethod === 'qris' ? 'QRIS GoPay Merchant - Graha Aisyah Menteng' : 'Resepsionis Tunai / Cash')
       submitData.append('terms_accepted', 'true')
-      submitData.append('rental_duration', rentalDuration)
-      if (rentalDuration === 'daily') {
-        submitData.append('rental_days', rentalDays.toString())
-      } else if (rentalDuration === '6months') {
-        submitData.append('rental_days', '180') // 6 months = 180 days
+
+      // Selected room type JSON for compatibility
+      const roomTypeInfo = {
+        category: roomCategory,
+        name: roomCategory === 'vip' ? 'Kamar VIP' : 'Kamar Non-VIP',
+        price_per_day: BASE_PRICE_PER_DAY,
+        facilities: roomCategory === 'vip'
+          ? ['AC', 'Kamar Mandi Dalam', 'Smart TV', 'Wifi High-Speed', 'Queen Bed', 'Lemari Pakaian', 'Meja Kerja', 'Water Heater']
+          : ['AC', 'Kamar Mandi Dalam', 'Wifi High-Speed', 'Single Bed', 'Lemari Pakaian', 'Meja Belajar']
       }
-      
+      submitData.append('selected_room_type', JSON.stringify(roomTypeInfo))
+
       if (formData.id_card_photo) {
         submitData.append('id_card_photo', formData.id_card_photo)
       }
       if (formData.selfie_photo) {
         submitData.append('selfie_photo', formData.selfie_photo)
       }
-      if (formData.payment_proof) {
+      if (formData.payment_proof && paymentMethod === 'qris') {
         submitData.append('payment_proof', formData.payment_proof)
       }
 
-      const response = await fetch('/api/check-in', {
+      const res = await fetch('/api/check-in', {
         method: 'POST',
         body: submitData,
       })
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        setError(result.error || 'Gagal mengirim permintaan check-in')
-        return
+      const resData = await res.json()
+      if (!res.ok) {
+        throw new Error(resData.error || 'Gagal mengirim pendaftaran check-in')
       }
 
       setSuccess(true)
-    } catch (error: any) {
-      setError(error.message || 'Terjadi kesalahan')
+    } catch (err: any) {
+      setError(err.message || 'Terjadi kesalahan saat memproses data')
     } finally {
       setLoading(false)
     }
   }
 
+  // SUCCESS SCREEN
   if (success) {
     return (
-      <div className="text-center py-12">
-        <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-          <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
+      <div className="text-center py-6 space-y-6">
+        <div className="w-20 h-20 rounded-3xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-xl shadow-emerald-500/10 animate-bounce">
+          <CheckCircle2 className="w-10 h-10" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Permintaan Check-in Berhasil!</h2>
-        <p className="text-gray-600 mb-4">
-          Terima kasih telah mengisi form check-in. Permintaan Anda sedang ditinjau oleh staff.
-        </p>
-        
-        {/* Instruksi Konfirmasi ke Resepsionis */}
-        <div className="max-w-md mx-auto mt-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
-          <div className="flex items-start gap-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+
+        <div>
+          <h2 className="text-2xl font-black text-white tracking-tight">
+            Pendaftaran Check-in Berhasil!
+          </h2>
+          <p className="text-sm text-slate-400 mt-1 max-w-md mx-auto">
+            Terima kasih, data reservasi Anda untuk <strong className="text-white">Graha Aisyah Menteng</strong> telah tersimpan di sistem.
+          </p>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-slate-800/80 rounded-2xl border border-slate-700/80 p-5 text-left space-y-3.5 shadow-lg">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-700">
+            <div>
+              <p className="text-xs text-slate-400 font-medium">Nama Tamu</p>
+              <p className="text-base font-bold text-white">{formData.full_name}</p>
             </div>
-            <div className="text-left flex-1">
-              <h3 className="font-bold text-blue-900 mb-2">Langkah Selanjutnya:</h3>
-              <p className="text-sm text-blue-800 leading-relaxed">
-                Silakan konfirmasi reservasi Anda ke <strong>meja resepsionis</strong> dengan menyebutkan nama:
+            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+              roomCategory === 'vip' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+            }`}>
+              {roomCategory === 'vip' ? 'Kamar VIP' : 'Kamar Non-VIP'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <p className="text-slate-400">Durasi Sewa:</p>
+              <p className="font-semibold text-slate-200">
+                {durationType === 'daily' ? `${dailyDays} Hari` : durationType === 'weekly' ? `${weeklyWeeks} Minggu` : `${monthlyMonths} Bulan`}
               </p>
-              <div className="mt-3 p-3 bg-white rounded-lg border-2 border-blue-300">
-                <p className="text-lg font-bold text-blue-900 text-center">
-                  {formData.full_name || 'Nama Anda'}
-                </p>
-              </div>
-              <p className="text-xs text-blue-700 mt-3 italic">
-                Staff akan memproses reservasi Anda setelah konfirmasi di meja resepsionis.
+            </div>
+            <div>
+              <p className="text-slate-400">Metode Bayar:</p>
+              <p className="font-semibold text-slate-200 uppercase">
+                {paymentMethod === 'qris' ? 'QRIS GoPay Merchant' : 'Tunai / Resepsionis'}
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-400">Deposit (Refundable):</p>
+              <p className="font-semibold text-emerald-400">Rp 100.000</p>
+            </div>
+            <div>
+              <p className="text-slate-400">Total Tagihan:</p>
+              <p className="font-bold text-indigo-400">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
               </p>
             </div>
           </div>
         </div>
 
-        <p className="text-sm text-gray-500 mt-6">
-          Anda akan dihubungi segera setelah permintaan Anda disetujui.
-        </p>
+        {/* Instructions */}
+        <div className="bg-indigo-950/40 border border-indigo-500/30 rounded-2xl p-5 text-left space-y-2">
+          <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+            <Building className="w-4 h-4" />
+            <span>Langkah Selanjutnya di Meja Resepsionis:</span>
+          </div>
+          <ul className="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+            <li>Tunjukkan KTP asli Anda ke resepsionis Graha Aisyah Menteng.</li>
+            {paymentMethod === 'cash' ? (
+              <li>Lakukan pembayaran tunai sebesar <strong>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong> (termasuk deposit Rp 100.000).</li>
+            ) : (
+              <li>Staf akan memverifikasi bukti pembayaran QRIS Anda dan menyerahkan kunci kamar.</li>
+            )}
+            <li>Deposit Rp 100.000 akan dikembalikan tunai/transfer saat Anda check-out.</li>
+          </ul>
+        </div>
+
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all cursor-pointer text-sm"
+        >
+          Selesai & Muat Ulang Form
+        </button>
       </div>
     )
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Step 1: Personal Information */}
+      {/* Progress Stepper Indicator */}
+      <div className="flex items-center justify-between mb-8 px-2">
+        {[
+          { num: 1, label: 'Data' },
+          { num: 2, label: 'KTP' },
+          { num: 3, label: 'Selfie' },
+          { num: 4, label: 'Kamar' },
+          { num: 5, label: 'Aturan' },
+          { num: 6, label: 'Bayar' }
+        ].map((s, idx, arr) => (
+          <div key={s.num} className="flex items-center flex-1">
+            <div className="flex flex-col items-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                step === s.num
+                  ? 'bg-gradient-to-tr from-indigo-500 to-purple-600 text-white ring-4 ring-indigo-500/20 shadow-md scale-110'
+                  : step > s.num
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-slate-800 text-slate-500 border border-slate-700'
+              }`}>
+                {step > s.num ? <Check className="w-4 h-4" /> : s.num}
+              </div>
+              <span className={`text-[10px] font-semibold mt-1 hidden sm:block ${
+                step === s.num ? 'text-indigo-400 font-bold' : step > s.num ? 'text-emerald-400' : 'text-slate-500'
+              }`}>
+                {s.label}
+              </span>
+            </div>
+            {idx < arr.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-2 transition-all ${
+                step > s.num ? 'bg-emerald-500' : 'bg-slate-800'
+              }`} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3 text-red-400 text-xs">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <p>{error}</p>
+        </div>
+      )}
+
+      {/* =========================================================================
+          STEP 1: DATA DIRI
+      ========================================================================= */}
       {step === 1 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Data Diri</h2>
-          
+          <div className="border-b border-slate-800 pb-3 mb-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <User className="w-5 h-5 text-indigo-400" />
+              Informasi Data Diri Tamu
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Isi data identitas sesuai dengan kartu identitas KTP Anda
+            </p>
+          </div>
+
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Lengkap *</label>
-            <input
-              type="text"
-              required
-              value={formData.full_name}
-              onChange={(e) => {
-                setFormData({ ...formData, full_name: e.target.value })
-                if (validationErrors.full_name) {
-                  setValidationErrors({ ...validationErrors, full_name: '' })
-                }
-              }}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                validationErrors.full_name ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="Masukkan nama lengkap"
-              maxLength={100}
-            />
+            <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Nama Lengkap (Sesuai KTP) *
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                value={formData.full_name}
+                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                placeholder="Masukkan nama lengkap"
+                className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                  validationErrors.full_name ? 'border-red-500' : 'border-slate-700'
+                }`}
+              />
+            </div>
             {validationErrors.full_name && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.full_name}</p>
+              <p className="text-[11px] text-red-400 mt-1">{validationErrors.full_name}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">No. Telepon *</label>
-            <input
-              type="tel"
-              required
-              value={formData.phone}
-              onChange={(e) => {
-                setFormData({ ...formData, phone: e.target.value })
-                if (validationErrors.phone) {
-                  setValidationErrors({ ...validationErrors, phone: '' })
-                }
-              }}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                validationErrors.phone ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="08xxxxxxxxxx"
-              maxLength={15}
-            />
+            <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Nomor WhatsApp / Telepon Aktif *
+            </label>
+            <div className="relative">
+              <input
+                type="tel"
+                required
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="Contoh: 081234567890"
+                className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                  validationErrors.phone ? 'border-red-500' : 'border-slate-700'
+                }`}
+              />
+            </div>
             {validationErrors.phone && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
+              <p className="text-[11px] text-red-400 mt-1">{validationErrors.phone}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Alamat Email (Opsional)
+            </label>
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => {
-                setFormData({ ...formData, email: e.target.value })
-                if (validationErrors.email) {
-                  setValidationErrors({ ...validationErrors, email: '' })
-                }
-              }}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                validationErrors.email ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="email@example.com"
-              maxLength={255}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="nama@email.com"
+              className="w-full px-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
             />
-            {validationErrors.email && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
-            )}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">No. KTP *</label>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Nomor Induk Kependudukan (NIK KTP 16 Digit) *
+            </label>
             <input
               type="text"
               required
-              value={formData.id_card_number}
-              onChange={(e) => {
-                // Only allow digits
-                const value = e.target.value.replace(/\D/g, '')
-                setFormData({ ...formData, id_card_number: value })
-                if (validationErrors.id_card_number) {
-                  setValidationErrors({ ...validationErrors, id_card_number: '' })
-                }
-              }}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                validationErrors.id_card_number ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="16 digit nomor KTP"
               maxLength={16}
+              value={formData.id_card_number}
+              onChange={(e) => setFormData({ ...formData, id_card_number: e.target.value.replace(/\D/g, '') })}
+              placeholder="16 digit nomor NIK KTP"
+              className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                validationErrors.id_card_number ? 'border-red-500' : 'border-slate-700'
+              }`}
             />
             {validationErrors.id_card_number && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.id_card_number}</p>
+              <p className="text-[11px] text-red-400 mt-1">{validationErrors.id_card_number}</p>
             )}
           </div>
-
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
 
           <button
             type="button"
             onClick={() => {
-              // Validate step 1 before proceeding
-              const errors: { [key: string]: string } = {}
-              const nameValidation = validateFullName(formData.full_name)
-              if (!nameValidation.valid) {
-                errors.full_name = 'Nama lengkap harus 2-100 karakter dan hanya mengandung huruf, spasi, titik, atau tanda hubung'
-              }
-              const phoneValidation = validatePhone(formData.phone)
-              if (!phoneValidation.valid) {
-                errors.phone = 'Nomor telepon tidak valid. Gunakan format: 08xxxxxxxxxx atau +628xxxxxxxxxx'
-              }
-              if (formData.email) {
-                const emailValidation = validateEmail(formData.email)
-                if (!emailValidation.valid) {
-                  errors.email = 'Format email tidak valid'
-                }
-              }
-              const idCardValidation = validateIdCardNumber(formData.id_card_number)
-              if (!idCardValidation.valid) {
-                errors.id_card_number = 'Nomor KTP harus 16 digit angka'
-              }
-              
-              if (Object.keys(errors).length > 0) {
-                setValidationErrors(errors)
-                setError('Harap perbaiki kesalahan pada form sebelum melanjutkan')
-              } else {
-                setValidationErrors({})
+              if (validateStep1()) {
                 setError('')
                 setStep(2)
               }
             }}
-            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95"
+            className="w-full mt-4 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 text-sm"
           >
-            Lanjutkan
+            <span>Lanjut: Foto KTP</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Step 2: KTP Photo */}
+      {/* =========================================================================
+          STEP 2: FOTO KTP DENGAN FRAME KARTU ID PROPORSIONAL
+      ========================================================================= */}
       {step === 2 && (
         <div className="space-y-4">
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-4">
-            <div className="flex items-start">
-              <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm font-semibold text-blue-900 mb-1">Penting: Izin Kamera</p>
-                <p className="text-sm text-blue-800">Jika muncul popup izin kamera, silakan klik <strong>"Izinkan"</strong> atau <strong>"Allow"</strong> untuk melanjutkan.</p>
-              </div>
-            </div>
+          <div className="border-b border-slate-800 pb-3 mb-2">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-indigo-400" />
+              Foto Kartu Identitas (KTP)
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Posisikan KTP secara horizontal di dalam bingkai panduan kartu di bawah ini
+            </p>
           </div>
 
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Foto KTP</h2>
-          <p className="text-sm text-gray-600 mb-4">Ambil foto KTP Anda dengan jelas. Pastikan semua informasi terlihat.</p>
-          
           {!formData.id_card_photo ? (
-            <div className="space-y-3">
-              <video
-                ref={idCardVideoRef}
-                autoPlay
-                playsInline
-                className="w-full rounded-lg border-2 border-gray-300 max-h-64 object-cover"
-                style={{ display: idCardStreamRef.current ? 'block' : 'none' }}
-              />
-              {!idCardStreamRef.current && (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
-                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <p className="text-gray-600 font-medium mb-2">Kamera belum dibuka</p>
-                  <p className="text-sm text-gray-500">Klik tombol di bawah untuk membuka kamera</p>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => startCamera(idCardVideoRef, idCardStreamRef)}
-                disabled={cameraLoading}
-                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {cameraLoading ? (
+            <div className="space-y-4">
+              {/* ID Card Framing Container (Aspect Ratio 16:10 / 1.58:1) */}
+              <div className="relative w-full max-w-md mx-auto aspect-[1.58/1] bg-slate-950 rounded-3xl overflow-hidden border-2 border-dashed border-indigo-500/40 flex items-center justify-center group shadow-2xl">
+                {cameraActive === 'id_card' ? (
                   <>
-                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 8 2.627 8 5.292V7.292A8 8 0 014 12z"></path>
-                    </svg>
-                    Membuka kamera...
+                    <video
+                      ref={idCardVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    {/* Visual Card Guideline Overlay */}
+                    <div className="absolute inset-4 rounded-2xl border-2 border-indigo-400/80 pointer-events-none flex flex-col justify-between p-3">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-600/80 text-white px-2 py-0.5 rounded-md backdrop-blur-md">
+                          KTP INDONESIA
+                        </span>
+                        <div className="w-7 h-7 border-t-2 border-r-2 border-indigo-400 rounded-tr-lg" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[11px] font-semibold text-white/90 drop-shadow-md bg-black/40 px-3 py-1 rounded-full inline-block backdrop-blur-xs">
+                          Posisikan KTP pas di dalam bingkai
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-end">
+                        <div className="w-7 h-7 border-b-2 border-l-2 border-indigo-400 rounded-bl-lg" />
+                        <div className="w-7 h-7 border-b-2 border-r-2 border-indigo-400 rounded-br-lg" />
+                      </div>
+                    </div>
                   </>
                 ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Buka Kamera untuk Foto KTP
-                  </>
+                  <div className="text-center p-6 space-y-3">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/20">
+                      <Camera className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-200">Kamera KTP Belum Dibuka</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Buka kamera atau unggah file foto KTP yang jelas</p>
+                    </div>
+                  </div>
                 )}
-              </button>
-              {idCardStreamRef.current && (
-                <button
-                  type="button"
-                  onClick={() => capturePhoto(idCardVideoRef, 'id_card')}
-                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition-all duration-150 active:scale-95 shadow-lg flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Ambil Foto KTP
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="relative">
-                <img
-                  src={URL.createObjectURL(formData.id_card_photo)}
-                  alt="KTP"
-                  className="w-full rounded-lg border-2 border-green-500 shadow-lg"
-                />
-                <div className="absolute top-2 right-2 flex gap-2">
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md mx-auto">
+                {cameraActive === 'id_card' ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      setFormData({ ...formData, id_card_photo: null })
-                      stopCamera(idCardStreamRef, idCardVideoRef)
-                    }}
-                    className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-95 hover:bg-red-600 shadow-md flex items-center gap-1"
+                    onClick={() => capturePhoto('id_card')}
+                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Hapus
+                    <Camera className="w-4 h-4" />
+                    Ambil Foto KTP
                   </button>
-                </div>
-              </div>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <p className="text-sm font-semibold text-green-800">Foto KTP berhasil diambil</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startCamera('id_card')}
+                    disabled={cameraLoading}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera'}
+                  </button>
+                )}
+
+                <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center">
+                  <Upload className="w-4 h-4 text-indigo-400" />
+                  <span>Upload Dari Galeri</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, 'id_card_photo')}
+                  />
+                </label>
               </div>
             </div>
-          )}
-
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{error}</p>
+          ) : (
+            /* Preview of Captured / Uploaded KTP Card */
+            <div className="max-w-md mx-auto space-y-3">
+              <div className="relative aspect-[1.58/1] rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-xl">
+                <img
+                  src={URL.createObjectURL(formData.id_card_photo)}
+                  alt="KTP Preview"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">
+                  <Check className="w-3 h-3" /> KTP Terpasang
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, id_card_photo: null })}
+                className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Ulangi / Ganti Foto KTP
+              </button>
             </div>
           )}
 
@@ -734,10 +654,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
+                stopCamera('id_card')
                 setStep(1)
-                stopCamera(idCardStreamRef, idCardVideoRef)
               }}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
             >
               Kembali
             </button>
@@ -745,142 +665,112 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 if (!formData.id_card_photo) {
-                  setError('Harap ambil foto KTP terlebih dahulu')
-                  setValidationErrors({ ...validationErrors, id_card_photo: 'Foto KTP wajib diisi' })
+                  setError('Harap ambil atau unggah foto KTP terlebih dahulu')
                   return
                 }
-                
-                // Validate file
-                const fileValidation = validateFile(formData.id_card_photo, ['image/'], 5)
-                if (!fileValidation.valid) {
-                  setError(fileValidation.error || 'Foto KTP tidak valid')
-                  setValidationErrors({ ...validationErrors, id_card_photo: fileValidation.error || 'Foto KTP tidak valid' })
-                  return
-                }
-                
-                setValidationErrors({ ...validationErrors, id_card_photo: '' })
+                stopCamera('id_card')
                 setError('')
                 setStep(3)
-                stopCamera(idCardStreamRef, idCardVideoRef)
               }}
               disabled={!formData.id_card_photo}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
-              Lanjutkan ke Selfie
+              Lanjut: Foto Selfie
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Selfie Photo */}
+      {/* =========================================================================
+          STEP 3: FOTO SELFIE
+      ========================================================================= */}
       {step === 3 && (
         <div className="space-y-4">
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-4">
-            <div className="flex items-start">
-              <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm font-semibold text-blue-900 mb-1">Penting: Izin Kamera</p>
-                <p className="text-sm text-blue-800">Jika muncul popup izin kamera, silakan klik <strong>"Izinkan"</strong> atau <strong>"Allow"</strong> untuk melanjutkan.</p>
-              </div>
-            </div>
+          <div className="border-b border-slate-800 pb-3 mb-2">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <User className="w-5 h-5 text-indigo-400" />
+              Foto Selfie Tamu
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Ambil foto selfie wajah Anda dengan pencahayaan yang cukup
+            </p>
           </div>
 
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Foto Selfie</h2>
-          <p className="text-sm text-gray-600 mb-4">Ambil foto selfie Anda dengan jelas. Pastikan wajah terlihat penuh dan jelas.</p>
-          
           {!formData.selfie_photo ? (
-            <div className="space-y-3">
-              <video
-                ref={selfieVideoRef}
-                autoPlay
-                playsInline
-                className="w-full rounded-lg border-2 border-gray-300 max-h-64 object-cover"
-                style={{ display: selfieStreamRef.current ? 'block' : 'none' }}
-              />
-              {!selfieStreamRef.current && (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
-                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <p className="text-gray-600 font-medium mb-2">Kamera belum dibuka</p>
-                  <p className="text-sm text-gray-500">Klik tombol di bawah untuk membuka kamera</p>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => startCamera(selfieVideoRef, selfieStreamRef)}
-                disabled={cameraLoading}
-                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {cameraLoading ? (
+            <div className="space-y-4">
+              <div className="relative w-full max-w-xs mx-auto aspect-square bg-slate-950 rounded-3xl overflow-hidden border-2 border-dashed border-indigo-500/40 flex items-center justify-center shadow-2xl">
+                {cameraActive === 'selfie' ? (
                   <>
-                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 8 2.627 8 5.292V7.292A8 8 0 014 12z"></path>
-                    </svg>
-                    Membuka kamera...
+                    <video
+                      ref={selfieVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-6 rounded-full border-2 border-dashed border-indigo-400/80 pointer-events-none" />
                   </>
                 ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    Buka Kamera untuk Selfie
-                  </>
+                  <div className="text-center p-6 space-y-2">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
+                      <Camera className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-200">Kamera Selfie</p>
+                  </div>
                 )}
-              </button>
-              {selfieStreamRef.current && (
-                <button
-                  type="button"
-                  onClick={() => capturePhoto(selfieVideoRef, 'selfie')}
-                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition-all duration-150 active:scale-95 shadow-lg flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Ambil Selfie
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="relative">
-                <img
-                  src={URL.createObjectURL(formData.selfie_photo)}
-                  alt="Selfie"
-                  className="w-full rounded-lg border-2 border-green-500 shadow-lg"
-                />
-                <div className="absolute top-2 right-2 flex gap-2">
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xs mx-auto">
+                {cameraActive === 'selfie' ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      setFormData({ ...formData, selfie_photo: null })
-                      stopCamera(selfieStreamRef, selfieVideoRef)
-                    }}
-                    className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-95 hover:bg-red-600 shadow-md flex items-center gap-1"
+                    onClick={() => capturePhoto('selfie')}
+                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg cursor-pointer"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Hapus
+                    <Camera className="w-4 h-4" />
+                    Ambil Selfie
                   </button>
-                </div>
-              </div>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <p className="text-sm font-semibold text-green-800">Foto selfie berhasil diambil</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startCamera('selfie')}
+                    disabled={cameraLoading}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    Buka Kamera
+                  </button>
+                )}
+
+                <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center">
+                  <Upload className="w-4 h-4 text-indigo-400" />
+                  <span>Upload Foto</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, 'selfie_photo')}
+                  />
+                </label>
               </div>
             </div>
-          )}
-
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{error}</p>
+          ) : (
+            <div className="max-w-xs mx-auto space-y-3">
+              <div className="relative aspect-square rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-xl">
+                <img
+                  src={URL.createObjectURL(formData.selfie_photo)}
+                  alt="Selfie Preview"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, selfie_photo: null })}
+                className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Ulangi Foto Selfie
+              </button>
             </div>
           )}
 
@@ -888,10 +778,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
+                stopCamera('selfie')
                 setStep(2)
-                stopCamera(selfieStreamRef, selfieVideoRef)
               }}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
             >
               Kembali
             </button>
@@ -899,730 +789,482 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               type="button"
               onClick={() => {
                 if (!formData.selfie_photo) {
-                  setError('Harap ambil foto selfie terlebih dahulu')
-                  setValidationErrors({ ...validationErrors, selfie_photo: 'Foto selfie wajib diisi' })
+                  setError('Harap ambil atau unggah foto selfie Anda')
                   return
                 }
-                
-                // Validate file
-                const fileValidation = validateFile(formData.selfie_photo, ['image/'], 5)
-                if (!fileValidation.valid) {
-                  setError(fileValidation.error || 'Foto selfie tidak valid')
-                  setValidationErrors({ ...validationErrors, selfie_photo: fileValidation.error || 'Foto selfie tidak valid' })
-                  return
-                }
-                
-                setValidationErrors({ ...validationErrors, selfie_photo: '' })
+                stopCamera('selfie')
                 setError('')
-                setStep(4) // Step 4: Room Selection
-                stopCamera(selfieStreamRef, selfieVideoRef)
+                setStep(4)
               }}
               disabled={!formData.selfie_photo}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
-              Lanjutkan ke Pilih Kamar
+              Lanjut: Pilih Kamar & Durasi
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 4: Room Type Selection */}
+      {/* =========================================================================
+          STEP 4: PILIH TIPE KAMAR (VIP / NON-VIP) & DURASI SEWA
+      ========================================================================= */}
       {step === 4 && (
-        <div className="space-y-4">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Pilih Jenis Kamar</h2>
-            <p className="text-sm text-gray-600">Pilih jenis kamar yang diinginkan. Kamar spesifik akan ditentukan oleh resepsionis.</p>
-          </div>
-          
-          <div className="grid gap-4 md:grid-cols-2">
-            {(() => {
-              // Group rooms by price and facilities to create room types
-              const roomTypes = new Map<string, { 
-                price: number, 
-                price_per_day: number | null,
-                price_per_month: number | null,
-                price_per_6months: number | null,
-                facilities: string[], 
-                count: number 
-              }>()
-              
-              rooms.forEach((room) => {
-                const facilitiesStr = (room.facilities || []).join(', ') || 'Standard'
-                // Use price_per_day as primary key since it's required
-                const priceKey = (room as any).price_per_day || room.price || 0
-                const key = `${priceKey}-${facilitiesStr}`
-                
-                if (roomTypes.has(key)) {
-                  const existing = roomTypes.get(key)!
-                  existing.count += 1
-                } else {
-                  roomTypes.set(key, {
-                    price: room.price,
-                    price_per_day: (room as any).price_per_day || null,
-                    price_per_month: (room as any).price_per_month || null,
-                    price_per_6months: (room as any).price_per_6months || null,
-                    facilities: room.facilities || [],
-                    count: 1
-                  })
-                }
-              })
-
-              const typesArray = Array.from(roomTypes.entries()).map(([key, value]) => ({
-                key,
-                ...value
-              }))
-
-              // Facility icon mapping
-              const getFacilityIcon = (facility: string) => {
-                const facilityLower = facility.toLowerCase()
-                if (facilityLower.includes('ac') || facilityLower.includes('air conditioner')) {
-                  return (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  )
-                }
-                if (facilityLower.includes('kamar mandi') || facilityLower.includes('bathroom') || facilityLower.includes('wc')) {
-                  return (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
-                    </svg>
-                  )
-                }
-                if (facilityLower.includes('wifi') || facilityLower.includes('internet')) {
-                  return (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                    </svg>
-                  )
-                }
-                if (facilityLower.includes('tv') || facilityLower.includes('televisi')) {
-                  return (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  )
-                }
-                if (facilityLower.includes('lemari') || facilityLower.includes('wardrobe') || facilityLower.includes('closet')) {
-                  return (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                    </svg>
-                  )
-                }
-                if (facilityLower.includes('kasur') || facilityLower.includes('bed') || facilityLower.includes('tempat tidur')) {
-                  return (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                  )
-                }
-                if (facilityLower.includes('meja') || facilityLower.includes('table') || facilityLower.includes('desk')) {
-                  return (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                  )
-                }
-                if (facilityLower.includes('kipas') || facilityLower.includes('fan')) {
-                  return (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  )
-                }
-                // Default icon
-                return (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )
-              }
-
-              return typesArray.map((type) => (
-                <button
-                  key={type.key}
-                  type="button"
-                  onClick={() => {
-                    setSelectedRoomType(type)
-                    // Set default to daily price (required)
-                    const dailyPrice = type.price_per_day || 0
-                    setTotalAmount(dailyPrice)
-                    setRentalDuration('daily')
-                    setRentalDays(1)
-                    setRentalDaysInput('1')
-                  }}
-                  className={`relative p-6 rounded-xl border-2 text-left transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${
-                    selectedRoomType?.key === type.key
-                      ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg shadow-indigo-200/50'
-                      : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-md'
-                  }`}
-                >
-                  {/* Selected indicator */}
-                  {selectedRoomType?.key === type.key && (
-                    <div className="absolute top-4 right-4">
-                      <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Room Type Header */}
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                        selectedRoomType?.key === type.key
-                          ? 'bg-gradient-to-br from-indigo-600 to-purple-600'
-                          : 'bg-gradient-to-br from-gray-100 to-gray-200'
-                      }`}>
-                        <svg className={`w-6 h-6 ${selectedRoomType?.key === type.key ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className={`text-lg font-bold ${
-                          selectedRoomType?.key === type.key ? 'text-indigo-900' : 'text-gray-900'
-                        }`}>
-                          {(type.facilities && type.facilities.length > 0) ? type.facilities[0] : 'Kamar Standard'}
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {type.count} kamar tersedia
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Facilities */}
-                  {type.facilities && type.facilities.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Fasilitas:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {type.facilities.map((facility, idx) => (
-                          <div
-                            key={idx}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
-                              selectedRoomType?.key === type.key
-                                ? 'bg-indigo-100 text-indigo-800'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            <span className="flex-shrink-0">
-                              {getFacilityIcon(facility)}
-                            </span>
-                            <span>{facility}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Price Details */}
-                  <div className="pt-4 border-t border-gray-200">
-                    <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Harga Sewa:</p>
-                    <div className="space-y-1.5">
-                      {/* Per Hari - Always shown (required) */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-600">Per Hari</span>
-                        <span className={`text-sm font-semibold ${
-                          selectedRoomType?.key === type.key
-                            ? 'text-indigo-600'
-                            : 'text-gray-900'
-                        }`}>
-                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(type.price_per_day || 0)}
-                          {!type.price_per_day && (
-                            <span className="text-xs text-red-500 ml-1">(Belum di-set)</span>
-                          )}
-                        </span>
-                      </div>
-                      {/* Per Bulan - Only if set */}
-                      {(type as any).price_per_month && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-600">Per Bulan</span>
-                          <span className={`text-sm font-semibold ${
-                            selectedRoomType?.key === type.key
-                              ? 'text-indigo-600'
-                              : 'text-gray-900'
-                          }`}>
-                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((type as any).price_per_month)}
-                          </span>
-                        </div>
-                      )}
-                      {/* Per 6 Bulan - Only if set */}
-                      {(type as any).price_per_6months && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-600">Per 6 Bulan</span>
-                          <span className={`text-sm font-semibold ${
-                            selectedRoomType?.key === type.key
-                              ? 'text-green-600'
-                              : 'text-green-700'
-                          }`}>
-                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((type as any).price_per_6months)}
-                            <span className="text-xs text-green-600 ml-1">(Lebih hemat!)</span>
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))
-            })()}
+        <div className="space-y-6">
+          <div className="border-b border-slate-800 pb-3">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <BedDouble className="w-5 h-5 text-indigo-400" />
+              Pilih Tipe Kamar & Durasi Sewa
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Graha Aisyah Menteng memiliki 53 kamar dengan harga seragam Rp 100.000 / malam
+            </p>
           </div>
 
-          {rooms.length === 0 && (
-            <p className="text-center text-gray-500 py-8">Tidak ada kamar tersedia</p>
-          )}
+          {/* Room Category Cards */}
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">
+              1. Pilih Kategori Kamar:
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* VIP Card */}
+              <div
+                onClick={() => setRoomCategory('vip')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
+                  roomCategory === 'vip'
+                    ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10'
+                    : 'border-slate-800 bg-slate-850 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Kamar VIP (13 Kamar)
+                  </span>
+                  <span className="text-xs font-black text-purple-400">Rp 100.000 / malam</span>
+                </div>
+                <h3 className="text-sm font-bold text-white mb-1">VIP Suite Room</h3>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                  Kamar eksklusif berfasilitas lengkap dengan Smart TV, Queen Bed, AC, dan Kamar Mandi Dalam.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['AC', 'Kamar Mandi Dalam', 'Smart TV', 'Wifi', 'Queen Bed', 'Water Heater'].map(f => (
+                    <span key={f} className="text-[10px] px-2 py-0.5 bg-slate-800 text-slate-300 rounded-md border border-slate-700/80">
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              </div>
 
-          <div className="flex gap-3">
+              {/* Non-VIP Card */}
+              <div
+                onClick={() => setRoomCategory('non_vip')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
+                  roomCategory === 'non_vip'
+                    ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
+                    : 'border-slate-800 bg-slate-850 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    Kamar Non-VIP (40 Kamar)
+                  </span>
+                  <span className="text-xs font-black text-indigo-400">Rp 100.000 / malam</span>
+                </div>
+                <h3 className="text-sm font-bold text-white mb-1">Standard Room</h3>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                  Kamar nyaman dengan AC, Single Bed, Kamar Mandi Dalam, Lemari, dan Wifi High Speed.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['AC', 'Kamar Mandi Dalam', 'Single Bed', 'Wifi High-Speed', 'Meja Belajar'].map(f => (
+                    <span key={f} className="text-[10px] px-2 py-0.5 bg-slate-800 text-slate-300 rounded-md border border-slate-700/80">
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Duration Selector */}
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">
+              2. Pilih Pilihan Durasi Sewa:
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setDurationType('daily')}
+                className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  durationType === 'daily'
+                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
+                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                }`}
+              >
+                Harian
+              </button>
+              <button
+                type="button"
+                onClick={() => setDurationType('weekly')}
+                className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  durationType === 'weekly'
+                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
+                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                }`}
+              >
+                Mingguan
+              </button>
+              <button
+                type="button"
+                onClick={() => setDurationType('monthly')}
+                className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  durationType === 'monthly'
+                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
+                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                }`}
+              >
+                Bulanan
+              </button>
+            </div>
+
+            {/* Sub-inputs for duration */}
+            <div className="mt-3 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/80">
+              {durationType === 'daily' && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">Jumlah Hari Menginap</p>
+                    <p className="text-[11px] text-slate-400">Rp 100.000 / malam</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5, 6].map(d => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDailyDays(d)}
+                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          dailyDays === d
+                            ? 'bg-indigo-600 text-white shadow-md'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {durationType === 'weekly' && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">Jumlah Minggu</p>
+                    <p className="text-[11px] text-slate-400">Rp 700.000 / minggu (7 hari)</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3].map(w => (
+                      <button
+                        key={w}
+                        type="button"
+                        onClick={() => setWeeklyWeeks(w)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          weeklyWeeks === w
+                            ? 'bg-indigo-600 text-white shadow-md'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        {w} Minggu
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {durationType === 'monthly' && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">Jumlah Bulan</p>
+                    <p className="text-[11px] text-slate-400">Rp 3.000.000 / bulan</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {[1, 3, 6, 12].map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setMonthlyMonths(m)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          monthlyMonths === m
+                            ? 'bg-indigo-600 text-white shadow-md'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        {m} Bln
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Deposit Notification Card */}
+          <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl space-y-1">
+            <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4" /> Uang Jaminan Deposit (Refundable)
+              </span>
+              <span>Rp 100.000</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Deposit sebesar <strong>Rp 100.000</strong> akan dikembalikan utuh ke rekening / tunai Anda saat check-out setelah pemeriksaan kamar selesai.
+            </p>
+          </div>
+
+          {/* Price Breakdown Summary */}
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+            <div className="flex justify-between text-xs text-slate-400">
+              <span>Biaya Sewa ({durationType === 'daily' ? `${dailyDays} hari` : durationType === 'weekly' ? `${weeklyWeeks} minggu` : `${monthlyMonths} bulan`}):</span>
+              <span className="font-semibold text-slate-200">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentSubtotal)}
+              </span>
+            </div>
+            <div className="flex justify-between text-xs text-slate-400">
+              <span>Uang Deposit (Dikembalikan saat checkout):</span>
+              <span className="font-semibold text-emerald-400">Rp 100.000</span>
+            </div>
+            <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
+              <span className="text-xs font-bold text-white uppercase tracking-wider">Total Pembayaran:</span>
+              <span className="text-lg font-black text-indigo-400">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
             >
               Kembali
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (selectedRoomType) {
-                  // Validate that price_per_day is set
-                  if (!selectedRoomType.price_per_day || selectedRoomType.price_per_day === 0) {
-                    setError('Harga per hari belum di-set untuk jenis kamar ini. Silakan hubungi admin.')
-                    return
-                  }
-                  // Set default to daily price
-                  const dailyPrice = selectedRoomType.price_per_day || 0
-                  setTotalAmount(dailyPrice)
-                  setRentalDuration('daily')
-                  setRentalDays(1)
-                  setRentalDaysInput('1')
-                  setStep(4.5) // New step for duration selection
-                } else {
-                  setError('Harap pilih jenis kamar terlebih dahulu')
-                }
-              }}
-              disabled={!selectedRoomType}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
+              onClick={() => setStep(5)}
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
-              Lanjutkan
+              Lanjut: Aturan & Ketentuan
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 4.5: Rental Duration Selection */}
-      {step === 4.5 && selectedRoomType && (
-        <div className="space-y-6">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Pilih Durasi Sewa</h2>
-            <p className="text-sm text-gray-600">Pilih jenis sewa dan durasi yang diinginkan</p>
-          </div>
-
-          {/* Duration Type Dropdown */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Jenis Sewa *
-            </label>
-            <select
-              value={rentalDuration}
-              onChange={(e) => {
-                const duration = e.target.value as 'daily' | '6months'
-                setRentalDuration(duration)
-                if (duration === 'daily') {
-                  setRentalDays(1)
-                  setRentalDaysInput('1')
-                  setTotalAmount(selectedRoomType.price_per_day || 0)
-                } else if (duration === '6months') {
-                  setTotalAmount(selectedRoomType.price_per_6months || 0)
-                }
-              }}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-            >
-              <option value="daily">Sewa Harian</option>
-              {selectedRoomType.price_per_6months && (
-                <option value="6months">Sewa Bulanan (6 Bulan)</option>
-              )}
-            </select>
-            {rentalDuration === '6months' && (
-              <p className="text-xs text-gray-500 mt-2">
-                <span className="font-semibold text-green-600">Info:</span> Sewa bulanan otomatis untuk 6 bulan. Tidak tersedia untuk 1 atau 2 bulan.
-              </p>
-            )}
-          </div>
-
-          {/* Daily Rental - Input Jumlah Hari */}
-          {rentalDuration === 'daily' && (
-            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-200">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Jumlah Hari *
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="7"
-                value={rentalDaysInput}
-                onChange={(e) => {
-                  const inputValue = e.target.value
-                  // Allow empty input while typing
-                  setRentalDaysInput(inputValue)
-                  
-                  // Only update rentalDays and total if input is valid
-                  if (inputValue === '') {
-                    // Keep current value while user is typing
-                    return
-                  }
-                  
-                  const days = parseInt(inputValue)
-                  if (!isNaN(days) && days >= 1 && days <= 7) {
-                    setRentalDays(days)
-                    setTotalAmount((selectedRoomType.price_per_day || 0) * days)
-                  }
-                }}
-                onBlur={(e) => {
-                  const inputValue = e.target.value.trim()
-                  if (inputValue === '') {
-                    // If empty on blur, reset to 1
-                    setRentalDaysInput('1')
-                    setRentalDays(1)
-                    setTotalAmount(selectedRoomType.price_per_day || 0)
-                    return
-                  }
-                  
-                  const days = parseInt(inputValue)
-                  if (isNaN(days) || days < 1) {
-                    // Invalid, reset to 1
-                    setRentalDaysInput('1')
-                    setRentalDays(1)
-                    setTotalAmount(selectedRoomType.price_per_day || 0)
-                  } else if (days > 7) {
-                    // Too high, clamp to 7
-                    setRentalDaysInput('7')
-                    setRentalDays(7)
-                    setTotalAmount((selectedRoomType.price_per_day || 0) * 7)
-                  } else {
-                    // Valid, ensure input matches
-                    setRentalDaysInput(days.toString())
-                    setRentalDays(days)
-                    setTotalAmount((selectedRoomType.price_per_day || 0) * days)
-                  }
-                }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="Masukkan jumlah hari (1-7)"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Maksimal 7 hari dalam sekali transaksi
-              </p>
-              <div className="mt-4 pt-4 border-t border-indigo-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Harga per hari:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day || 0)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Jumlah hari:</span>
-                  <span className="text-sm font-semibold text-gray-900">{rentalDays} hari</span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-indigo-200">
-                  <span className="text-base font-bold text-gray-900">Total:</span>
-                  <span className="text-xl font-bold text-indigo-600">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format((selectedRoomType.price_per_day || 0) * rentalDays)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Monthly Rental (6 months) - Display Info */}
-          {rentalDuration === '6months' && selectedRoomType.price_per_6months && (
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900">Sewa Bulanan (6 Bulan)</h3>
-                  <p className="text-xs text-gray-600">Durasi sewa otomatis 6 bulan</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Harga untuk 6 bulan:</span>
-                  <span className="text-lg font-bold text-green-600">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-green-200">
-                  <span className="text-sm text-gray-600">Harga per bulan (rata-rata):</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months / 6)}
-                  </span>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-green-200">
-                  <p className="text-xs text-gray-600 text-center">
-                    <span className="font-semibold text-green-600">Lebih hemat!</span> Dibandingkan sewa harian
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => setStep(4)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
-            >
-              Kembali
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (rentalDuration) {
-                  setStep(5)
-                } else {
-                  setError('Harap pilih durasi sewa terlebih dahulu')
-                }
-              }}
-              disabled={!rentalDuration}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
-            >
-              Lanjutkan
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 5: Terms & Conditions */}
+      {/* =========================================================================
+          STEP 5: SYARAT & KETENTUAN (TERMASUK DENDA TELAT CHECKOUT)
+      ========================================================================= */}
       {step === 5 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Kebijakan dan Aturan Kost</h2>
-          
-          <div className="bg-gray-50 p-4 rounded-lg max-h-64 overflow-y-auto text-sm text-gray-700 space-y-2">
-            <h3 className="font-semibold">Aturan Kost {branchName}:</h3>
-            <ul className="list-disc list-inside space-y-1">
-              <li>Pembayaran sewa dilakukan setiap bulan pada tanggal yang telah ditentukan</li>
-              <li>Dilarang merokok di dalam kamar</li>
-              <li>Dilarang membawa tamu menginap tanpa izin</li>
-              <li>Menjaga kebersihan kamar dan lingkungan kost</li>
-              <li>Menjaga ketenangan setelah jam 22:00</li>
-              <li>Dilarang melakukan aktivitas yang mengganggu ketertiban</li>
-              <li>Segala kerusakan yang disebabkan oleh penghuni akan ditanggung oleh penghuni</li>
-            </ul>
+        <div className="space-y-5">
+          <div className="border-b border-slate-800 pb-3">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-indigo-400" />
+              Kebijakan & Aturan Graha Aisyah Menteng
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Harap baca dan setujui ketentuan operasional sebelum melanjutkan
+            </p>
           </div>
 
-          <label className="flex items-start gap-3 cursor-pointer">
+          <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/80 max-h-60 overflow-y-auto space-y-3 text-xs text-slate-300 leading-relaxed pr-2">
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1 text-amber-200">
+              <p className="font-bold flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-amber-400" />
+                Ketentuan Waktu & Denda Checkout:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-300/90 pl-1">
+                <li>Waktu check-in mulai pukul <strong>14:00 WIB</strong>.</li>
+                <li>Waktu check-out maksimal pukul <strong>12:00 WIB</strong> siang.</li>
+                <li>Telat check-out sampai pukul <strong>15:00 WIB (3 sore)</strong> dikenakan denda charge <strong>Rp 50.000</strong>.</li>
+                <li>Telat check-out lewat pukul <strong>15:00 s/d 17:00 WIB (5 sore)</strong> dikenakan denda charge <strong>Rp 100.000</strong>.</li>
+                <li>Telat lewat pukul <strong>17:00 WIB</strong> dikenakan biaya 1 hari penuh (<strong>Rp 100.000</strong>).</li>
+              </ul>
+            </div>
+
+            <div className="space-y-1.5 text-slate-300 text-[11px]">
+              <p className="font-bold text-slate-100">Aturan Umum Kost:</p>
+              <ul className="list-disc list-inside space-y-1 pl-1">
+                <li>Uang deposit Rp 100.000 dikembalikan penuh saat checkout setelah kunci diserahkan dan kamar diperiksa.</li>
+                <li>Dilarang merokok di dalam kamar ber-AC.</li>
+                <li>Dilarang membawa tamu lawan jenis menginap di dalam kamar.</li>
+                <li>Wajib menjaga kebersihan dan ketenangan terutama setelah pukul 22:00 WIB.</li>
+                <li>Dilarang membawa hewan peliharaan dan barang terlarang/narkoba.</li>
+              </ul>
+            </div>
+          </div>
+
+          <label className="flex items-start gap-3 p-3 bg-slate-800/40 rounded-xl border border-slate-700/60 cursor-pointer">
             <input
               type="checkbox"
               required
               checked={formData.terms_accepted}
               onChange={(e) => setFormData({ ...formData, terms_accepted: e.target.checked })}
-              className="mt-1 w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              className="mt-0.5 w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-indigo-500"
             />
-            <span className="text-sm text-gray-700">
-              Saya telah membaca dan menyetujui kebijakan dan aturan kost di atas *
+            <span className="text-xs text-slate-200 leading-snug">
+              Saya telah membaca, memahami, dan menyetujui seluruh kebijakan, aturan deposit, dan ketentuan denda keterlambatan check-out di Graha Aisyah Menteng. *
             </span>
           </label>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={() => setStep(4)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
             >
               Kembali
             </button>
             <button
               type="button"
               onClick={() => {
-                if (formData.terms_accepted) {
-                  setStep(6)
-                } else {
-                  setError('Harap setujui kebijakan dan aturan kost terlebih dahulu')
+                if (!formData.terms_accepted) {
+                  setError('Anda harus menyetujui aturan dan kebijakan kost untuk melanjutkan')
+                  return
                 }
+                setError('')
+                setStep(6)
               }}
               disabled={!formData.terms_accepted}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 shadow-lg hover:shadow-xl"
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
-              Lanjutkan
+              Lanjut: Pembayaran
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 6: Payment Summary */}
+      {/* =========================================================================
+          STEP 6: METODE PEMBAYARAN (QRIS GOPAY MERCHANT & CASH RESEPSIONIS)
+      ========================================================================= */}
       {step === 6 && (
         <div className="space-y-6">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Ringkasan Pembayaran</h2>
-            <p className="text-sm text-gray-600">Periksa detail pembayaran sebelum melanjutkan</p>
-          </div>
-          
-          {/* Payment Details Card */}
-          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200 shadow-sm">
-            <div className="space-y-4">
-              {/* Room Type */}
-              <div className="flex items-start justify-between pb-4 border-b border-gray-300">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Jenis Kamar</p>
-                    <p className="font-semibold text-gray-900">
-                      {selectedRoomType && selectedRoomType.facilities && selectedRoomType.facilities.length > 0 
-                        ? selectedRoomType.facilities[0]
-                        : 'Kamar Standard'}
-                    </p>
-                    {selectedRoomType && selectedRoomType.facilities && selectedRoomType.facilities.length > 1 && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        + {selectedRoomType.facilities.slice(1).join(', ')}
-                      </p>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1 italic">
-                      * Kamar spesifik akan ditentukan oleh resepsionis
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Price Breakdown */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700 flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {rentalDuration === 'daily' ? 'Harga Sewa Harian' : 'Harga Sewa Bulanan (6 Bulan)'}
-                  </span>
-                  <span className="font-semibold text-gray-900">
-                    {rentalDuration === 'daily' && selectedRoomType?.price_per_day ? (
-                      <>
-                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_day)}
-                        <span className="text-xs font-normal text-gray-500 ml-1">× {rentalDays} hari</span>
-                      </>
-                    ) : rentalDuration === '6months' && selectedRoomType?.price_per_6months ? (
-                      <>
-                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedRoomType.price_per_6months)}
-                        <span className="text-xs font-normal text-gray-500 ml-1">/6 bulan</span>
-                      </>
-                    ) : null}
-                  </span>
-                </div>
-              </div>
-
-              {/* Total */}
-              <div className="pt-4 border-t-2 border-gray-300">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-bold text-gray-900">Total Pembayaran</span>
-                  <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
-                  </span>
-                </div>
-              </div>
-            </div>
+          <div className="border-b border-slate-800 pb-3">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Banknote className="w-5 h-5 text-indigo-400" />
+              Metode Pembayaran
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Pilih cara pembayaran yang paling nyaman untuk Anda
+            </p>
           </div>
 
-          {/* Transfer Destination Card */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 mb-2">Tujuan Transfer</h3>
-                <div className="bg-white rounded-lg p-4 border border-blue-200">
-                  <p className="text-gray-800 font-mono text-sm break-all">
-                    {paymentDestination || (
-                      <span className="text-gray-400 italic">Menunggu informasi...</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Upload Bukti Transfer *</label>
-            <input
-              type="file"
-              accept="image/*"
-              required
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  const file = e.target.files[0]
-                  const fileValidation = validateFile(file, ['image/'], 5)
-                  
-                  if (!fileValidation.valid) {
-                    setError(fileValidation.error || 'Bukti transfer tidak valid')
-                    setValidationErrors({ ...validationErrors, payment_proof: fileValidation.error || 'Bukti transfer tidak valid' })
-                    e.target.value = '' // Reset input
-                    return
-                  }
-                  
-                  setFormData({ ...formData, payment_proof: file })
-                  setValidationErrors({ ...validationErrors, payment_proof: '' })
-                  setError('')
-                }
-              }}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                validationErrors.payment_proof ? 'border-red-500' : 'border-gray-300'
+          {/* Method Selector */}
+          <div className="grid grid-cols-2 gap-3">
+            <div
+              onClick={() => setPaymentMethod('qris')}
+              className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center space-y-1.5 ${
+                paymentMethod === 'qris'
+                  ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
+                  : 'border-slate-800 bg-slate-850 hover:border-slate-700'
               }`}
-            />
-            {validationErrors.payment_proof && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.payment_proof}</p>
-            )}
-            {formData.payment_proof && (
-              <img
-                src={URL.createObjectURL(formData.payment_proof)}
-                alt="Bukti transfer"
-                className="mt-2 w-full rounded-lg border-2 border-gray-300"
-              />
-            )}
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+                <QrCode className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-bold text-white">QRIS GoPay Merchant</p>
+              <p className="text-[10px] text-slate-400">Scan & bayar online</p>
+            </div>
+
+            <div
+              onClick={() => setPaymentMethod('cash')}
+              className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center space-y-1.5 ${
+                paymentMethod === 'cash'
+                  ? 'border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/10'
+                  : 'border-slate-800 bg-slate-850 hover:border-slate-700'
+              }`}
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                <Banknote className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-bold text-white">Cash / Bayar Tunai</p>
+              <p className="text-[10px] text-slate-400">Bayar di meja resepsionis</p>
+            </div>
           </div>
 
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{error}</p>
+          {/* QRIS Display Section */}
+          {paymentMethod === 'qris' && (
+            <div className="space-y-4 bg-slate-950 p-5 rounded-3xl border border-slate-800">
+              <div className="text-center space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                  Scan QRIS GoPay Merchant
+                </span>
+                <h3 className="text-sm font-bold text-white">Graha Aisyah Menteng</h3>
+                <p className="text-[11px] text-slate-400">
+                  Total Transfer: <strong className="text-indigo-400 text-sm">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong>
+                </p>
+              </div>
+
+              {/* QR Image Box */}
+              <div className="max-w-[260px] mx-auto bg-white p-3 rounded-2xl shadow-xl border-4 border-slate-800">
+                <img
+                  src="/qris-gopay.svg"
+                  alt="QRIS GoPay Merchant Graha Aisyah Menteng"
+                  className="w-full h-auto rounded-lg"
+                />
+              </div>
+
+              {/* Upload Proof */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Upload Bukti Pembayaran QRIS *
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  required={paymentMethod === 'qris'}
+                  onChange={(e) => handleFileUpload(e, 'payment_proof')}
+                  className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
+                />
+                {formData.payment_proof && (
+                  <div className="mt-2 text-[11px] text-emerald-400 flex items-center gap-1 font-semibold">
+                    <Check className="w-3.5 h-3.5" /> Bukti transfer terlampir: {formData.payment_proof.name}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          <div className="flex gap-3">
+          {/* Cash Resepsionis Section */}
+          {paymentMethod === 'cash' && (
+            <div className="p-5 bg-emerald-950/30 border border-emerald-500/30 rounded-3xl space-y-2.5">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                <CheckCircle2 className="w-5 h-5" />
+                <span>Bayar Tunai di Resepsionis</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Anda dapat langsung datang ke meja resepsionis <strong>Graha Aisyah Menteng</strong> untuk menyerahkan pembayaran tunai sebesar <strong>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong> (termasuk deposit Rp 100.000).
+              </p>
+              <p className="text-[11px] text-slate-400 italic">
+                * Kunci kamar akan diserahkan setelah pembayaran tunai diterima oleh staf resepsionis.
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={() => setStep(5)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95"
+              className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
             >
               Kembali
             </button>
             <button
               type="submit"
-              disabled={loading || !formData.payment_proof}
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100 flex items-center justify-center gap-2"
+              disabled={loading || (paymentMethod === 'qris' && !formData.payment_proof)}
+              className="flex-1 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-98"
             >
               {loading ? (
                 <>
-                  <div className="relative">
-                    <div className="h-4 w-4 border-2 border-white/30 rounded-full"></div>
-                    <div className="absolute inset-0 h-4 w-4 border-2 border-transparent border-t-white rounded-full animate-spin"></div>
-                  </div>
-                  <span className="animate-pulse">Mengirim permintaan...</span>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Memproses Reservasi...</span>
                 </>
               ) : (
-                'Kirim Permintaan'
+                <span>Konfirmasi & Selesaikan Check-in</span>
               )}
             </button>
           </div>
@@ -1631,4 +1273,3 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     </form>
   )
 }
-

@@ -61,12 +61,12 @@ export default function LoginPage() {
               <Building2 className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Graha Aisyah
+              Graha Aisyah Menteng
             </h1>
             <div className="flex items-center justify-center gap-1.5 mt-1">
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Mainframe System
+                53 Kamar • Management System
               </span>
             </div>
             <p className="text-sm text-slate-500 mt-2">
@@ -167,7 +167,7 @@ export default function LoginPage() {
           {/* Footer */}
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-xs text-slate-400">
-              © {new Date().getFullYear()} Graha Aisyah Kos Management. Secure Cloud Access.
+              © {new Date().getFullYear()} Graha Aisyah Menteng Management. All rights reserved.
             </p>
           </div>
         </div>

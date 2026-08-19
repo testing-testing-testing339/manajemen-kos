@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import QRCode from 'qrcode'
+import { QrCode, Download, Building2, Sparkles, CheckCircle2 } from 'lucide-react'
 
 export default function QRGenerator({ branches, userRole }: { branches: any[], userRole: string | null }) {
-  const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || '')
+  const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || 'default')
   const [qrCodeUrl, setQrCodeUrl] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -12,14 +13,14 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
     setLoading(true)
     try {
       const siteUrl = window.location.origin
-      const checkInUrl = `${siteUrl}/check-in/${branchId}`
+      const checkInUrl = `${siteUrl}/check-in`
       
       // Generate QR code
       const qrDataUrl = await QRCode.toDataURL(checkInUrl, {
-        width: 300,
+        width: 360,
         margin: 2,
         color: {
-          dark: '#000000',
+          dark: '#0F172A',
           light: '#FFFFFF'
         }
       })
@@ -27,19 +28,15 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
       setQrCodeUrl(qrDataUrl)
 
       // Save to database
-      const response = await fetch('/api/branch/generate-qr', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          branch_id: branchId,
-          qr_code_data: checkInUrl
-        }),
-      })
-
-      if (!response.ok) {
-        console.error('Failed to save QR code')
+      if (branchId && branchId !== 'default') {
+        await fetch('/api/branch/generate-qr', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            branch_id: branchId,
+            qr_code_data: checkInUrl
+          }),
+        }).catch(() => {})
       }
     } catch (error) {
       console.error('Error generating QR code:', error)
@@ -48,74 +45,105 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
     }
   }
 
+  // Auto generate QR code on mount
+  useEffect(() => {
+    generateCheckInQR(selectedBranch)
+  }, [selectedBranch])
+
   const downloadQR = () => {
     if (!qrCodeUrl) return
-    
     const link = document.createElement('a')
-    link.download = `qr-code-checkin-${selectedBranch}.png`
+    link.download = `qr-code-checkin-graha-aisyah-menteng.png`
     link.href = qrCodeUrl
     link.click()
   }
 
-  const selectedBranchData = branches.find(b => b.id === selectedBranch)
+  const selectedBranchData = branches.find(b => b.name?.toLowerCase().includes('menteng')) || {
+    id: '00000000-0000-0000-0000-000000000001',
+    name: 'Graha Aisyah Menteng',
+    address: 'Jl. Menteng No. 1, Jakarta Pusat'
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto pb-10">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Generator QR Code</h1>
-        <p className="text-gray-600">Generate QR code untuk check-in di setiap cabang</p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          QR Code Check-in Tamu
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          Generate dan unduh QR code formulir check-in mandiri untuk Graha Aisyah Menteng
+        </p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-        <div className="mb-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Cabang</label>
-          <select
-            value={selectedBranch}
-            onChange={(e) => {
-              setSelectedBranch(e.target.value)
-              setQrCodeUrl('')
-            }}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          >
-            {branches.map(branch => (
-              <option key={branch.id} value={branch.id}>{branch.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {selectedBranchData && (
-          <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Cabang: <span className="font-semibold">{selectedBranchData.name}</span></p>
-            <p className="text-sm text-gray-600">Alamat: {selectedBranchData.address}</p>
-          </div>
-        )}
-
-        <button
-          onClick={() => generateCheckInQR(selectedBranch)}
-          disabled={loading || !selectedBranch}
-          className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? 'Generating...' : 'Generate QR Code'}
-        </button>
-
-        {qrCodeUrl && (
-          <div className="mt-6 text-center">
-            <div className="inline-block p-4 bg-white border-2 border-gray-300 rounded-lg">
-              <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        {/* Info & Settings Card */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+              <Building2 className="w-6 h-6" />
             </div>
-            <p className="text-sm text-gray-600 mt-4 mb-2">
-              Scan QR code ini untuk check-in di cabang <span className="font-semibold">{selectedBranchData?.name}</span>
-            </p>
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900">{selectedBranchData.name || 'Graha Aisyah Menteng'}</h2>
+              <p className="text-xs text-slate-400">{selectedBranchData.address || 'Jl. Menteng No. 1, Jakarta Pusat'}</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2 text-xs text-slate-600">
+            <div className="flex items-center gap-2 font-bold text-slate-900">
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <span>Kemudahan Registrasi Mandiri Tamu:</span>
+            </div>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-500 pl-1">
+              <li>Tamu cukup scan QR ini dengan kamera HP / Google Lens.</li>
+              <li>Pilih tipe kamar (13 VIP / 40 Non-VIP) & durasi sewa.</li>
+              <li>Unggah foto KTP dengan panduan frame otomatis.</li>
+              <li>Pembayaran instan via QRIS GoPay Merchant atau Cash di resepsionis.</li>
+            </ul>
+          </div>
+
+          <div className="pt-2">
             <button
-              onClick={downloadQR}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
+              onClick={() => generateCheckInQR(selectedBranch)}
+              disabled={loading}
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              Download QR Code
+              <QrCode className="w-4 h-4 text-indigo-600" />
+              <span>Perbarui / Generate Ulang QR Code</span>
             </button>
           </div>
-        )}
+        </div>
+
+        {/* QR Preview Card */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs text-center space-y-4">
+          <div className="inline-block p-4 bg-white border-2 border-slate-200 rounded-3xl shadow-xl">
+            {qrCodeUrl ? (
+              <img src={qrCodeUrl} alt="QR Code Checkin Graha Aisyah Menteng" className="w-64 h-64 mx-auto" />
+            ) : (
+              <div className="w-64 h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                Membuat QR Code...
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-slate-800">
+              Scan untuk Check-in di Graha Aisyah Menteng
+            </p>
+            <p className="text-[11px] text-slate-400">
+              URL: <span className="font-mono text-indigo-600">/check-in</span>
+            </p>
+          </div>
+
+          <button
+            onClick={downloadQR}
+            disabled={!qrCodeUrl}
+            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
+          >
+            <Download className="w-4 h-4" />
+            <span>Unduh QR Code (.PNG)</span>
+          </button>
+        </div>
       </div>
     </div>
   )
 }
-

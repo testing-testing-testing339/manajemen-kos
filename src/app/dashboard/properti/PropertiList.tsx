@@ -3,12 +3,35 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
-import { addBranch, deleteBranch, addFloor, deleteFloor, createRoom, deleteRoom, updateRoom, bulkCreateRooms } from './actions'
+import { createRoom, deleteRoom, updateRoom } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
+import { 
+  Building2, 
+  DoorClosed, 
+  Sparkles, 
+  Plus, 
+  Search, 
+  Filter, 
+  Edit, 
+  Trash2, 
+  BedDouble, 
+  Tv, 
+  Wifi, 
+  Wind, 
+  Flame,
+  CheckCircle2,
+  XCircle,
+  LayoutGrid,
+  List,
+  User,
+  Crown,
+  Layers
+} from 'lucide-react'
 
-type TabType = 'branches' | 'floors' | 'rooms'
+type CategoryFilter = 'all' | 'vip' | 'non_vip' | 'available' | 'occupied'
+type ViewMode = 'cinema' | 'list'
 
 export default function PropertiList({
   initialBranches,
@@ -25,131 +48,41 @@ export default function PropertiList({
   initialTenants: any[]
   userRole: string | null
 }) {
-  const [activeTab, setActiveTab] = useState<TabType>('branches')
-  const [branches, setBranches] = useState(initialBranches)
-  const [floors, setFloors] = useState(initialFloors)
   const [rooms, setRooms] = useState(initialRooms)
   const [floorsForRooms, setFloorsForRooms] = useState(initialFloorsForRooms)
   const [tenants, setTenants] = useState(initialTenants)
+  
+  const [viewMode, setViewMode] = useState<ViewMode>('cinema')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isBulkAddModalOpen, setIsBulkAddModalOpen] = useState(false)
+  const [isDetailRoomModalOpen, setIsDetailRoomModalOpen] = useState(false)
   const [selectedRoom, setSelectedRoom] = useState<any>(null)
-  const [selectedBranch, setSelectedBranch] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedFloorFilter, setSelectedFloorFilter] = useState<string>('')
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
+  const [selectedFloorFilter, setSelectedFloorFilter] = useState<string>('all')
   const router = useRouter()
 
-  const [addBranchState, addBranchAction] = useActionState(addBranch, null)
-  const [deleteBranchState, deleteBranchAction] = useActionState(deleteBranch, null)
-  const [addFloorState, addFloorAction] = useActionState(addFloor, null)
-  const [deleteFloorState, deleteFloorAction] = useActionState(deleteFloor, null)
   const [createRoomState, createRoomAction] = useActionState(createRoom, null)
   const [updateRoomState, updateRoomAction] = useActionState(updateRoom, null)
-  const [bulkCreateRoomsState, bulkCreateRoomsAction] = useActionState(bulkCreateRooms, null)
   const [deleteRoomState, deleteRoomAction] = useActionState(deleteRoom, null)
 
   useEffect(() => {
-    setBranches(initialBranches)
-    setFloors(initialFloors)
     setRooms(initialRooms)
     setFloorsForRooms(initialFloorsForRooms)
     setTenants(initialTenants)
-  }, [initialBranches, initialFloors, initialRooms, initialFloorsForRooms, initialTenants])
+  }, [initialRooms, initialFloorsForRooms, initialTenants])
 
   useEffect(() => {
-    if (addBranchState?.success || deleteBranchState?.success || 
-        addFloorState?.success || deleteFloorState?.success ||
-        createRoomState?.success || updateRoomState?.success || bulkCreateRoomsState?.success || deleteRoomState?.success) {
+    if (createRoomState?.success || updateRoomState?.success || deleteRoomState?.success) {
       setIsModalOpen(false)
       setIsEditModalOpen(false)
-      setIsBulkAddModalOpen(false)
+      setIsDetailRoomModalOpen(false)
       setSelectedRoom(null)
       router.refresh()
     }
-  }, [addBranchState, deleteBranchState, addFloorState, deleteFloorState, createRoomState, updateRoomState, bulkCreateRoomsState, deleteRoomState, router])
+  }, [createRoomState, updateRoomState, deleteRoomState, router])
 
-  // Group floors by branch
-  const floorsByBranch = branches.map(branch => ({
-    ...branch,
-    floors: floors.filter(f => f.branch_id === branch.id)
-  }))
-
-  // Branches table
-  const branchHeaders = userRole === 'owner' ? ['Nama', 'Alamat', 'Aksi'] : ['Nama', 'Alamat']
-  const branchRows = branches.map(branch => {
-    const row = [branch.name, branch.address]
-    if (userRole === 'owner') {
-      row.push(
-        <form action={deleteBranchAction} key={branch.id}>
-          <input type="hidden" name="id" value={branch.id} />
-          <SubmitButton
-            variant="danger"
-            className="px-4 py-2 text-sm font-medium"
-            loadingText="Menghapus..."
-          >
-            Hapus
-          </SubmitButton>
-        </form>
-      )
-    }
-    return row
-  })
-
-  // Floors table
-  const floorHeaders = userRole === 'owner' ? ['Nama Lantai', 'Cabang', 'Aksi'] : ['Nama Lantai', 'Cabang']
-  const floorRows = floors.map(floor => {
-    const row = [floor.name, floor.branches?.name || 'Unknown']
-    if (userRole === 'owner') {
-      row.push(
-        <form action={deleteFloorAction} key={floor.id}>
-          <input type="hidden" name="id" value={floor.id} />
-          <SubmitButton
-            variant="danger"
-            className="px-4 py-2 text-sm font-medium"
-            loadingText="Menghapus..."
-          >
-            Hapus
-          </SubmitButton>
-        </form>
-      )
-    }
-    return row
-  })
-
-  // Filter and search rooms
-  const filteredRooms = useMemo(() => {
-    let filtered = [...rooms]
-
-    // Filter by floor
-    if (selectedFloorFilter) {
-      filtered = filtered.filter(room => room.floor_id === selectedFloorFilter)
-    }
-
-    // Search by room number or tenant name
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      filtered = filtered.filter(room => {
-        // Search by room number
-        const roomNumberMatch = room.room_number?.toLowerCase().includes(query)
-        
-        // Search by tenant name
-        const roomTenant = tenants.find(t => t.room_id === room.id)
-        const tenantNameMatch = roomTenant?.full_name?.toLowerCase().includes(query)
-        
-        return roomNumberMatch || tenantNameMatch
-      })
-    }
-
-    // Sort by room number
-    return filtered.sort((a, b) => {
-      const numA = parseInt(a.room_number) || 0
-      const numB = parseInt(b.room_number) || 0
-      return numA - numB
-    })
-  }, [rooms, selectedFloorFilter, searchQuery, tenants])
-
-  // Create tenant map for quick lookup
+  // Tenant lookup map
   const tenantMap = useMemo(() => {
     const map = new Map()
     tenants.forEach(tenant => {
@@ -158,636 +91,730 @@ export default function PropertiList({
     return map
   }, [tenants])
 
-  // Rooms table
-  const roomHeaders = userRole === 'owner' ? ['No. Kamar', 'Lantai', 'Harga', 'Fasilitas', 'Penghuni', 'Status', 'Aksi'] : ['No. Kamar', 'Lantai', 'Harga', 'Fasilitas', 'Penghuni', 'Status']
-  const roomRows = filteredRooms.map(room => {
+  // Summary counts
+  const stats = useMemo(() => {
+    const total = rooms.length
+    const vip = rooms.filter(r => r.room_number?.toString().toLowerCase().includes('vip') || r.room_type === 'vip').length
+    const nonVip = total - vip
+    const occupied = rooms.filter(r => r.is_occupied).length
+    const available = total - occupied
+
+    return { total, vip, nonVip, occupied, available }
+  }, [rooms])
+
+  // Filtered rooms
+  const filteredRooms = useMemo(() => {
+    let filtered = [...rooms]
+
+    // Category filter
+    if (categoryFilter === 'vip') {
+      filtered = filtered.filter(r => r.room_number?.toString().toLowerCase().includes('vip') || r.room_type === 'vip')
+    } else if (categoryFilter === 'non_vip') {
+      filtered = filtered.filter(r => !r.room_number?.toString().toLowerCase().includes('vip') && r.room_type !== 'vip')
+    } else if (categoryFilter === 'available') {
+      filtered = filtered.filter(r => !r.is_occupied)
+    } else if (categoryFilter === 'occupied') {
+      filtered = filtered.filter(r => r.is_occupied)
+    }
+
+    // Floor filter
+    if (selectedFloorFilter !== 'all') {
+      filtered = filtered.filter(r => r.floor_id === selectedFloorFilter)
+    }
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter(r => {
+        const roomMatch = r.room_number?.toString().toLowerCase().includes(q)
+        const tenant = tenantMap.get(r.id)
+        const tenantMatch = tenant?.full_name?.toLowerCase().includes(q)
+        return roomMatch || tenantMatch
+      })
+    }
+
+    // Sort room numbers nicely
+    return filtered.sort((a, b) => {
+      const numA = parseInt(a.room_number.replace(/\D/g, '')) || 0
+      const numB = parseInt(b.room_number.replace(/\D/g, '')) || 0
+      return numA - numB
+    })
+  }, [rooms, categoryFilter, selectedFloorFilter, searchQuery, tenantMap])
+
+  // Group rooms by Floor for Cinema / Matrix View
+  const floorsGrouped = useMemo(() => {
+    const floorsMap: Record<string, { floorName: string; rooms: any[] }> = {}
+
+    // Sort floors by name
+    const sortedFloors = [...floorsForRooms].sort((a, b) => a.name.localeCompare(b.name))
+    
+    sortedFloors.forEach(f => {
+      floorsMap[f.id] = {
+        floorName: f.name,
+        rooms: []
+      }
+    })
+
+    // Add rooms to their floor
+    filteredRooms.forEach(room => {
+      const floorId = room.floor_id || 'unassigned'
+      if (!floorsMap[floorId]) {
+        floorsMap[floorId] = {
+          floorName: room.floors?.name || 'Lantai Lainnya',
+          rooms: []
+        }
+      }
+      floorsMap[floorId].rooms.push(room)
+    })
+
+    return Object.entries(floorsMap).filter(([_, data]) => data.rooms.length > 0)
+  }, [filteredRooms, floorsForRooms])
+
+  const headers = userRole === 'owner' 
+    ? ['No. Kamar', 'Tipe & Tarif', 'Lantai', 'Fasilitas', 'Status & Penghuni', 'Aksi'] 
+    : ['No. Kamar', 'Tipe & Tarif', 'Lantai', 'Fasilitas', 'Status & Penghuni']
+
+  const rows = filteredRooms.map(room => {
+    const isVip = room.room_number?.toString().toLowerCase().includes('vip') || room.room_type === 'vip'
     const tenant = tenantMap.get(room.id)
+
     const row = [
-      room.room_number,
-      room.floors?.name || 'Unknown',
-      <div key={`price-${room.id}`} className="space-y-1">
-        {room.price_per_day ? (
-          <div className="flex items-center gap-1">
-            <span className="text-sm font-semibold text-gray-900">
-              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_day)}
-            </span>
-            <span className="text-xs text-gray-500">/hari</span>
-          </div>
-        ) : (
-          <span className="text-sm text-gray-400">-</span>
-        )}
-        {room.price_per_month && (
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-indigo-600">
-              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_month)}
-            </span>
-            <span className="text-xs text-gray-500">/bulan</span>
-          </div>
-        )}
-        {room.price_per_6months && (
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-purple-600">
-              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(room.price_per_6months)}
-            </span>
-            <span className="text-xs text-gray-500">/6 bulan</span>
-          </div>
-        )}
-      </div>,
-      <div key={`facilities-${room.id}`} className="max-w-xs">
-        <div className="flex flex-wrap gap-1">
-          {room.facilities?.slice(0, 3).map((facility: string, idx: number) => (
-            <span key={idx} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-xs font-medium">
-              {facility}
-            </span>
-          ))}
-          {room.facilities && room.facilities.length > 3 && (
-            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-xs font-medium">
-              +{room.facilities.length - 3}
-            </span>
-          )}
+      <div key={`room-${room.id}`} className="flex items-center gap-2">
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
+          isVip ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+        }`}>
+          {isVip ? <Crown className="w-4 h-4" /> : <DoorClosed className="w-4 h-4" />}
+        </div>
+        <div>
+          <p className="font-extrabold text-slate-900 text-sm">{room.room_number}</p>
+          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${
+            isVip ? 'bg-purple-50 text-purple-600 border border-purple-200' : 'bg-slate-100 text-slate-600'
+          }`}>
+            {isVip ? 'VIP' : 'Standard'}
+          </span>
         </div>
       </div>,
-      <div key={`tenant-${room.id}`}>
-        {tenant ? (
-          <span className="text-sm font-medium text-gray-900">{tenant.full_name}</span>
+
+      <div key={`price-${room.id}`}>
+        <p className="text-xs font-black text-indigo-600">
+          Rp 100.000 <span className="text-[10px] font-normal text-slate-500">/malam</span>
+        </p>
+        <p className="text-[10px] text-slate-400">
+          Rp 700k/mgg • Rp 3jt/bln
+        </p>
+      </div>,
+
+      <span key={`floor-${room.id}`} className="text-xs font-semibold text-slate-700">
+        {room.floors?.name || 'Lantai 1'}
+      </span>,
+
+      <div key={`fac-${room.id}`} className="flex flex-wrap gap-1 max-w-xs">
+        {Array.isArray(room.facilities) && room.facilities.length > 0 ? (
+          room.facilities.slice(0, 3).map((f: string, i: number) => (
+            <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[10px] font-medium">
+              {f}
+            </span>
+          ))
         ) : (
-          <span className="text-sm text-gray-400">-</span>
+          <span className="text-[11px] text-slate-400">AC, Km. Mandi Dalam, Wifi</span>
+        )}
+        {Array.isArray(room.facilities) && room.facilities.length > 3 && (
+          <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-md text-[10px] font-bold">
+            +{room.facilities.length - 3}
+          </span>
         )}
       </div>,
-      room.is_occupied ? (
-        <span key={`status-${room.id}`} className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-          </svg>
-          Terisi
-        </span>
-      ) : (
-        <span key={`status-${room.id}`} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-          Kosong
-        </span>
-      )
+
+      <div key={`status-${room.id}`}>
+        {room.is_occupied ? (
+          <div className="space-y-0.5">
+            <span className="px-2.5 py-0.5 bg-red-100 text-red-800 rounded-full text-[11px] font-bold inline-flex items-center gap-1 border border-red-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              Terisi
+            </span>
+            {tenant && (
+              <p className="text-xs font-bold text-slate-900 mt-1 truncate max-w-[120px]">
+                {tenant.full_name}
+              </p>
+            )}
+          </div>
+        ) : (
+          <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-bold inline-flex items-center gap-1 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Kosong
+          </span>
+        )}
+      </div>
     ]
+
     if (userRole === 'owner') {
       row.push(
-        <div key={`actions-${room.id}`} className="flex gap-2">
+        <div key={`act-${room.id}`} className="flex items-center gap-1.5">
           <button
+            type="button"
             onClick={() => {
               setSelectedRoom(room)
               setIsEditModalOpen(true)
             }}
-            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-all duration-150 active:scale-95 active:bg-blue-200"
+            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            title="Edit Kamar"
           >
-            Edit
+            <Edit className="w-3.5 h-3.5 text-slate-600" />
           </button>
           <form action={deleteRoomAction} className="inline">
             <input type="hidden" name="id" value={room.id} />
             <SubmitButton
               variant="danger"
-              className="px-4 py-2 text-sm font-medium"
-              loadingText="Menghapus..."
+              className="p-1.5 text-xs font-bold rounded-lg cursor-pointer"
+              loadingText="..."
             >
-              Hapus
+              <Trash2 className="w-3.5 h-3.5" />
             </SubmitButton>
           </form>
         </div>
       )
     }
+
     return row
   })
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Manajemen Properti</h1>
-        <p className="text-gray-600">Kelola cabang, lantai, dan kamar</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab('branches')}
-            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-              activeTab === 'branches'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            🏢 Cabang
-          </button>
-          <button
-            onClick={() => setActiveTab('floors')}
-            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-              activeTab === 'floors'
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            🏗️ Lantai
-          </button>
-          <button
-            onClick={() => setActiveTab('rooms')}
-            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-              activeTab === 'rooms'
-                ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            🚪 Kamar
-          </button>
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+      {/* Header & View Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Daftar & Manajemen 53 Kamar
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Graha Aisyah Menteng • 13 Kamar VIP & 40 Kamar Non-VIP (Tarif Seragam Rp 100.000/malam)
+          </p>
         </div>
-      </div>
 
-      {/* Branches Tab */}
-      {activeTab === 'branches' && (
-        <div className="space-y-4">
+        <div className="flex items-center gap-2.5">
+          {/* View Mode Toggle */}
+          <div className="bg-slate-100 p-1 rounded-2xl flex border border-slate-200/80">
+            <button
+              onClick={() => setViewMode('cinema')}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'cinema'
+                  ? 'bg-white text-indigo-950 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Tampilan Denah</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white text-indigo-950 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <List className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Tabel List</span>
+            </button>
+          </div>
+
           {userRole === 'owner' && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-500/20 cursor-pointer"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Tambah Cabang
+              <Plus className="w-4 h-4" />
+              <span>Tambah Kamar</span>
             </button>
           )}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <Table headers={branchHeaders} rows={branchRows} />
-          </div>
         </div>
-      )}
+      </div>
 
-      {/* Floors Tab */}
-      {activeTab === 'floors' && (
-        <div className="space-y-4">
-          {userRole === 'owner' && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Tambah Lantai
-            </button>
-          )}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <Table headers={floorHeaders} rows={floorRows} />
-          </div>
+      {/* Stats Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div 
+          onClick={() => setCategoryFilter('all')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+            categoryFilter === 'all' 
+              ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+              : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">Total Kamar</p>
+          <p className="text-2xl font-black mt-0.5">{stats.total}</p>
+          <p className="text-[10px] opacity-70">Graha Aisyah Menteng</p>
         </div>
-      )}
 
-      {/* Rooms Tab */}
-      {activeTab === 'rooms' && (
-        <div className="space-y-4">
-          {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            {/* Search and Filter */}
-            <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full sm:w-auto">
-              {/* Search Input */}
-              <div className="relative flex-1 sm:flex-initial sm:w-80">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Cari no. kamar atau nama penghuni..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white shadow-sm"
-                />
-              </div>
-              
-              {/* Floor Filter */}
-              <div className="relative sm:w-64">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                </div>
-                <select
-                  value={selectedFloorFilter}
-                  onChange={(e) => setSelectedFloorFilter(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white shadow-sm appearance-none cursor-pointer"
-                >
-                  <option value="">Semua Lantai</option>
-                  {floorsForRooms.map(floor => (
-                    <option key={floor.id} value={floor.id}>
-                      {floor.name} - {floor.branches?.name || ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        <div 
+          onClick={() => setCategoryFilter('vip')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+            categoryFilter === 'vip' 
+              ? 'bg-purple-700 text-white border-purple-700 shadow-md' 
+              : 'bg-white text-slate-800 border-slate-200 hover:border-purple-200'
+          }`}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wider text-purple-500">Kamar VIP</p>
+          <p className="text-2xl font-black mt-0.5 text-purple-700">{stats.vip}</p>
+          <p className="text-[10px] text-purple-600 font-semibold">Rp 100k / malam</p>
+        </div>
+
+        <div 
+          onClick={() => setCategoryFilter('non_vip')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+            categoryFilter === 'non_vip' 
+              ? 'bg-indigo-700 text-white border-indigo-700 shadow-md' 
+              : 'bg-white text-slate-800 border-slate-200 hover:border-indigo-200'
+          }`}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Kamar Non-VIP</p>
+          <p className="text-2xl font-black mt-0.5 text-indigo-700">{stats.nonVip}</p>
+          <p className="text-[10px] text-indigo-600 font-semibold">Rp 100k / malam</p>
+        </div>
+
+        <div 
+          onClick={() => setCategoryFilter('available')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+            categoryFilter === 'available' 
+              ? 'bg-emerald-700 text-white border-emerald-700 shadow-md' 
+              : 'bg-white text-slate-800 border-slate-200 hover:border-emerald-200'
+          }`}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-500">Kamar Kosong</p>
+          <p className="text-2xl font-black mt-0.5 text-emerald-700">{stats.available}</p>
+          <p className="text-[10px] text-emerald-600 font-semibold">Siap Dihuni</p>
+        </div>
+
+        <div 
+          onClick={() => setCategoryFilter('occupied')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+            categoryFilter === 'occupied' 
+              ? 'bg-red-700 text-white border-red-700 shadow-md' 
+              : 'bg-white text-slate-800 border-slate-200 hover:border-red-200'
+          }`}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wider text-red-500">Kamar Terisi</p>
+          <p className="text-2xl font-black mt-0.5 text-red-700">{stats.occupied}</p>
+          <p className="text-[10px] text-red-600 font-semibold">Ada Penghuni</p>
+        </div>
+      </div>
+
+      {/* Filter & Search Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Cari nomor kamar atau nama penghuni..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+
+        {/* Legend in Cinema Mode */}
+        {viewMode === 'cinema' && (
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-600">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-md bg-emerald-500 shadow-xs" />
+              <span>Kosong</span>
             </div>
-
-            {/* Add Button */}
-            {userRole === 'owner' && (
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-indigo-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Tambah Kamar
-              </button>
-            )}
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-md bg-rose-500 shadow-xs" />
+              <span>Terisi</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 border border-purple-200 text-[10px]">VIP</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[10px]">Non-VIP</span>
+            </div>
           </div>
+        )}
 
-          {/* Results Count */}
-          {(selectedFloorFilter || searchQuery) && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2 flex items-center gap-2">
-              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-sm font-medium text-indigo-900">
-                Menampilkan {filteredRooms.length} dari {rooms.length} kamar
-              </span>
-              {(selectedFloorFilter || searchQuery) && (
-                <button
-                  onClick={() => {
-                    setSelectedFloorFilter('')
-                    setSearchQuery('')
-                  }}
-                  className="ml-auto text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Reset Filter
-                </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <select
+            value={selectedFloorFilter}
+            onChange={(e) => setSelectedFloorFilter(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">Semua Lantai (1, 2, 3)</option>
+            {floorsForRooms.map(f => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 1. CINEMA / ROOM MATRIX VIEW */}
+      {viewMode === 'cinema' && (
+        <div className="space-y-8">
+          {floorsGrouped.map(([floorId, floorData]) => {
+            const isFloor1 = floorData.floorName.includes('1')
+            return (
+              <div key={floorId} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+                {/* Floor Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xs">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-extrabold text-slate-900">
+                        {floorData.floorName} {isFloor1 ? '(13 Kamar VIP)' : '(20 Kamar Non-VIP)'}
+                      </h2>
+                      <p className="text-[11px] text-slate-400">
+                        {floorData.rooms.filter(r => !r.is_occupied).length} Kosong • {floorData.rooms.filter(r => r.is_occupied).length} Terisi • Tarif Rp 100.000 / malam
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-[11px] font-bold text-slate-500 bg-slate-50 px-3 py-1 rounded-full border border-slate-200/60 w-fit">
+                    Lorong Utama {floorData.floorName}
+                  </span>
+                </div>
+
+                {/* Grid of Cinema Style Room Seats/Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3 pt-2">
+                  {floorData.rooms.map(room => {
+                    const isVip = room.room_number?.toString().toLowerCase().includes('vip') || room.room_type === 'vip'
+                    const tenant = tenantMap.get(room.id)
+                    const isOccupied = room.is_occupied
+
+                    return (
+                      <div
+                        key={room.id}
+                        onClick={() => {
+                          setSelectedRoom(room)
+                          setIsDetailRoomModalOpen(true)
+                        }}
+                        className={`group relative rounded-2xl p-3.5 transition-all duration-200 cursor-pointer border flex flex-col justify-between select-none hover:-translate-y-1 hover:shadow-lg ${
+                          isOccupied
+                            ? 'bg-rose-50/80 border-rose-200 hover:border-rose-300'
+                            : isVip
+                            ? 'bg-purple-50/70 border-purple-200 hover:border-purple-300'
+                            : 'bg-emerald-50/70 border-emerald-200 hover:border-emerald-300'
+                        }`}
+                      >
+                        {/* Top Tag & Indicator */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-md ${
+                            isVip ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {isVip ? 'VIP' : 'Non-VIP'}
+                          </span>
+                          
+                          <span className={`w-2.5 h-2.5 rounded-full ${
+                            isOccupied ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'
+                          }`} />
+                        </div>
+
+                        {/* Room Number Box (Cinema Seat Visual) */}
+                        <div className="my-1.5 text-center">
+                          <p className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                            {room.room_number}
+                          </p>
+                          <p className="text-[10px] font-bold text-indigo-600 mt-0.5">
+                            Rp 100k <span className="text-[9px] font-normal text-slate-400">/mlm</span>
+                          </p>
+                        </div>
+
+                        {/* Status Label or Tenant Name */}
+                        <div className="mt-2 pt-2 border-t border-slate-200/60 text-center">
+                          {isOccupied ? (
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wider">
+                                Terisi
+                              </p>
+                              <p className="text-[11px] font-extrabold text-slate-800 truncate" title={tenant?.full_name}>
+                                {tenant?.full_name || 'Penghuni'}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+                              Kosong
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Hover Overlay Hint */}
+                        <div className="absolute inset-0 bg-indigo-900/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center">
+                          <span className="text-[10px] font-bold bg-white text-slate-900 px-2 py-0.5 rounded-lg shadow-md">
+                            Lihat Detail
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 2. TABLE LIST VIEW */}
+      {viewMode === 'list' && (
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <Table headers={headers} rows={rows} />
+        </div>
+      )}
+
+      {/* DETAIL ROOM QUICK MODAL */}
+      <Modal isOpen={isDetailRoomModalOpen} onClose={() => setIsDetailRoomModalOpen(false)} size="md">
+        {selectedRoom && (() => {
+          const isVip = selectedRoom.room_number?.toString().toLowerCase().includes('vip') || selectedRoom.room_type === 'vip'
+          const tenant = tenantMap.get(selectedRoom.id)
+          const isOccupied = selectedRoom.is_occupied
+
+          return (
+            <div className="space-y-4 py-1">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
+                    isVip ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    {isVip ? <Crown className="w-4 h-4" /> : <DoorClosed className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900">{selectedRoom.room_number}</h2>
+                    <p className="text-xs text-slate-400">Graha Aisyah Menteng • {selectedRoom.floors?.name || 'Lantai 1'}</p>
+                  </div>
+                </div>
+
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                  isOccupied ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {isOccupied ? 'Terisi' : 'Kosong / Siap Huni'}
+                </span>
+              </div>
+
+              {/* Tenant details if occupied */}
+              {isOccupied && tenant && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200/80 rounded-2xl space-y-1 text-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">Data Penghuni Aktif</p>
+                  <p className="font-extrabold text-slate-900 text-sm">{tenant.full_name}</p>
+                  <p className="text-slate-600">Kontak: {tenant.phone || '-'}</p>
+                  <p className="text-slate-600">Check-in: {tenant.check_in_date || '-'}</p>
+                </div>
               )}
-            </div>
-          )}
 
-          {/* Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {filteredRooms.length === 0 ? (
-              <div className="p-12 text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 className="text-sm font-medium text-gray-900 mb-1">Tidak ada kamar ditemukan</h3>
-                <p className="text-sm text-gray-500">
-                  {searchQuery || selectedFloorFilter 
-                    ? 'Coba ubah filter atau kata kunci pencarian'
-                    : 'Belum ada kamar yang tersedia'
-                  }
-                </p>
+              {/* Room details */}
+              <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                <div>
+                  <p className="text-slate-400 font-bold text-[10px] uppercase">Kategori</p>
+                  <p className="font-bold text-slate-900">{isVip ? 'Kamar VIP' : 'Non-VIP (Standard)'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-400 font-bold text-[10px] uppercase">Tarif Harian</p>
+                  <p className="font-extrabold text-indigo-600">Rp 100.000 / malam</p>
+                </div>
+                <div>
+                  <p className="text-slate-400 font-bold text-[10px] uppercase">Tarif Mingguan</p>
+                  <p className="font-bold text-slate-800">Rp 700.000 / minggu</p>
+                </div>
+                <div>
+                  <p className="text-slate-400 font-bold text-[10px] uppercase">Tarif Bulanan</p>
+                  <p className="font-bold text-slate-800">Rp 3.000.000 / bulan</p>
+                </div>
               </div>
-            ) : (
-              <Table headers={roomHeaders} rows={roomRows} />
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Modals */}
-      {/* Add Branch Modal */}
-      <Modal isOpen={isModalOpen && activeTab === 'branches'} onClose={() => setIsModalOpen(false)}>
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Tambah Cabang Baru</h2>
-        <form action={addBranchAction} className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Cabang</label>
-            <input name="name" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Masukkan nama cabang" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Alamat</label>
-            <input name="address" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Masukkan alamat cabang" />
-          </div>
-          {addBranchState?.error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{addBranchState.error}</p>
-            </div>
-          )}
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95">
-              Batal
-            </button>
-            <SubmitButton
-              variant="primary"
-              className="flex-1 px-4 py-3"
-              loadingText="Menambahkan..."
-            >
-              Tambah Cabang
-            </SubmitButton>
-          </div>
-        </form>
-      </Modal>
+              {/* Facilities */}
+              <div>
+                <p className="text-xs font-bold text-slate-700 mb-2">Fasilitas Kamar:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Array.isArray(selectedRoom.facilities) && selectedRoom.facilities.length > 0 ? (
+                    selectedRoom.facilities.map((f: string, i: number) => (
+                      <span key={i} className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium border border-slate-200/60">
+                        {f}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-400">AC, Kamar Mandi Dalam, Wifi</span>
+                  )}
+                </div>
+              </div>
 
-      {/* Add Floor Modal */}
-      <Modal isOpen={isModalOpen && activeTab === 'floors'} onClose={() => setIsModalOpen(false)}>
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Tambah Lantai Baru</h2>
-        <form action={addFloorAction} className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Cabang</label>
-            <select name="branch_id" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-              <option value="">Pilih Cabang</option>
-              {branches.map(branch => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Lantai</label>
-            <input name="name" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="Masukkan nama lantai" />
-          </div>
-          {addFloorState?.error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{addFloorState.error}</p>
+              {/* Actions */}
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsDetailRoomModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Tutup
+                </button>
+                {userRole === 'owner' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDetailRoomModalOpen(false)
+                      setIsEditModalOpen(true)
+                    }}
+                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
+                  >
+                    Edit Kamar Ini
+                  </button>
+                )}
+              </div>
             </div>
-          )}
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">
-              Batal
-            </button>
-            <SubmitButton
-              variant="primary"
-              className="flex-1 px-4 py-3"
-              loadingText="Menambahkan..."
-            >
-              Tambah Lantai
-            </SubmitButton>
-          </div>
-        </form>
+          )
+        })()}
       </Modal>
 
       {/* Add Room Modal */}
-      <Modal isOpen={isModalOpen && activeTab === 'rooms'} onClose={() => setIsModalOpen(false)}>
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Tambah Kamar Baru</h2>
-        <form action={createRoomAction} className="space-y-5">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="md">
+        <h2 className="text-lg font-extrabold text-slate-900 mb-4">Tambah Kamar Baru</h2>
+        <form action={createRoomAction} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Lantai</label>
-            <select name="floor_id" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            <label className="block text-xs font-bold text-slate-700 mb-1">Lantai *</label>
+            <select
+              name="floor_id"
+              required
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
+            >
               <option value="">Pilih Lantai</option>
-              {floorsForRooms.map(floor => (
-                <option key={floor.id} value={floor.id}>{floor.name} - {floor.branches?.name}</option>
+              {floorsForRooms.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">No. Kamar</label>
-            <input name="room_number" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Contoh: 101" />
-          </div>
-          <div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Harga Per Hari (Rp)
-                  <span className="text-xs font-normal text-red-500 ml-2">Wajib</span>
-                </label>
-                <input 
-                  name="price_per_day" 
-                  type="number" 
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                  placeholder="50000" 
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Harga Per Bulan (Rp)
-                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
-                </label>
-                <input 
-                  name="price_per_month" 
-                  type="number" 
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                  placeholder="1000000" 
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Harga Per 6 Bulan (Rp)
-                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
-                </label>
-                <input 
-                  name="price_per_6months" 
-                  type="number" 
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                  placeholder="5500000" 
-                />
-                <p className="text-xs text-gray-500 mt-1">Harga untuk sewa 6 bulan (biasanya lebih murah)</p>
-              </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Nomor Kamar *</label>
+              <input
+                type="text"
+                name="room_number"
+                required
+                placeholder="Contoh: VIP 114 atau 221"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Tipe Kamar *</label>
+              <select
+                name="room_type"
+                required
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+              >
+                <option value="non_vip">Non-VIP (Standard)</option>
+                <option value="vip">VIP</option>
+              </select>
             </div>
           </div>
+
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Fasilitas (pisahkan dengan koma)</label>
-            <input name="facilities" type="text" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="AC, WiFi, Kamar Mandi Dalam" />
+            <label className="block text-xs font-bold text-slate-700 mb-1">Tarif Per Malam (Rp) *</label>
+            <input
+              type="number"
+              name="price_per_day"
+              defaultValue={100000}
+              required
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-indigo-600"
+            />
           </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Fasilitas (pisahkan dengan koma)</label>
+            <input
+              type="text"
+              name="facilities"
+              defaultValue="AC, Kamar Mandi Dalam, Wifi High-Speed, Kasur, Lemari"
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            />
+          </div>
+
           {createRoomState?.error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{createRoomState.error}</p>
-            </div>
+            <p className="text-xs text-red-600 font-semibold">{createRoomState.error}</p>
           )}
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600"
+            >
               Batal
             </button>
-            <SubmitButton
-              variant="primary"
-              className="flex-1 px-4 py-3"
-              loadingText="Menambahkan..."
-            >
-              Tambah Kamar
+            <SubmitButton variant="primary" className="flex-1 py-2.5 rounded-xl text-xs font-bold">
+              Simpan Kamar
             </SubmitButton>
           </div>
         </form>
       </Modal>
 
       {/* Edit Room Modal */}
-      <Modal isOpen={isEditModalOpen} onClose={() => {
-        setIsEditModalOpen(false)
-        setSelectedRoom(null)
-      }}>
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Edit Kamar</h2>
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} size="md">
         {selectedRoom && (
-          <form action={updateRoomAction} className="space-y-5">
+          <form action={updateRoomAction} className="space-y-4">
             <input type="hidden" name="id" value={selectedRoom.id} />
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Lantai</label>
-              <select name="floor_id" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" defaultValue={selectedRoom.floor_id}>
-                <option value="">Pilih Lantai</option>
-                {floorsForRooms.map(floor => (
-                  <option key={floor.id} value={floor.id}>{floor.name} - {floor.branches?.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">No. Kamar</label>
-              <input name="room_number" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" defaultValue={selectedRoom.room_number} placeholder="Contoh: 101" />
-            </div>
-            <div className="space-y-4">
+            <h2 className="text-lg font-extrabold text-slate-900 mb-4">Edit Kamar {selectedRoom.room_number}</h2>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Harga Per Hari (Rp)
-                  <span className="text-xs font-normal text-red-500 ml-2">Wajib</span>
-                </label>
-                <input 
-                  name="price_per_day" 
-                  type="number" 
+                <label className="block text-xs font-bold text-slate-700 mb-1">Nomor Kamar *</label>
+                <input
+                  type="text"
+                  name="room_number"
+                  defaultValue={selectedRoom.room_number}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                  placeholder="50000"
-                  defaultValue={selectedRoom.price_per_day || ''}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Harga Per Bulan (Rp)
-                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
-                </label>
-                <input 
-                  name="price_per_month" 
-                  type="number" 
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                  placeholder="1000000"
-                  defaultValue={selectedRoom.price_per_month || ''}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Harga Per 6 Bulan (Rp)
-                  <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
-                </label>
-                <input 
-                  name="price_per_6months" 
-                  type="number" 
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                  placeholder="5500000"
-                  defaultValue={selectedRoom.price_per_6months || ''}
-                />
-                <p className="text-xs text-gray-500 mt-1">Harga untuk sewa 6 bulan (biasanya lebih murah)</p>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tipe Kamar *</label>
+                <select
+                  name="room_type"
+                  defaultValue={selectedRoom.room_type || 'non_vip'}
+                  required
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                >
+                  <option value="non_vip">Non-VIP (Standard)</option>
+                  <option value="vip">VIP</option>
+                </select>
               </div>
             </div>
+
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Fasilitas (pisahkan dengan koma)</label>
-              <input name="facilities" type="text" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="AC, WiFi, Kamar Mandi Dalam" defaultValue={selectedRoom.facilities?.join(', ') || ''} />
+              <label className="block text-xs font-bold text-slate-700 mb-1">Tarif Per Malam (Rp) *</label>
+              <input
+                type="number"
+                name="price_per_day"
+                defaultValue={selectedRoom.price_per_day || 100000}
+                required
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-indigo-600"
+              />
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Fasilitas (pisahkan dengan koma)</label>
+              <input
+                type="text"
+                name="facilities"
+                defaultValue={Array.isArray(selectedRoom.facilities) ? selectedRoom.facilities.join(', ') : ''}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+
             {updateRoomState?.error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-800">{updateRoomState.error}</p>
-              </div>
+              <p className="text-xs text-red-600 font-semibold">{updateRoomState.error}</p>
             )}
-            <div className="flex gap-3 pt-4">
-              <button type="button" onClick={() => {
-                setIsEditModalOpen(false)
-                setSelectedRoom(null)
-              }} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95">
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600"
+              >
                 Batal
               </button>
-              <SubmitButton
-                variant="primary"
-                className="flex-1 px-4 py-3"
-                loadingText="Menyimpan..."
-              >
-                Simpan Perubahan
+              <SubmitButton variant="primary" className="flex-1 py-2.5 rounded-xl text-xs font-bold">
+                Update Kamar
               </SubmitButton>
             </div>
           </form>
         )}
       </Modal>
-
-      {/* Bulk Add Rooms Modal */}
-      <Modal isOpen={isBulkAddModalOpen} onClose={() => {
-        setIsBulkAddModalOpen(false)
-      }}>
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Tambah Banyak Kamar</h2>
-        <form action={bulkCreateRoomsAction} className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Lantai</label>
-            <select name="floor_id" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-              <option value="">Pilih Lantai</option>
-              {floorsForRooms.map(floor => (
-                <option key={floor.id} value={floor.id}>{floor.name} - {floor.branches?.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Nomor Kamar Awal</label>
-            <input name="start_room_number" type="text" required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Contoh: 101" />
-            <p className="text-xs text-gray-500 mt-1">Kamar akan dinomori otomatis mulai dari nomor ini (101, 102, 103, dst)</p>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Jumlah Kamar</label>
-            <input name="room_count" type="number" required min="1" max="100" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="10" />
-            <p className="text-xs text-gray-500 mt-1">Masukkan jumlah kamar yang ingin ditambahkan (maksimal 100)</p>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Harga Per Hari (Rp)
-                <span className="text-xs font-normal text-red-500 ml-2">Wajib</span>
-              </label>
-              <input 
-                name="price_per_day" 
-                type="number" 
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                placeholder="50000" 
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Harga Per Bulan (Rp)
-                <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
-              </label>
-              <input 
-                name="price_per_month" 
-                type="number" 
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                placeholder="1000000" 
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Harga Per 6 Bulan (Rp)
-                <span className="text-xs font-normal text-gray-500 ml-2">Opsional</span>
-              </label>
-              <input 
-                name="price_per_6months" 
-                type="number" 
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
-                placeholder="5500000" 
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Fasilitas (pisahkan dengan koma)</label>
-            <input name="facilities" type="text" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="AC, WiFi, Kamar Mandi Dalam" />
-            <p className="text-xs text-gray-500 mt-1">Fasilitas yang sama akan diterapkan ke semua kamar</p>
-          </div>
-          {bulkCreateRoomsState?.error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{bulkCreateRoomsState.error}</p>
-            </div>
-          )}
-          {bulkCreateRoomsState?.success && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm text-green-800">Berhasil menambahkan {bulkCreateRoomsState.count || 0} kamar!</p>
-            </div>
-          )}
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={() => setIsBulkAddModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-150 active:scale-95">
-              Batal
-            </button>
-            <SubmitButton
-              variant="primary"
-              className="flex-1 px-4 py-3"
-              loadingText="Menambahkan..."
-            >
-              Tambah Kamar
-            </SubmitButton>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
 }
-

@@ -1,47 +1,37 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
-// Dynamic import untuk form
-const CheckInForm = dynamic(() => import('./CheckInForm'), {
+const CheckInForm = dynamic(() => import('./[branchId]/CheckInForm'), {
   ssr: false,
   loading: () => <LoadingSpinner size="lg" text="Memuat formulir check-in..." />,
 })
 
-function CheckInPageContent() {
-  const params = useParams()
-  const branchId = params?.branchId as string | undefined
+export default function CheckInRootPage() {
   const [branchData, setBranchData] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // If no branchId or default, fetch the main branch
     const fetchBranch = async () => {
       try {
-        const idToFetch = (branchId && branchId !== 'undefined') ? branchId : 'default'
-        const response = await fetch(`/api/branch/${idToFetch}`, {
+        const response = await fetch('/api/branch/default', {
           cache: 'force-cache',
           next: { revalidate: 3600 }
         })
         if (response.ok) {
           const data = await response.json()
           setBranchData(data)
-          setError(null)
         } else {
-          // Fallback to Jl. Menteng
           setBranchData({
-            id: branchId || '00000000-0000-0000-0000-000000000001',
+            id: '00000000-0000-0000-0000-000000000001',
             name: 'Graha Aisyah Menteng',
             address: 'Jl. Menteng No. 1, Jakarta Pusat'
           })
-          setError(null)
         }
-      } catch (err: any) {
+      } catch {
         setBranchData({
-          id: branchId || '00000000-0000-0000-0000-000000000001',
+          id: '00000000-0000-0000-0000-000000000001',
           name: 'Graha Aisyah Menteng',
           address: 'Jl. Menteng No. 1, Jakarta Pusat'
         })
@@ -49,14 +39,12 @@ function CheckInPageContent() {
     }
 
     fetchBranch()
-  }, [branchId])
+  }, [])
 
-  if (!branchData) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-        <LoadingSpinner size="lg" text="Menghubungkan ke Graha Aisyah Menteng..." />
-      </div>
-    )
+  const branch = branchData || {
+    id: '00000000-0000-0000-0000-000000000001',
+    name: 'Graha Aisyah Menteng',
+    address: 'Jl. Menteng No. 1, Jakarta Pusat',
   }
 
   return (
@@ -77,26 +65,18 @@ function CheckInPageContent() {
               Sistem Registrasi Mandiri Tamu
             </span>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              {branchData.name || 'Graha Aisyah Menteng'}
+              {branch.name}
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-md mx-auto">
-              {branchData.address || 'Jl. Menteng No. 1, Jakarta Pusat'}
+              {branch.address}
             </p>
           </div>
 
           <Suspense fallback={<LoadingSpinner size="lg" text="Memuat formulir..." />}>
-            <CheckInForm branchId={branchData.id || branchId!} branchName={branchData.name || 'Graha Aisyah Menteng'} />
+            <CheckInForm branchId={branch.id} branchName={branch.name} />
           </Suspense>
         </div>
       </div>
     </div>
-  )
-}
-
-export default function CheckInPage() {
-  return (
-    <Suspense fallback={null}>
-      <CheckInPageContent />
-    </Suspense>
   )
 }

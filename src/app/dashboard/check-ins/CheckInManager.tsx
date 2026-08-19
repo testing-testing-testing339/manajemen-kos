@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useActionState } from 'react'
 import { createClient } from '@supabase/supabase-js'
@@ -9,8 +9,34 @@ import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
 import QRCode from 'qrcode'
+import { 
+  UserCheck, 
+  QrCode, 
+  CheckCircle2, 
+  Clock, 
+  XCircle, 
+  ShieldCheck, 
+  Building2, 
+  ExternalLink, 
+  DoorClosed, 
+  CreditCard,
+  Banknote,
+  Download,
+  Eye,
+  Check,
+  Phone,
+  ZoomIn,
+  Calendar,
+  X,
+  History,
+  Inbox,
+  Search,
+  Filter,
+  AlertCircle,
+  AlertTriangle
+} from 'lucide-react'
 
-type TabType = 'checkins' | 'qrcode'
+type TabType = 'active' | 'history' | 'qrcode'
 
 export default function CheckInManager({ 
   initialCheckIns, 
@@ -23,17 +49,29 @@ export default function CheckInManager({
   availableRooms: any[]
   branches: any[]
   userRole: string | null
-  userBranchId: string | null
+  userBranchId: string | null 
 }) {
-  const [activeTab, setActiveTab] = useState<TabType>('checkins')
+  const [activeTab, setActiveTab] = useState<TabType>('active')
   const [checkIns, setCheckIns] = useState(initialCheckIns)
   const [selectedCheckIn, setSelectedCheckIn] = useState<any>(null)
+  
+  // Modals
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
+  
   const [selectedRoomId, setSelectedRoomId] = useState('')
+  const [rejectionReason, setRejectionReason] = useState('')
   const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || '')
   const [qrCodeUrl, setQrCodeUrl] = useState('')
   const [loading, setLoading] = useState(false)
+  
+  // History search and filter
+  const [historySearch, setHistorySearch] = useState('')
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'completed' | 'rejected'>('all')
+
+  // Lightbox for full screen photo view
+  const [zoomImage, setZoomImage] = useState<{ url: string; title: string } | null>(null)
   const router = useRouter()
 
   const [approveState, approveAction] = useActionState(approveCheckIn, null)
@@ -51,22 +89,13 @@ export default function CheckInManager({
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
-    // Subscribe to check-in request changes
     const channel = supabase
       .channel('check-ins-realtime')
       .on(
         'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'check_in_requests',
-        },
-        (payload) => {
-          console.log('Check-in change detected:', payload)
-          // Refresh the page to get updated data
+        { event: '*', schema: 'public', table: 'check_in_requests' },
+        () => {
           router.refresh()
-          
-          // Update badge in sidebar
           window.dispatchEvent(new CustomEvent('checkin-updated'))
         }
       )
@@ -81,6 +110,8 @@ export default function CheckInManager({
     if (approveState?.success || rejectState?.success || assignState?.success) {
       setIsDetailModalOpen(false)
       setIsAssignModalOpen(false)
+      setIsRejectModalOpen(false)
+      setRejectionReason('')
       router.refresh()
     }
   }, [approveState, rejectState, assignState, router])
@@ -89,33 +120,24 @@ export default function CheckInManager({
     setLoading(true)
     try {
       const siteUrl = window.location.origin
-      const checkInUrl = `${siteUrl}/check-in/${branchId}`
+      const checkInUrl = `${siteUrl}/check-in`
       
       const qrDataUrl = await QRCode.toDataURL(checkInUrl, {
-        width: 300,
+        width: 320,
         margin: 2,
         color: {
-          dark: '#000000',
+          dark: '#0F172A',
           light: '#FFFFFF'
         }
       })
 
       setQrCodeUrl(qrDataUrl)
 
-      const response = await fetch('/api/branch/generate-qr', {
+      await fetch('/api/branch/generate-qr', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          branch_id: branchId,
-          qr_code_data: checkInUrl
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch_id: branchId, qr_code_data: checkInUrl }),
       })
-
-      if (!response.ok) {
-        console.error('Failed to save QR code')
-      }
     } catch (error) {
       console.error('Error generating QR code:', error)
     } finally {
@@ -126,356 +148,917 @@ export default function CheckInManager({
   const downloadQR = () => {
     if (!qrCodeUrl) return
     const link = document.createElement('a')
-    link.download = `qr-code-${selectedBranch}.png`
+    link.download = `qr-code-checkin-graha-aisyah-menteng.png`
     link.href = qrCodeUrl
     link.click()
   }
 
   const getStatusBadge = (status: string) => {
     const styles = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      approved: 'bg-blue-100 text-blue-800',
-      rejected: 'bg-red-100 text-red-800',
-      completed: 'bg-green-100 text-green-800'
+      pending: 'bg-amber-100 text-amber-800 border-amber-200',
+      approved: 'bg-blue-100 text-blue-800 border-blue-200',
+      rejected: 'bg-red-100 text-red-800 border-red-200',
+      completed: 'bg-emerald-100 text-emerald-800 border-emerald-200'
     }
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${styles[status as keyof typeof styles] || 'bg-slate-100 text-slate-800'}`}>
         {status === 'pending' ? 'Menunggu' : status === 'approved' ? 'Disetujui' : status === 'rejected' ? 'Ditolak' : 'Selesai'}
       </span>
     )
   }
 
-  // Helper function to format rental duration
   const formatRentalDuration = (checkIn: any) => {
-    if (checkIn.rental_duration === 'daily' && checkIn.rental_days) {
-      return `${checkIn.rental_days} hari`
-    } else if (checkIn.rental_duration === '6months') {
-      return '6 bulan'
+    if (checkIn.rental_duration === 'daily') {
+      return `${checkIn.rental_days || 1} Hari`
+    } else if (checkIn.rental_duration === 'weekly') {
+      return `${checkIn.rental_weeks || Math.ceil((checkIn.rental_days || 7) / 7)} Minggu`
+    } else if (checkIn.rental_duration === 'monthly' || checkIn.rental_duration === '6months') {
+      return `${checkIn.rental_months || Math.ceil((checkIn.rental_days || 30) / 30)} Bulan`
     }
     return '-'
   }
 
-  // Helper function to get branch name
-  const getBranchName = (checkIn: any) => {
-    return checkIn.branches?.name || '-'
+  // Parse room type preference
+  const getRoomPreference = (checkIn: any) => {
+    try {
+      if (checkIn.selected_room_type) {
+        const parsed = typeof checkIn.selected_room_type === 'string' 
+          ? JSON.parse(checkIn.selected_room_type) 
+          : checkIn.selected_room_type
+        if (parsed.category === 'vip' || parsed.name?.toLowerCase().includes('vip')) {
+          return { name: 'Kamar VIP', isVip: true }
+        }
+      }
+    } catch {}
+    return { name: 'Kamar Non-VIP', isVip: false }
   }
 
-  const headers = ['Nama', 'No. Telepon', 'Cabang Kost Yang Dipesan', 'Durasi Sewa', 'Total', 'Status', 'Tanggal', 'Aksi']
-  const rows = checkIns.map(checkIn => [
-    checkIn.full_name,
-    checkIn.phone,
-    getBranchName(checkIn),
-    formatRentalDuration(checkIn),
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(checkIn.total_amount)),
-    getStatusBadge(checkIn.status),
-    new Date(checkIn.created_at).toLocaleDateString('id-ID'),
-    <div key={checkIn.id} className="flex gap-2">
-      <button
-        onClick={() => {
-          setSelectedCheckIn(checkIn)
-          setIsDetailModalOpen(true)
-        }}
-        className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium"
-      >
-        Detail
-      </button>
-      {checkIn.status === 'pending' && (userRole === 'owner' || (userRole === 'staff' && checkIn.branch_id === userBranchId)) && (
-        <>
-          <form action={approveAction}>
-            <input type="hidden" name="check_in_id" value={checkIn.id} />
-            <SubmitButton
-              variant="success"
-              className="px-3 py-1 text-sm font-medium"
-              loadingText="Menyetujui..."
-            >
-              Setujui
-            </SubmitButton>
-          </form>
-          <form action={rejectAction}>
-            <input type="hidden" name="check_in_id" value={checkIn.id} />
-            <SubmitButton
-              variant="danger"
-              className="px-3 py-1 text-sm font-medium"
-              loadingText="Menolak..."
-            >
-              Tolak
-            </SubmitButton>
-          </form>
-        </>
-      )}
-      {checkIn.status === 'approved' && !checkIn.assigned_room_id && (userRole === 'owner' || (userRole === 'staff' && checkIn.branch_id === userBranchId)) && (
+  // Group available rooms into VIP and Non-VIP
+  const { vipRooms, nonVipRooms } = useMemo(() => {
+    const vip: any[] = []
+    const nonVip: any[] = []
+
+    availableRooms.forEach(room => {
+      const roomNum = room.room_number?.toString() || ''
+      if (roomNum.toLowerCase().includes('vip') || room.room_type === 'vip') {
+        vip.push(room)
+      } else {
+        nonVip.push(room)
+      }
+    })
+
+    const sortFn = (a: any, b: any) => {
+      const numA = parseInt(a.room_number.replace(/\D/g, '')) || 0
+      const numB = parseInt(b.room_number.replace(/\D/g, '')) || 0
+      return numA - numB
+    }
+
+    return {
+      vipRooms: vip.sort(sortFn),
+      nonVipRooms: nonVip.sort(sortFn)
+    }
+  }, [availableRooms])
+
+  // SEPARATION: Active / Latest Requests vs. Historical Requests
+  const activeRequests = useMemo(() => {
+    return checkIns.filter(c => c.status === 'pending' || (c.status === 'approved' && !c.assigned_room_id))
+  }, [checkIns])
+
+  const historyRequests = useMemo(() => {
+    let list = checkIns.filter(c => c.status === 'completed' || c.status === 'rejected' || (c.status === 'approved' && c.assigned_room_id))
+
+    if (historyStatusFilter === 'completed') {
+      list = list.filter(c => c.status === 'completed' || (c.status === 'approved' && c.assigned_room_id))
+    } else if (historyStatusFilter === 'rejected') {
+      list = list.filter(c => c.status === 'rejected')
+    }
+
+    if (historySearch.trim()) {
+      const q = historySearch.toLowerCase().trim()
+      list = list.filter(c => {
+        const nameMatch = c.full_name?.toLowerCase().includes(q)
+        const phoneMatch = c.phone?.toLowerCase().includes(q)
+        const roomMatch = c.rooms?.room_number?.toString().toLowerCase().includes(q)
+        const nikMatch = c.id_card_number?.toLowerCase().includes(q)
+        const reasonMatch = c.rejection_reason?.toLowerCase().includes(q)
+        return nameMatch || phoneMatch || roomMatch || nikMatch || reasonMatch
+      })
+    }
+
+    return list
+  }, [checkIns, historyStatusFilter, historySearch])
+
+  // Table headers for Active Tab
+  const activeHeaders = ['Nama Tamu', 'Kategori Kamar', 'Durasi Sewa', 'Total + Deposit', 'Metode Bayar', 'Status', 'Waktu Masuk', 'Aksi']
+  
+  const activeRows = activeRequests.map(checkIn => {
+    const roomPref = getRoomPreference(checkIn)
+    const isCash = checkIn.payment_destination?.toLowerCase().includes('cash') || checkIn.payment_destination?.toLowerCase().includes('resepsionis') || checkIn.payment_proof_url?.includes('placehold')
+
+    return [
+      <div key={`name-${checkIn.id}`}>
+        <p className="font-bold text-slate-900">{checkIn.full_name}</p>
+        <p className="text-[11px] text-slate-500">{checkIn.phone}</p>
+      </div>,
+
+      <span key={`pref-${checkIn.id}`} className={`px-2 py-0.5 rounded-md text-xs font-bold ${
+        roomPref.isVip ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
+      }`}>
+        {roomPref.isVip ? 'VIP' : 'Non-VIP'}
+      </span>,
+
+      <span key={`dur-${checkIn.id}`} className="text-xs font-medium text-slate-700">
+        {formatRentalDuration(checkIn)}
+      </span>,
+
+      <div key={`total-${checkIn.id}`}>
+        <p className="text-xs font-bold text-indigo-600">
+          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(parseFloat(checkIn.total_amount))}
+        </p>
+        <p className="text-[10px] text-emerald-600 font-semibold">(Deposit Rp 100k)</p>
+      </div>,
+
+      <span key={`method-${checkIn.id}`} className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+        isCash ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+      }`}>
+        {isCash ? 'Cash' : 'QRIS'}
+      </span>,
+
+      getStatusBadge(checkIn.status),
+
+      <span key={`date-${checkIn.id}`} className="text-xs text-slate-500">
+        {new Date(checkIn.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+      </span>,
+
+      <div key={`action-${checkIn.id}`} className="flex items-center gap-1.5">
         <button
+          type="button"
+          onClick={() => {
+            setSelectedCheckIn(checkIn)
+            setIsDetailModalOpen(true)
+          }}
+          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+        >
+          Detail & Foto
+        </button>
+
+        <button
+          type="button"
           onClick={() => {
             setSelectedCheckIn(checkIn)
             setIsAssignModalOpen(true)
           }}
-          className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 text-sm font-medium"
+          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors cursor-pointer"
         >
-          Assign Kamar
+          Setujui & Pilih Kamar
         </button>
-      )}
-    </div>
-  ])
 
-  const selectedBranchData = branches.find(b => b.id === selectedBranch)
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedCheckIn(checkIn)
+            setRejectionReason('Foto KTP tidak jelas / buram, mohon upload ulang')
+            setIsRejectModalOpen(true)
+          }}
+          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold border border-rose-200 transition-colors cursor-pointer"
+        >
+          Tolak
+        </button>
+      </div>
+    ]
+  })
+
+  // Table headers for History Tab
+  const historyHeaders = ['Nama Tamu', 'Kamar', 'Kategori', 'Durasi', 'Total Tagihan', 'Status & Info', 'Tanggal', 'Aksi']
+
+  const historyRows = historyRequests.map(checkIn => {
+    const roomPref = getRoomPreference(checkIn)
+    
+    // Resolve room display
+    let roomDisplay = '-'
+    if (checkIn.rooms?.room_number) {
+      roomDisplay = `Kamar ${checkIn.rooms.room_number}`
+    } else if (checkIn.status === 'rejected') {
+      roomDisplay = 'Ditolak'
+    } else {
+      roomDisplay = roomPref.isVip ? 'Kamar VIP' : 'Kamar Non-VIP'
+    }
+
+    return [
+      <div key={`hist-name-${checkIn.id}`}>
+        <p className="font-bold text-slate-900">{checkIn.full_name}</p>
+        <p className="text-[11px] text-slate-500">{checkIn.phone}</p>
+      </div>,
+
+      <span key={`hist-room-${checkIn.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
+        checkIn.status === 'rejected' 
+          ? 'bg-rose-50 text-rose-700 border-rose-200' 
+          : 'bg-slate-100 text-slate-900 border-slate-200 font-mono font-black'
+      }`}>
+        {roomDisplay}
+      </span>,
+
+      <span key={`hist-pref-${checkIn.id}`} className={`px-2 py-0.5 rounded-md text-xs font-bold ${
+        roomPref.isVip ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
+      }`}>
+        {roomPref.isVip ? 'VIP' : 'Non-VIP'}
+      </span>,
+
+      <span key={`hist-dur-${checkIn.id}`} className="text-xs text-slate-700">
+        {formatRentalDuration(checkIn)}
+      </span>,
+
+      <span key={`hist-tot-${checkIn.id}`} className="text-xs font-bold text-indigo-600">
+        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(parseFloat(checkIn.total_amount))}
+      </span>,
+
+      <div key={`hist-status-${checkIn.id}`} className="space-y-0.5">
+        {getStatusBadge(checkIn.status)}
+        {checkIn.status === 'rejected' && checkIn.rejection_reason && (
+          <p className="text-[10px] text-rose-600 font-medium truncate max-w-[140px]" title={checkIn.rejection_reason}>
+            {checkIn.rejection_reason}
+          </p>
+        )}
+      </div>,
+
+      <span key={`hist-date-${checkIn.id}`} className="text-xs text-slate-500">
+        {new Date(checkIn.updated_at || checkIn.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+      </span>,
+
+      <button
+        key={`hist-act-${checkIn.id}`}
+        type="button"
+        onClick={() => {
+          setSelectedCheckIn(checkIn)
+          setIsDetailModalOpen(true)
+        }}
+        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+      >
+        Lihat Detail & Foto
+      </button>
+    ]
+  })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Manajemen Check-in</h1>
-        <p className="text-gray-600">Kelola permintaan check-in dan generate QR code</p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          Manajemen Permintaan Check-in
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          Verifikasi pemesanan tamu Graha Aisyah Menteng, kelola antrean masuk terbaru, dan arsip riwayat check-in
+        </p>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab('checkins')}
-            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-              activeTab === 'checkins'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            📱 Check-in Requests
-          </button>
-          <button
-            onClick={() => setActiveTab('qrcode')}
-            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-              activeTab === 'qrcode'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            📱 QR Generator
-          </button>
-        </div>
+      {/* Tabs Switcher: Terbaru vs Riwayat vs QR Code */}
+      <div className="bg-slate-100 p-1.5 rounded-2xl flex max-w-lg border border-slate-200/80">
+        {/* Tab 1: Antrean Terbaru */}
+        <button
+          onClick={() => setActiveTab('active')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'active'
+              ? 'bg-white text-indigo-950 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Inbox className="w-4 h-4 text-indigo-600" />
+          <span>Permintaan Terbaru</span>
+          {activeRequests.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white animate-pulse">
+              {activeRequests.length}
+            </span>
+          )}
+        </button>
+
+        {/* Tab 2: Riwayat Selesai */}
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'history'
+              ? 'bg-white text-indigo-950 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <History className="w-4 h-4 text-slate-600" />
+          <span>Riwayat ({checkIns.filter(c => c.status === 'completed' || c.status === 'rejected' || (c.status === 'approved' && c.assigned_room_id)).length})</span>
+        </button>
+
+        {/* Tab 3: QR Code Generator */}
+        <button
+          onClick={() => {
+            setActiveTab('qrcode')
+            if (!qrCodeUrl) generateQR(selectedBranch)
+          }}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'qrcode'
+              ? 'bg-white text-indigo-950 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <QrCode className="w-4 h-4 text-slate-600" />
+          <span>QR Check-in</span>
+        </button>
       </div>
 
-      {/* Check-ins Tab */}
-      {activeTab === 'checkins' && (
+      {/* =========================================================================
+          TAB 1: ANTREAN PERMINTAAN TERBARU (ACTIONABLE)
+      ========================================================================= */}
+      {activeTab === 'active' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
-              <p className="text-sm text-gray-600 mb-1">Total Permintaan</p>
-              <p className="text-2xl font-bold text-gray-900">{checkIns.length}</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
-              <p className="text-sm text-gray-600 mb-1">Menunggu</p>
-              <p className="text-2xl font-bold text-yellow-600">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+              <p className="text-[11px] font-bold text-amber-600 uppercase">Menunggu Persetujuan</p>
+              <p className="text-2xl font-black text-amber-600 mt-1">
                 {checkIns.filter(c => c.status === 'pending').length}
               </p>
+              <p className="text-[10px] text-slate-400">Tamu baru mendaftar</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
-              <p className="text-sm text-gray-600 mb-1">Disetujui</p>
-              <p className="text-2xl font-bold text-blue-600">
-                {checkIns.filter(c => c.status === 'approved').length}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+              <p className="text-[11px] font-bold text-blue-600 uppercase">Disetujui (Belum Pilih Kamar)</p>
+              <p className="text-2xl font-black text-blue-600 mt-1">
+                {checkIns.filter(c => c.status === 'approved' && !c.assigned_room_id).length}
               </p>
+              <p className="text-[10px] text-slate-400">Siap diberi nomor kamar</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
-              <p className="text-sm text-gray-600 mb-1">Selesai</p>
-              <p className="text-2xl font-bold text-green-600">
-                {checkIns.filter(c => c.status === 'completed').length}
-              </p>
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+              <p className="text-[11px] font-bold text-slate-500 uppercase">Total Antrean Aktif</p>
+              <p className="text-2xl font-black text-slate-900 mt-1">{activeRequests.length}</p>
+              <p className="text-[10px] text-slate-400">Graha Aisyah Menteng</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <Table headers={headers} rows={rows} />
-          </div>
+          {activeRequests.length > 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <Table headers={activeHeaders} rows={activeRows} />
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">Tidak ada antrean check-in baru</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Semua permintaan check-in telah diproses. Pengajuan check-in baru via scan QR akan muncul di sini secara otomatis.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* QR Generator Tab */}
-      {activeTab === 'qrcode' && (
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Cabang</label>
-            <select
-              value={selectedBranch}
-              onChange={(e) => {
-                setSelectedBranch(e.target.value)
-                setQrCodeUrl('')
-              }}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              {branches.map(branch => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {selectedBranchData && (
-            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Cabang: <span className="font-semibold">{selectedBranchData.name}</span></p>
-              <p className="text-sm text-gray-600">Alamat: {selectedBranchData.address}</p>
+      {/* =========================================================================
+          TAB 2: RIWAYAT CHECK-IN (COMPLETED & REJECTED ARCHIVES)
+      ========================================================================= */}
+      {activeTab === 'history' && (
+        <div className="space-y-6">
+          {/* Search & Filter Controls for History */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nama, kamar, WA, NIK, atau alasan tolak..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
-          )}
 
-          <button
-            onClick={() => generateQR(selectedBranch)}
-            disabled={loading || !selectedBranch}
-            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="relative">
-                  <div className="h-4 w-4 border-2 border-white/30 rounded-full"></div>
-                  <div className="absolute inset-0 h-4 w-4 border-2 border-transparent border-t-white rounded-full animate-spin"></div>
-                </div>
-                <span>Membuat QR Code...</span>
-              </>
-            ) : (
-              'Generate QR Code'
-            )}
-          </button>
-
-          {qrCodeUrl && (
-            <div className="mt-6 text-center">
-              <div className="inline-block p-4 bg-white border-2 border-gray-300 rounded-lg">
-                <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
-              </div>
-              <p className="text-sm text-gray-600 mt-4 mb-2">
-                Scan QR code ini untuk check-in di cabang <span className="font-semibold">{selectedBranchData?.name}</span>
-              </p>
-              <button
-                onClick={downloadQR}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select
+                value={historyStatusFilter}
+                onChange={(e: any) => setHistoryStatusFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                Download QR Code
-              </button>
+                <option value="all">Semua Riwayat</option>
+                <option value="completed">Selesai Check-in</option>
+                <option value="rejected">Ditolak</option>
+              </select>
+            </div>
+          </div>
+
+          {historyRequests.length > 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <Table headers={historyHeaders} rows={historyRows} />
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-3">
+                <History className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">Belum ada data riwayat yang cocok</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Riwayat tamu yang selesai check-in atau ditolak akan tersimpan rapi di halaman ini.
+              </p>
             </div>
           )}
         </div>
       )}
 
-      {/* Detail Modal */}
-      <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)}>
+      {/* =========================================================================
+          TAB 3: QR CODE GENERATOR & CETAK
+      ========================================================================= */}
+      {activeTab === 'qrcode' && (
+        <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xs max-w-xl mx-auto text-center space-y-6">
+          <div>
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
+              <QrCode className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">QR Code Registrasi Graha Aisyah Menteng</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Cetak QR Code ini dan pasang di meja resepsionis agar tamu dapat scan dan check-in mandiri.
+            </p>
+          </div>
+
+          {qrCodeUrl ? (
+            <div className="space-y-4">
+              <div className="inline-block p-4 bg-white border-2 border-slate-200 rounded-3xl shadow-lg">
+                <img src={qrCodeUrl} alt="QR Code Check-in" className="w-56 h-56 mx-auto" />
+              </div>
+              <div>
+                <button
+                  onClick={downloadQR}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  Unduh Gambar QR Code (.PNG)
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => generateQR(selectedBranch)}
+              disabled={loading}
+              className="px-6 py-3 bg-indigo-600 text-white font-bold text-xs rounded-xl cursor-pointer"
+            >
+              {loading ? 'Membuat QR...' : 'Buat QR Code'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          WIDE DETAIL & VERIFICATION MODAL (2XL WITH 3-COLUMN PHOTOS)
+      ========================================================================= */}
+      <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} size="2xl">
+        {selectedCheckIn && (() => {
+          const roomPref = getRoomPreference(selectedCheckIn)
+          const isCash = selectedCheckIn.payment_destination?.toLowerCase().includes('cash') || selectedCheckIn.payment_destination?.toLowerCase().includes('resepsionis') || selectedCheckIn.payment_proof_url?.includes('placehold')
+          const formattedPhone = selectedCheckIn.phone?.replace(/[^0-9]/g, '') || ''
+          
+          // Compose prefilled WhatsApp message
+          let waText = `Halo ${selectedCheckIn.full_name}, kami dari pengelola Graha Aisyah Menteng.`
+          if (selectedCheckIn.status === 'rejected') {
+            waText += ` Mohon maaf, pendaftaran check-in Anda belum dapat kami setujui karena: "${selectedCheckIn.rejection_reason || 'Berkas kurang lengkap / tidak sesuai'}". Silakan hubungi kami untuk informasi lebih lanjut atau lakukan pendaftaran ulang.`
+          } else if (selectedCheckIn.status === 'completed') {
+            waText += ` Terima kasih, check-in Anda untuk Kamar ${selectedCheckIn.rooms?.room_number || ''} telah terkonfirmasi.`
+          }
+          const waUrl = formattedPhone ? `https://wa.me/${formattedPhone.startsWith('0') ? '62' + formattedPhone.slice(1) : formattedPhone}?text=${encodeURIComponent(waText)}` : '#'
+
+          return (
+            <div className="space-y-6 py-1">
+              {/* Header Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                      Detail Tamu: {selectedCheckIn.full_name}
+                    </h2>
+                    {getStatusBadge(selectedCheckIn.status)}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Pengajuan ID: <span className="font-mono text-indigo-600 font-semibold">{selectedCheckIn.id}</span> • Masuk pada {new Date(selectedCheckIn.created_at).toLocaleString('id-ID')}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {formattedPhone && (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      Chat WhatsApp Tamu
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* REJECTION REASON BANNER (IF REJECTED) */}
+              {selectedCheckIn.status === 'rejected' && (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-rose-800">Alasan Penolakan Check-in:</h4>
+                    <p className="text-xs text-rose-700 font-semibold mt-0.5">
+                      {selectedCheckIn.rejection_reason || 'Data formulir tidak sesuai atau berkas identitas/bukti transfer tidak valid.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Data Summary Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">NIK KTP (16 Digit)</p>
+                  <p className="text-xs font-black text-slate-900 font-mono">{selectedCheckIn.id_card_number || '-'}</p>
+                </div>
+
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kategori Kamar</p>
+                  <p className={`text-xs font-extrabold ${roomPref.isVip ? 'text-purple-700' : 'text-slate-800'}`}>
+                    {roomPref.isVip ? 'Kamar VIP' : 'Non-VIP / Standard'}
+                  </p>
+                </div>
+
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Durasi Sewa</p>
+                  <p className="text-xs font-black text-slate-900">{formatRentalDuration(selectedCheckIn)}</p>
+                </div>
+
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Deposit Jaminan</p>
+                  <p className="text-xs font-black text-emerald-600">Rp 100.000 (Refundable)</p>
+                </div>
+
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Tagihan</p>
+                  <p className="text-sm font-black text-indigo-600">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(parseFloat(selectedCheckIn.total_amount))}
+                  </p>
+                </div>
+
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Metode Bayar</p>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    isCash ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {isCash ? 'Cash di Resepsionis' : 'QRIS GoPay Merchant'}
+                  </span>
+                </div>
+
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">No. Kontak</p>
+                  <p className="text-xs font-black text-slate-900">{selectedCheckIn.phone}</p>
+                </div>
+
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kamar Diassign</p>
+                  <p className="text-xs font-black text-slate-900 font-mono">
+                    {selectedCheckIn.rooms?.room_number ? `Kamar ${selectedCheckIn.rooms.room_number}` : (selectedCheckIn.status === 'rejected' ? 'Ditolak' : 'Belum Ditentukan')}
+                  </p>
+                </div>
+              </div>
+
+              {/* 3-COLUMN SIDE-BY-SIDE PHOTO VERIFICATION */}
+              <div>
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+                  <span>Dokumen Verifikasi Identitas (Klik Foto untuk Memperbesar)</span>
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Foto KTP */}
+                  <div className="bg-slate-900 rounded-2xl p-3 text-white border border-slate-800 flex flex-col justify-between group">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-indigo-300">1. Foto KTP Tamu</span>
+                        <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">Rasio 1.58:1</span>
+                      </div>
+                      <div 
+                        onClick={() => selectedCheckIn.id_card_photo_url && setZoomImage({ url: selectedCheckIn.id_card_photo_url, title: `KTP: ${selectedCheckIn.full_name}` })}
+                        className="relative aspect-[1.58/1] bg-slate-950 rounded-xl overflow-hidden cursor-pointer border border-slate-700/60 flex items-center justify-center hover:opacity-90 transition-opacity"
+                      >
+                        {selectedCheckIn.id_card_photo_url ? (
+                          <img 
+                            src={selectedCheckIn.id_card_photo_url} 
+                            alt="Foto KTP" 
+                            className="w-full h-full object-cover" 
+                          />
+                        ) : (
+                          <span className="text-xs text-slate-500">Tidak ada foto KTP</span>
+                        )}
+                        <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <span className="p-2 rounded-full bg-white/20 backdrop-blur-md text-white">
+                            <ZoomIn className="w-5 h-5" />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2 text-center">Pastikan NIK & Nama sesuai data input</p>
+                  </div>
+
+                  {/* Foto Selfie */}
+                  <div className="bg-slate-900 rounded-2xl p-3 text-white border border-slate-800 flex flex-col justify-between group">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-purple-300">2. Foto Selfie Tamu</span>
+                        <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">Wajah Asli</span>
+                      </div>
+                      <div 
+                        onClick={() => selectedCheckIn.selfie_photo_url && setZoomImage({ url: selectedCheckIn.selfie_photo_url, title: `Selfie: ${selectedCheckIn.full_name}` })}
+                        className="relative aspect-[1.58/1] bg-slate-950 rounded-xl overflow-hidden cursor-pointer border border-slate-700/60 flex items-center justify-center hover:opacity-90 transition-opacity"
+                      >
+                        {selectedCheckIn.selfie_photo_url ? (
+                          <img 
+                            src={selectedCheckIn.selfie_photo_url} 
+                            alt="Foto Selfie" 
+                            className="w-full h-full object-cover" 
+                          />
+                        ) : (
+                          <span className="text-xs text-slate-500">Tidak ada foto selfie</span>
+                        )}
+                        <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <span className="p-2 rounded-full bg-white/20 backdrop-blur-md text-white">
+                            <ZoomIn className="w-5 h-5" />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2 text-center">Cocokkan wajah tamu dengan foto KTP</p>
+                  </div>
+
+                  {/* Bukti Pembayaran */}
+                  <div className="bg-slate-900 rounded-2xl p-3 text-white border border-slate-800 flex flex-col justify-between group">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-emerald-300">3. Bukti Bayar / QRIS</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md ${isCash ? 'bg-amber-900/60 text-amber-300' : 'bg-emerald-900/60 text-emerald-300'}`}>
+                          {isCash ? 'Cash' : 'QRIS GoPay'}
+                        </span>
+                      </div>
+                      <div 
+                        onClick={() => {
+                          if (selectedCheckIn.payment_proof_url && !selectedCheckIn.payment_proof_url.includes('placehold')) {
+                            setZoomImage({ url: selectedCheckIn.payment_proof_url, title: `Bukti Transfer: ${selectedCheckIn.full_name}` })
+                          }
+                        }}
+                        className="relative aspect-[1.58/1] bg-slate-950 rounded-xl overflow-hidden cursor-pointer border border-slate-700/60 flex items-center justify-center"
+                      >
+                        {selectedCheckIn.payment_proof_url && !selectedCheckIn.payment_proof_url.includes('placehold') ? (
+                          <>
+                            <img 
+                              src={selectedCheckIn.payment_proof_url} 
+                              alt="Bukti Transfer" 
+                              className="w-full h-full object-cover" 
+                            />
+                            <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                              <span className="p-2 rounded-full bg-white/20 backdrop-blur-md text-white">
+                                <ZoomIn className="w-5 h-5" />
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-center p-3 space-y-1">
+                            <Banknote className="w-8 h-8 text-amber-400 mx-auto" />
+                            <p className="text-xs font-bold text-amber-300">Bayar Cash di Resepsionis</p>
+                            <p className="text-[10px] text-slate-400">Terima uang tunai langsung</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2 text-center">Verifikasi nominal transfer / cash</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsDetailModalOpen(false)}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Tutup
+                </button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {selectedCheckIn.status === 'pending' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsDetailModalOpen(false)
+                          setRejectionReason('Foto KTP tidak jelas / buram, mohon upload ulang')
+                          setIsRejectModalOpen(true)
+                        }}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 cursor-pointer"
+                      >
+                        Tolak Permintaan
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsDetailModalOpen(false)
+                          setIsAssignModalOpen(true)
+                        }}
+                        className="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
+                      >
+                        Setujui & Pilih Kamar
+                      </button>
+                    </>
+                  )}
+
+                  {selectedCheckIn.status === 'approved' && !selectedCheckIn.assigned_room_id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDetailModalOpen(false)
+                        setIsAssignModalOpen(true)
+                      }}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
+                    >
+                      Pilih Kamar Sekarang
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
+
+      {/* =========================================================================
+          MODAL TOLAK PERMINTAAN DENGAN ALASAN
+      ========================================================================= */}
+      <Modal isOpen={isRejectModalOpen} onClose={() => setIsRejectModalOpen(false)} size="md">
         {selectedCheckIn && (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Detail Check-in</h2>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Nama Lengkap</p>
-                <p className="font-semibold">{selectedCheckIn.full_name}</p>
+          <form action={rejectAction} className="space-y-4 py-1">
+            <input type="hidden" name="check_in_id" value={selectedCheckIn.id} />
+
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">No. Telepon</p>
-                <p className="font-semibold">{selectedCheckIn.phone}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Email</p>
-                <p className="font-semibold">{selectedCheckIn.email || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">No. KTP</p>
-                <p className="font-semibold">{selectedCheckIn.id_card_number}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Pembayaran</p>
-                <p className="font-semibold text-indigo-600">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(selectedCheckIn.total_amount))}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Durasi Sewa</p>
-                <p className="font-semibold">{formatRentalDuration(selectedCheckIn)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Status</p>
-                {getStatusBadge(selectedCheckIn.status)}
+                <h2 className="text-base font-extrabold text-slate-900">Tolak Permintaan Check-In</h2>
+                <p className="text-xs text-slate-500">Tamu: {selectedCheckIn.full_name}</p>
               </div>
             </div>
 
             <div>
-              <p className="text-sm text-gray-600 mb-2">Foto KTP</p>
-              <img src={selectedCheckIn.id_card_photo_url} alt="KTP" className="w-full rounded-lg border-2 border-gray-300" />
-            </div>
-
-            <div>
-              <p className="text-sm text-gray-600 mb-2">Foto Selfie</p>
-              <img src={selectedCheckIn.selfie_photo_url} alt="Selfie" className="w-full rounded-lg border-2 border-gray-300" />
-            </div>
-
-            <div>
-              <p className="text-sm text-gray-600 mb-2">Bukti Transfer</p>
-              <img src={selectedCheckIn.payment_proof_url} alt="Bukti transfer" className="w-full rounded-lg border-2 border-gray-300" />
-            </div>
-
-            {selectedCheckIn.assigned_room_id && (
-              <div>
-                <p className="text-sm text-gray-600">Kamar yang Ditetapkan</p>
-                <p className="font-semibold">
-                  No. {selectedCheckIn.rooms?.room_number || '-'} - {selectedCheckIn.rooms?.floors?.branches?.name || selectedCheckIn.branches?.name || '-'}
-                </p>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                Pilih / Tulis Alasan Penolakan *
+              </label>
+              
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap gap-1.5 mb-2.5">
+                {[
+                  'Foto KTP buram / tidak terbaca',
+                  'Foto selfie tidak cocok dengan KTP',
+                  'Bukti transfer QRIS belum sesuai nominal',
+                  'Kamar tipe ini sedang penuh',
+                  'Data kontak tidak dapat dihubungi'
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setRejectionReason(preset)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                      rejectionReason === preset
+                        ? 'bg-rose-100 border-rose-300 text-rose-800 font-bold'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
               </div>
+
+              <textarea
+                name="rejection_reason"
+                required
+                rows={3}
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Tuliskan alasan penolakan secara jelas agar tamu memahami..."
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            {rejectState?.error && (
+              <p className="text-xs text-red-600 font-semibold">{rejectState.error}</p>
             )}
 
-            <button
-              onClick={() => setIsDetailModalOpen(false)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Tutup
-            </button>
-          </div>
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsRejectModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Batal
+              </button>
+              <SubmitButton
+                variant="danger"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                loadingText="Menolak..."
+              >
+                Konfirmasi Tolak Permintaan
+              </SubmitButton>
+            </div>
+          </form>
         )}
       </Modal>
 
-      {/* Assign Room Modal */}
-      <Modal isOpen={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)}>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Assign Kamar</h2>
-        <form action={assignAction} className="space-y-4">
-          <input type="hidden" name="check_in_id" value={selectedCheckIn?.id} />
-          
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Kamar *</label>
-            <select
-              name="room_id"
-              required
-              value={selectedRoomId}
-              onChange={(e) => setSelectedRoomId(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              <option value="">Pilih Kamar</option>
-              {[...availableRooms].sort((a, b) => {
-                // Sort by room_number (handle both string and number)
-                const numA = parseInt(a.room_number) || 0
-                const numB = parseInt(b.room_number) || 0
-                return numA - numB
-              }).map(room => (
-                <option key={room.id} value={room.id}>
-                  No. {room.room_number} - {room.floors?.branches?.name || '-'} - {room.floors?.name || '-'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {assignState?.error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{assignState.error}</p>
-            </div>
-          )}
-
-          <div className="flex gap-3">
+      {/* =========================================================================
+          FULLSCREEN PHOTO ZOOM LIGHTBOX
+      ========================================================================= */}
+      {zoomImage && (
+        <div 
+          onClick={() => setZoomImage(null)}
+          className="fixed inset-0 z-60 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-3xl p-2 border border-slate-800 shadow-2xl">
             <button
-              type="button"
-              onClick={() => setIsAssignModalOpen(false)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              onClick={() => setZoomImage(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white text-slate-900 flex items-center justify-center font-bold text-lg shadow-lg cursor-pointer"
             >
-              Batal
+              <X className="w-5 h-5" />
             </button>
-            <SubmitButton
-              variant="primary"
-              className="flex-1 px-4 py-3"
-              loadingText="Mengassign..."
-            >
-              Assign Kamar
-            </SubmitButton>
+            <p className="text-xs font-bold text-white p-2 text-center">{zoomImage.title}</p>
+            <img 
+              src={zoomImage.url} 
+              alt="Zoom" 
+              className="max-h-[80vh] w-auto max-w-full rounded-2xl object-contain mx-auto" 
+            />
           </div>
-        </form>
+        </div>
+      )}
+
+      {/* =========================================================================
+          ASSIGN ROOM MODAL (1-STEP APPROVAL & ROOM ASSIGNMENT)
+      ========================================================================= */}
+      <Modal isOpen={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)} size="md">
+        {selectedCheckIn && (
+          <form action={assignAction} className="space-y-4 py-1">
+            <input type="hidden" name="check_in_id" value={selectedCheckIn.id} />
+            
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-lg font-extrabold text-slate-900">Setujui & Tetapkan Kamar</h2>
+              <p className="text-xs text-slate-500">
+                Pilih kamar kosong untuk tamu <strong>{selectedCheckIn.full_name}</strong> (Pesanan: <strong className="text-indigo-600">{getRoomPreference(selectedCheckIn).name}</strong>)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                Pilih Kamar yang Tersedia (Graha Aisyah Menteng) *
+              </label>
+              <select
+                name="room_id"
+                required
+                value={selectedRoomId}
+                onChange={(e) => setSelectedRoomId(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">-- Pilih Kamar --</option>
+                
+                {vipRooms.length > 0 && (
+                  <optgroup label="KAMAR VIP (13 Kamar @ Rp 100k/malam)">
+                    {vipRooms.map(r => (
+                      <option key={r.id} value={r.id}>
+                        Kamar {r.room_number} • {r.floors?.name || 'Lantai 1'} (VIP)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+
+                {nonVipRooms.length > 0 && (
+                  <optgroup label="KAMAR NON-VIP / STANDARD (40 Kamar @ Rp 100k/malam)">
+                    {nonVipRooms.map(r => (
+                      <option key={r.id} value={r.id}>
+                        Kamar {r.room_number} • {r.floors?.name || 'Lantai'} (Standard)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+
+            {assignState?.error && (
+              <p className="text-xs text-red-600 font-semibold">{assignState.error}</p>
+            )}
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsAssignModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Batal
+              </button>
+              <SubmitButton
+                variant="primary"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                loadingText="Menyimpan..."
+              >
+                Konfirmasi & Aktifkan Kamar
+              </SubmitButton>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   )
 }
-

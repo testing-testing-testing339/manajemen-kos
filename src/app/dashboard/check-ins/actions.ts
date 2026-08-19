@@ -126,16 +126,35 @@ export async function rejectCheckIn(prevState: any, formData: FormData) {
     return { error: 'Only owner or staff can reject check-ins' }
   }
 
-  const { error } = await supabase
+  const rejection_reason = (formData.get('rejection_reason') as string)?.trim() || 'Data formulir tidak sesuai atau berkas kurang jelas'
+
+  // Update check-in status to rejected with reason
+  let updateData: any = {
+    status: 'rejected',
+    rejection_reason: rejection_reason,
+    assigned_by: user.id,
+    updated_at: new Date().toISOString()
+  }
+
+  let { error } = await supabase
     .from('check_in_requests')
-    .update({
-      status: 'rejected',
-      assigned_by: user.id,
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', check_in_id)
 
-  if (error) return { error: error.message }
+  // If column rejection_reason is not yet added in Supabase, fallback safely
+  if (error && error.message?.includes('rejection_reason')) {
+    const { error: fallbackError } = await supabase
+      .from('check_in_requests')
+      .update({
+        status: 'rejected',
+        assigned_by: user.id,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', check_in_id)
+    if (fallbackError) return { error: fallbackError.message }
+  } else if (error) {
+    return { error: error.message }
+  }
 
   revalidatePath('/dashboard/check-ins')
   return { success: true }
@@ -183,8 +202,8 @@ export async function assignRoom(prevState: any, formData: FormData) {
     return { error: 'Check-in request not found' }
   }
 
-  if (checkIn.status !== 'approved') {
-    return { error: 'Check-in request must be approved first' }
+  if (checkIn.status !== 'pending' && checkIn.status !== 'approved') {
+    return { error: 'Permintaan check-in tidak valid atau sudah selesai' }
   }
 
   if (profile?.role === 'staff' && checkIn.branch_id !== profile.branch_id) {
@@ -257,14 +276,15 @@ export async function assignRoom(prevState: any, formData: FormData) {
       const paymentDueDate = new Date(checkInDate)
       
       if (checkInData.rental_duration === 'daily' && checkInData.rental_days) {
-        // Daily rental: add rental_days to check-in date
         paymentDueDate.setDate(paymentDueDate.getDate() + checkInData.rental_days)
-      } else if (checkInData.rental_duration === '6months') {
-        // 6 months rental: add 6 months to check-in date
-        paymentDueDate.setMonth(paymentDueDate.getMonth() + 6)
+      } else if (checkInData.rental_duration === 'weekly') {
+        const days = checkInData.rental_days || 7
+        paymentDueDate.setDate(paymentDueDate.getDate() + days)
+      } else if (checkInData.rental_duration === 'monthly') {
+        const days = checkInData.rental_days || 30
+        paymentDueDate.setDate(paymentDueDate.getDate() + days)
       } else {
-        // Fallback: 1 month from check-in date
-        paymentDueDate.setMonth(paymentDueDate.getMonth() + 1)
+        paymentDueDate.setDate(paymentDueDate.getDate() + (checkInData.rental_days || 1))
       }
 
       // Create tenant record

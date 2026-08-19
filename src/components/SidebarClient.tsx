@@ -69,15 +69,9 @@ function SidebarClient({
             <Building2 className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-base font-extrabold text-slate-900 leading-none tracking-tight">
-              Graha Aisyah
+            <h2 className="text-base font-extrabold text-slate-900 leading-snug tracking-tight">
+              Graha Aisyah Menteng
             </h2>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Management
-              </p>
-            </div>
           </div>
         </Link>
       </div>

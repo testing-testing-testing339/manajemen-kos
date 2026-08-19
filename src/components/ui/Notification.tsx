@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+import { Info, CheckCircle2, AlertTriangle, AlertCircle, X } from 'lucide-react'
+
 interface NotificationProps {
   title: string
   message: string
@@ -31,32 +33,37 @@ export default function Notification({
   }, [duration, onClose])
 
   const typeStyles = {
-    info: 'bg-blue-500 border-blue-600',
-    success: 'bg-green-500 border-green-600',
-    warning: 'bg-yellow-500 border-yellow-600',
-    error: 'bg-red-500 border-red-600',
+    info: 'bg-slate-900 border-indigo-500 text-white',
+    success: 'bg-slate-900 border-emerald-500 text-white',
+    warning: 'bg-slate-900 border-amber-500 text-white',
+    error: 'bg-slate-900 border-rose-500 text-white',
   }
 
-  const icons = {
-    info: 'ℹ️',
-    success: '✅',
-    warning: '⚠️',
-    error: '❌',
+  const iconColors = {
+    info: 'text-indigo-400',
+    success: 'text-emerald-400',
+    warning: 'text-amber-400',
+    error: 'text-rose-400',
   }
 
   return (
     <div
-      className={`fixed top-4 right-4 z-[10000] min-w-[320px] max-w-md p-4 rounded-lg shadow-2xl border-2 ${
+      className={`fixed top-4 right-4 z-[10000] min-w-[320px] max-w-md p-4 rounded-2xl shadow-2xl border-2 ${
         typeStyles[type]
-      } text-white transform transition-all duration-300 ${
+      } transform transition-all duration-300 ${
         isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
       }`}
     >
       <div className="flex items-start gap-3">
-        <span className="text-2xl">{icons[type]}</span>
+        <div className={`mt-0.5 ${iconColors[type]}`}>
+          {type === 'info' && <Info className="w-5 h-5" />}
+          {type === 'success' && <CheckCircle2 className="w-5 h-5" />}
+          {type === 'warning' && <AlertTriangle className="w-5 h-5" />}
+          {type === 'error' && <AlertCircle className="w-5 h-5" />}
+        </div>
         <div className="flex-1">
-          <h3 className="font-bold text-lg mb-1">{title}</h3>
-          <p className="text-sm opacity-90">{message}</p>
+          <h3 className="font-bold text-sm mb-0.5">{title}</h3>
+          <p className="text-xs opacity-85 text-slate-300">{message}</p>
         </div>
         <button
           onClick={() => {

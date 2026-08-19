@@ -40,10 +40,8 @@ export default async function Header() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
+        setAll() {
+          // No-op for Server Components - cookie modifications must happen in Server Actions
         },
       },
     }

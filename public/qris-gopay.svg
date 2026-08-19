@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="100%" height="100%">
+  <defs>
+    <linearGradient id="gopayGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00AA13"/>
+      <stop offset="100%" stop-color="#00880F"/>
+    </linearGradient>
+    <linearGradient id="qrisHeaderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E11D48"/>
+      <stop offset="100%" stop-color="#BE123C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Card Background -->
+  <rect x="10" y="10" width="580" height="780" rx="32" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="4"/>
+
+  <!-- Top QRIS National Header -->
+  <rect x="10" y="10" width="580" height="110" rx="32" fill="url(#qrisHeaderGrad)"/>
+  <rect x="10" y="80" width="580" height="40" fill="url(#qrisHeaderGrad)"/>
+
+  <!-- QRIS Text Header -->
+  <text x="300" y="62" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="4">QRIS</text>
+  <text x="300" y="92" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#FFE4E6" text-anchor="middle" letter-spacing="1.5">PEMBAYARAN DIGITAL NASIONAL</text>
+
+  <!-- Merchant Info Banner -->
+  <rect x="40" y="135" width="520" height="90" rx="20" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="2"/>
+  <circle cx="85" cy="180" r="26" fill="url(#gopayGrad)"/>
+  <text x="85" y="188" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="900" fill="#FFFFFF" text-anchor="middle">G</text>
+  
+  <text x="125" y="172" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="800" fill="#0F172A">KOST JL. MENTENG</text>
+  <text x="125" y="196" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#64748B">NMID: ID1024385920392 • GoPay Merchant</text>
+
+  <!-- QR Code Frame -->
+  <rect x="75" y="245" width="450" height="450" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+
+  <!-- Realistic QR Code Grid Mockup -->
+  <!-- Top Left Finder Pattern -->
+  <rect x="115" y="285" width="90" height="90" rx="12" fill="#0F172A"/>
+  <rect x="130" y="300" width="60" height="60" rx="6" fill="#FFFFFF"/>
+  <rect x="142" y="312" width="36" height="36" rx="4" fill="#0F172A"/>
+
+  <!-- Top Right Finder Pattern -->
+  <rect x="395" y="285" width="90" height="90" rx="12" fill="#0F172A"/>
+  <rect x="410" y="300" width="60" height="60" rx="6" fill="#FFFFFF"/>
+  <rect x="422" y="312" width="36" height="36" rx="4" fill="#0F172A"/>
+
+  <!-- Bottom Left Finder Pattern -->
+  <rect x="115" y="565" width="90" height="90" rx="12" fill="#0F172A"/>
+  <rect x="130" y="580" width="60" height="60" rx="6" fill="#FFFFFF"/>
+  <rect x="142" y="592" width="36" height="36" rx="4" fill="#0F172A"/>
+
+  <!-- QR Data Matrix Visual Elements -->
+  <!-- Row 1 -->
+  <rect x="225" y="285" width="16" height="16" fill="#0F172A" rx="2"/>
+  <rect x="255" y="285" width="32" height="16" fill="#0F172A" rx="2"/>
+  <rect x="305" y="285" width="16" height="32" fill="#0F172A" rx="2"/>
+  <rect x="335" y="285" width="32" height="16" fill="#0F172A" rx="2"/>
+
+  <!-- Row 2 -->
+  <rect x="225" y="315" width="32" height="16" fill="#0F172A" rx="2"/>
+  <rect x="275" y="315" width="16" height="16" fill="#0F172A" rx="2"/>
+  <rect x="350" y="315" width="20" height="32" fill="#0F172A" rx="2"/>
+
+  <!-- Row 3 -->
+  <rect x="225" y="345" width="16" height="30" fill="#0F172A" rx="2"/>
+  <rect x="255" y="345" width="32" height="16" fill="#0F172A" rx="2"/>
+  <rect x="305" y="345" width="32" height="32" fill="#0F172A" rx="2"/>
+
+  <!-- Middle Center Graphic (GoPay Logo Shield) -->
+  <rect x="260" y="430" width="80" height="80" rx="18" fill="#00AA13" stroke="#FFFFFF" stroke-width="5"/>
+  <circle cx="300" cy="470" r="22" fill="#FFFFFF"/>
+  <circle cx="300" cy="470" r="14" fill="#00AA13"/>
+  <circle cx="306" cy="464" r="5" fill="#FFFFFF"/>
+
+  <!-- Middle Rows Data -->
+  <rect x="115" y="400" width="32" height="16" fill="#0F172A" rx="2"/>
+  <rect x="160" y="400" width="16" height="32" fill="#0F172A" rx="2"/>
+  <rect x="190" y="400" width="48" height="16" fill="#0F172A" rx="2"/>
+  <rect x="360" y="400" width="32" height="16" fill="#0F172A" rx="2"/>
+  <rect x="410" y="400" width="16" height="32" fill="#0F172A" rx="2"/>
+  <rect x="440" y="400" width="45" height="16" fill="#0F172A" rx="2"/>
+
+  <!-- Lower Middle Rows -->
+  <rect x="115" y="450" width="48" height="16" fill="#0F172A" rx="2"/>
+  <rect x="180" y="450" width="32" height="32" fill="#0F172A" rx="2"/>
+  <rect x="225" y="450" width="20" height="16" fill="#0F172A" rx="2"/>
+  <rect x="355" y="450" width="32" height="16" fill="#0F172A" rx="2"/>
+  <rect x="400" y="450" width="45" height="32" fill="#0F172A" rx="2"/>
+  <rect x="460" y="450" width="25" height="16" fill="#0F172A" rx="2"/>
+
+  <rect x="115" y="500" width="16" height="32" fill="#0F172A" rx="2"/>
+  <rect x="145" y="500" width="32" height="16" fill="#0F172A" rx="2"/>
+  <rect x="190" y="500" width="48" height="32" fill="#0F172A" rx="2"/>
+  <rect x="360" y="500" width="48" height="16" fill="#0F172A" rx="2"/>
+  <rect x="420" y="500" width="16" height="48" fill="#0F172A" rx="2"/>
+  <rect x="450" y="500" width="35" height="16" fill="#0F172A" rx="2"/>
+
+  <!-- Bottom Right Rows -->
+  <rect x="225" y="565" width="32" height="32" fill="#0F172A" rx="2"/>
+  <rect x="270" y="565" width="48" height="16" fill="#0F172A" rx="2"/>
+  <rect x="330" y="565" width="20" height="32" fill="#0F172A" rx="2"/>
+  <rect x="365" y="565" width="40" height="16" fill="#0F172A" rx="2"/>
+  <rect x="420" y="565" width="32" height="32" fill="#0F172A" rx="2"/>
+  <rect x="465" y="565" width="20" height="16" fill="#0F172A" rx="2"/>
+
+  <rect x="225" y="615" width="48" height="16" fill="#0F172A" rx="2"/>
+  <rect x="285" y="615" width="20" height="40" fill="#0F172A" rx="2"/>
+  <rect x="320" y="615" width="50" height="16" fill="#0F172A" rx="2"/>
+  <rect x="385" y="615" width="30" height="30" fill="#0F172A" rx="2"/>
+  <rect x="430" y="615" width="55" height="16" fill="#0F172A" rx="2"/>
+
+  <rect x="225" y="645" width="32" height="16" fill="#0F172A" rx="2"/>
+  <rect x="320" y="645" width="30" height="16" fill="#0F172A" rx="2"/>
+  <rect x="365" y="645" width="50" height="16" fill="#0F172A" rx="2"/>
+  <rect x="430" y="645" width="25" height="16" fill="#0F172A" rx="2"/>
+
+  <!-- Footer Brand Logos -->
+  <text x="300" y="725" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" fill="#64748B" text-anchor="middle">
+    Menerima Pembayaran: GoPay • BCA • Mandiri • BRI • BNI • DANA • OVO • ShopeePay
+  </text>
+  <text x="300" y="750" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#94A3B8" text-anchor="middle">
+    Dicetak resmi oleh GoPay Merchant untuk Kost Jl. Menteng
+  </text>
+</svg>
