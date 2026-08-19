@@ -50,7 +50,7 @@ export default async function CheckInsPage() {
   // Get available rooms for assignment
   let roomsQuery = supabase
     .from('rooms')
-    .select('id, room_number, price, is_occupied, floors(name, branch_id, branches(name))')
+    .select('id, room_number, room_type, price, is_occupied, floors(name, branch_id, branches(name))')
     .eq('is_occupied', false)
 
   if (profile?.role === 'staff' && profile.branch_id) {

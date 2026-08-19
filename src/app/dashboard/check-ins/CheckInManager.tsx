@@ -180,17 +180,24 @@ export default function CheckInManager({
 
   // Parse room type preference
   const getRoomPreference = (checkIn: any) => {
+    if (!checkIn) return { name: 'Kamar Non-VIP (Standard)', isVip: false }
+    if (checkIn.room_category === 'vip') {
+      return { name: 'Kamar VIP (Lantai 1)', isVip: true }
+    }
+    if (checkIn.room_category === 'non_vip') {
+      return { name: 'Kamar Non-VIP (Standard)', isVip: false }
+    }
     try {
       if (checkIn.selected_room_type) {
         const parsed = typeof checkIn.selected_room_type === 'string' 
           ? JSON.parse(checkIn.selected_room_type) 
           : checkIn.selected_room_type
         if (parsed.category === 'vip' || parsed.name?.toLowerCase().includes('vip')) {
-          return { name: 'Kamar VIP', isVip: true }
+          return { name: 'Kamar VIP (Lantai 1)', isVip: true }
         }
       }
     } catch {}
-    return { name: 'Kamar Non-VIP', isVip: false }
+    return { name: 'Kamar Non-VIP (Standard)', isVip: false }
   }
 
   // Group available rooms into VIP and Non-VIP
@@ -199,17 +206,18 @@ export default function CheckInManager({
     const nonVip: any[] = []
 
     availableRooms.forEach(room => {
-      const roomNum = room.room_number?.toString() || ''
-      if (roomNum.toLowerCase().includes('vip') || room.room_type === 'vip') {
-        vip.push(room)
+      const roomNum = parseInt(room.room_number?.toString().replace(/\D/g, '')) || 0
+      const isVip = room.room_type === 'vip' || (roomNum >= 1 && roomNum <= 13)
+      if (isVip) {
+        vip.push({ ...room, isVip: true })
       } else {
-        nonVip.push(room)
+        nonVip.push({ ...room, isVip: false })
       }
     })
 
     const sortFn = (a: any, b: any) => {
-      const numA = parseInt(a.room_number.replace(/\D/g, '')) || 0
-      const numB = parseInt(b.room_number.replace(/\D/g, '')) || 0
+      const numA = parseInt(a.room_number?.toString().replace(/\D/g, '')) || 0
+      const numB = parseInt(b.room_number?.toString().replace(/\D/g, '')) || 0
       return numA - numB
     }
 
@@ -218,6 +226,23 @@ export default function CheckInManager({
       nonVipRooms: nonVip.sort(sortFn)
     }
   }, [availableRooms])
+
+  // Smart Room Assignment Modal Opener
+  const openAssignModal = (checkIn: any) => {
+    setSelectedCheckIn(checkIn)
+    const pref = getRoomPreference(checkIn)
+    const matching = pref.isVip ? vipRooms : nonVipRooms
+    const fallback = pref.isVip ? nonVipRooms : vipRooms
+
+    if (matching.length > 0) {
+      setSelectedRoomId(matching[0].id)
+    } else if (fallback.length > 0) {
+      setSelectedRoomId(fallback[0].id)
+    } else {
+      setSelectedRoomId('')
+    }
+    setIsAssignModalOpen(true)
+  }
 
   // SEPARATION: Active / Latest Requests vs. Historical Requests
   const activeRequests = useMemo(() => {
@@ -304,10 +329,7 @@ export default function CheckInManager({
 
         <button
           type="button"
-          onClick={() => {
-            setSelectedCheckIn(checkIn)
-            setIsAssignModalOpen(true)
-          }}
+          onClick={() => openAssignModal(checkIn)}
           className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors cursor-pointer"
         >
           Setujui & Pilih Kamar
@@ -846,12 +868,12 @@ export default function CheckInManager({
                       >
                         Tolak Permintaan
                       </button>
-
                       <button
                         type="button"
                         onClick={() => {
+                          const c = selectedCheckIn
                           setIsDetailModalOpen(false)
-                          setIsAssignModalOpen(true)
+                          openAssignModal(c)
                         }}
                         className="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
                       >
@@ -864,8 +886,9 @@ export default function CheckInManager({
                     <button
                       type="button"
                       onClick={() => {
+                        const c = selectedCheckIn
                         setIsDetailModalOpen(false)
-                        setIsAssignModalOpen(true)
+                        openAssignModal(c)
                       }}
                       className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
                     >
@@ -886,59 +909,53 @@ export default function CheckInManager({
         {selectedCheckIn && (
           <form action={rejectAction} className="space-y-4 py-1">
             <input type="hidden" name="check_in_id" value={selectedCheckIn.id} />
+            <input type="hidden" name="reason" value={rejectionReason} />
 
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900">Tolak Permintaan Check-In</h2>
-                <p className="text-xs text-slate-500">Tamu: {selectedCheckIn.full_name}</p>
-              </div>
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-lg font-extrabold text-slate-900">Tolak Permintaan Check-In</h2>
+              <p className="text-xs text-slate-500">
+                Penyewa: <strong>{selectedCheckIn.full_name}</strong> • {selectedCheckIn.phone}
+              </p>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-                Pilih / Tulis Alasan Penolakan *
-              </label>
-              
-              {/* Quick Preset Buttons */}
-              <div className="flex flex-wrap gap-1.5 mb-2.5">
+              <label className="block text-xs font-bold text-slate-700 mb-2">Pilih Alasan Penolakan Cepat:</label>
+              <div className="flex flex-wrap gap-1.5 mb-3">
                 {[
-                  'Foto KTP buram / tidak terbaca',
+                  'Foto KTP tidak jelas / buram',
                   'Foto selfie tidak cocok dengan KTP',
-                  'Bukti transfer QRIS belum sesuai nominal',
-                  'Kamar tipe ini sedang penuh',
-                  'Data kontak tidak dapat dihubungi'
-                ].map((preset) => (
+                  'Bukti transfer tidak valid / belum masuk',
+                  'Kamar pada kategori ini sudah penuh',
+                  'Data identitas tidak lengkap'
+                ].map((reason) => (
                   <button
-                    key={preset}
+                    key={reason}
                     type="button"
-                    onClick={() => setRejectionReason(preset)}
-                    className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                      rejectionReason === preset
-                        ? 'bg-rose-100 border-rose-300 text-rose-800 font-bold'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    onClick={() => setRejectionReason(reason)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      rejectionReason === reason
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
-                    {preset}
+                    {reason}
                   </button>
                 ))}
               </div>
 
+              <label className="block text-xs font-bold text-slate-700 mb-1">Kustomisasi Pesan Penolakan:</label>
               <textarea
-                name="rejection_reason"
-                required
-                rows={3}
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Tuliskan alasan penolakan secara jelas agar tamu memahami..."
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                required
+                rows={3}
+                placeholder="Tuliskan alasan penolakan secara jelas untuk tamu..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </div>
 
             {rejectState?.error && (
-              <p className="text-xs text-red-600 font-semibold">{rejectState.error}</p>
+              <p className="text-xs text-rose-600 font-semibold">{rejectState.error}</p>
             )}
 
             <div className="flex gap-2.5 pt-2">
@@ -954,7 +971,7 @@ export default function CheckInManager({
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
                 loadingText="Menolak..."
               >
-                Konfirmasi Tolak Permintaan
+                Konfirmasi Tolak
               </SubmitButton>
             </div>
           </form>
@@ -962,102 +979,105 @@ export default function CheckInManager({
       </Modal>
 
       {/* =========================================================================
-          FULLSCREEN PHOTO ZOOM LIGHTBOX
-      ========================================================================= */}
-      {zoomImage && (
-        <div 
-          onClick={() => setZoomImage(null)}
-          className="fixed inset-0 z-60 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"
-        >
-          <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-3xl p-2 border border-slate-800 shadow-2xl">
-            <button
-              onClick={() => setZoomImage(null)}
-              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white text-slate-900 flex items-center justify-center font-bold text-lg shadow-lg cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <p className="text-xs font-bold text-white p-2 text-center">{zoomImage.title}</p>
-            <img 
-              src={zoomImage.url} 
-              alt="Zoom" 
-              className="max-h-[80vh] w-auto max-w-full rounded-2xl object-contain mx-auto" 
-            />
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          ASSIGN ROOM MODAL (1-STEP APPROVAL & ROOM ASSIGNMENT)
+          ASSIGN ROOM MODAL (1-STEP APPROVAL & SMART CATEGORY ROOM ASSIGNMENT)
       ========================================================================= */}
       <Modal isOpen={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)} size="md">
-        {selectedCheckIn && (
-          <form action={assignAction} className="space-y-4 py-1">
-            <input type="hidden" name="check_in_id" value={selectedCheckIn.id} />
-            
-            <div className="border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-extrabold text-slate-900">Setujui & Tetapkan Kamar</h2>
-              <p className="text-xs text-slate-500">
-                Pilih kamar kosong untuk tamu <strong>{selectedCheckIn.full_name}</strong> (Pesanan: <strong className="text-indigo-600">{getRoomPreference(selectedCheckIn).name}</strong>)
-              </p>
-            </div>
+        {selectedCheckIn && (() => {
+          const pref = getRoomPreference(selectedCheckIn)
+          const primaryRooms = pref.isVip ? vipRooms : nonVipRooms
+          const secondaryRooms = pref.isVip ? nonVipRooms : vipRooms
+          const primaryLabel = pref.isVip 
+            ? `⭐ KAMAR VIP (SESUAI PILIHAN TAMU - ${vipRooms.length} Kamar Tersedia)` 
+            : `⭐ KAMAR NON-VIP (SESUAI PILIHAN TAMU - ${nonVipRooms.length} Kamar Tersedia)`
+          const secondaryLabel = pref.isVip 
+            ? `KAMAR NON-VIP / STANDARD (OPSI LAIN - ${nonVipRooms.length} Kamar Tersedia)` 
+            : `KAMAR VIP (OPSI LAIN - ${vipRooms.length} Kamar Tersedia)`
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-                Pilih Kamar yang Tersedia (Graha Aisyah Menteng) *
-              </label>
-              <select
-                name="room_id"
-                required
-                value={selectedRoomId}
-                onChange={(e) => setSelectedRoomId(e.target.value)}
-                className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">-- Pilih Kamar --</option>
-                
-                {vipRooms.length > 0 && (
-                  <optgroup label="KAMAR VIP (13 Kamar @ Rp 100k/malam)">
-                    {vipRooms.map(r => (
-                      <option key={r.id} value={r.id}>
-                        Kamar {r.room_number} • {r.floors?.name || 'Lantai 1'} (VIP)
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
+          return (
+            <form action={assignAction} className="space-y-4 py-1">
+              <input type="hidden" name="check_in_id" value={selectedCheckIn.id} />
+              
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-lg font-extrabold text-slate-900">Setujui & Tetapkan Kamar</h2>
+                <p className="text-xs text-slate-500">
+                  Tamu: <strong>{selectedCheckIn.full_name}</strong>
+                </p>
+              </div>
 
-                {nonVipRooms.length > 0 && (
-                  <optgroup label="KAMAR NON-VIP / STANDARD (40 Kamar @ Rp 100k/malam)">
-                    {nonVipRooms.map(r => (
-                      <option key={r.id} value={r.id}>
-                        Kamar {r.room_number} • {r.floors?.name || 'Lantai'} (Standard)
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
+              {/* Guest Preference Banner */}
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-500 block">Kategori Pilihan Tamu</span>
+                  <span className="font-extrabold text-indigo-950 text-sm">{pref.name}</span>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-indigo-600 text-white shadow-xs">
+                  {primaryRooms.length} Kamar Kosong
+                </span>
+              </div>
 
-            {assignState?.error && (
-              <p className="text-xs text-red-600 font-semibold">{assignState.error}</p>
-            )}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  Pilih Nomor Kamar (Graha Aisyah Menteng) *
+                </label>
+                <select
+                  name="room_id"
+                  required
+                  value={selectedRoomId}
+                  onChange={(e) => setSelectedRoomId(e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Pilih Kamar Kosong --</option>
+                  
+                  {/* Primary Matching Category */}
+                  {primaryRooms.length > 0 && (
+                    <optgroup label={primaryLabel}>
+                      {primaryRooms.map(r => (
+                        <option key={r.id} value={r.id}>
+                          Kamar {r.room_number} • {r.floors?.name || (pref.isVip ? 'Lantai 1' : 'Lantai 2/3')} ({pref.isVip ? 'VIP' : 'Standard'})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
 
-            <div className="flex gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsAssignModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-              >
-                Batal
-              </button>
-              <SubmitButton
-                variant="primary"
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
-                loadingText="Menyimpan..."
-              >
-                Konfirmasi & Aktifkan Kamar
-              </SubmitButton>
-            </div>
-          </form>
-        )}
+                  {/* Secondary Other Category */}
+                  {secondaryRooms.length > 0 && (
+                    <optgroup label={secondaryLabel}>
+                      {secondaryRooms.map(r => (
+                        <option key={r.id} value={r.id}>
+                          Kamar {r.room_number} • {r.floors?.name || (pref.isVip ? 'Lantai 2/3' : 'Lantai 1')} ({pref.isVip ? 'Standard' : 'VIP'})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Kamar kosong yang sesuai dengan pilihan tamu otomatis ditempatkan di urutan teratas.
+                </p>
+              </div>
+
+              {assignState?.error && (
+                <p className="text-xs text-red-600 font-semibold">{assignState.error}</p>
+              )}
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAssignModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <SubmitButton
+                  variant="primary"
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                  loadingText="Menyimpan..."
+                >
+                  Konfirmasi & Aktifkan Kamar
+                </SubmitButton>
+              </div>
+            </form>
+          )
+        })()}
       </Modal>
     </div>
   )
