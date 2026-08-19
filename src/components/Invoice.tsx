@@ -51,7 +51,13 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
     'e-wallet': 'GoPay / E-Wallet',
     'other': 'Lainnya'
   }
-  const paymentMethodDisplay = paymentMethodMap[payment.payment_method] || payment.payment_method || 'QRIS GoPay'
+  const isCash = (payment.payment_method || '').toLowerCase().includes('cash') || 
+    (payment.payment_method || '').toLowerCase().includes('tunai') ||
+    checkInRequest?.payment_destination?.toLowerCase().includes('cash') ||
+    checkInRequest?.payment_destination?.toLowerCase().includes('resepsionis') ||
+    payment.notes?.toLowerCase().includes('tunai')
+
+  const paymentMethodDisplay = isCash ? 'Tunai di Resepsionis' : (paymentMethodMap[payment.payment_method] || 'QRIS GoPay Merchant')
   
   // Format dates
   const paymentDate = new Date(payment.payment_date || payment.created_at)

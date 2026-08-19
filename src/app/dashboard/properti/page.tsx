@@ -67,9 +67,10 @@ export default async function PropertiPage() {
   const { data: roomsData } = await roomsQuery
 
   // Fetch tenants for search functionality (to search by tenant name)
+  // Fetch tenants with full data
   let tenantsQuery = supabase
     .from('tenants')
-    .select('id, full_name, room_id')
+    .select('*')
   
   if (profile?.role === 'staff' && profile.branch_id && floorsForRoomsData) {
     const floorIds = floorsForRoomsData.map(f => f.id)
@@ -90,7 +91,32 @@ export default async function PropertiPage() {
     }
   }
   
-  const { data: tenantsData } = await tenantsQuery
+  const { data: rawTenants } = await tenantsQuery
+
+  // Fetch check-in requests to get phone number if tenant.phone is empty
+  const { data: checkInRequests } = await supabase
+    .from('check_in_requests')
+    .select('assigned_room_id, phone, email, full_name, rental_duration, rental_days, created_at')
+    .eq('status', 'completed')
+
+  const roomToCheckInMap = new Map()
+  if (checkInRequests) {
+    checkInRequests.forEach(cir => {
+      if (cir.assigned_room_id) {
+        roomToCheckInMap.set(cir.assigned_room_id, cir)
+      }
+    })
+  }
+
+  const tenantsData = (rawTenants || []).map(t => {
+    const cir = roomToCheckInMap.get(t.room_id)
+    return {
+      ...t,
+      phone: t.phone || cir?.phone || '-',
+      email: t.email || cir?.email || '-',
+      check_in_date: t.check_in_date || (cir?.created_at ? new Date(cir.created_at).toISOString().split('T')[0] : null)
+    }
+  })
 
   return (
     <PropertiList
@@ -98,7 +124,7 @@ export default async function PropertiPage() {
       initialFloors={floorsData || []}
       initialRooms={roomsData || []}
       initialFloorsForRooms={floorsForRoomsData || []}
-      initialTenants={tenantsData || []}
+      initialTenants={tenantsData}
       userRole={profile?.role || null}
     />
   )

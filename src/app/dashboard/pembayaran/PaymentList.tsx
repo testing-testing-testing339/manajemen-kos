@@ -107,18 +107,29 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
     const confirmedPayments = payments.filter((p: any) => {
       return p.status === undefined || p.status === null || p.status === 'confirmed'
     })
-    const totalRevenue = confirmedPayments.reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0)
-    const monthlyRevenue = confirmedPayments
-      .filter((p: any) => {
-        const paymentDate = new Date(p.payment_date || p.created_at)
-        return paymentDate.getMonth() === currentMonth && 
-               paymentDate.getFullYear() === currentYear
-      })
-      .reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0)
+
+    let totalDeposit = 0
+    let totalRentRevenue = 0
+    let monthlyRentRevenue = 0
+
+    confirmedPayments.forEach((p: any) => {
+      const amount = parseFloat(p.amount) || 0
+      const deposit = parseFloat(p.check_in_request?.deposit_amount || 0)
+      // Pure rent is amount - deposit (if deposit was bundled in total)
+      const rent = (deposit > 0 && amount > deposit) ? (amount - deposit) : amount
+      
+      totalDeposit += deposit
+      totalRentRevenue += rent
+
+      const paymentDate = new Date(p.payment_date || p.created_at)
+      if (paymentDate.getMonth() === currentMonth && paymentDate.getFullYear() === currentYear) {
+        monthlyRentRevenue += rent
+      }
+    })
     
     const pendingCount = payments.filter((p: any) => p.status === 'pending' || (p.status === undefined && p.confirmed_by === null)).length
 
-    return { totalTenants, paidTenants, overdueTenants, totalRevenue, monthlyRevenue, pendingCount }
+    return { totalTenants, paidTenants, overdueTenants, totalRentRevenue, totalDeposit, monthlyRentRevenue, pendingCount }
   }, [tenants, payments, paidTenantIds, currentMonth, currentYear, today])
 
   // Filtered Payments History
@@ -129,6 +140,12 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
       const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu Checkout'
       const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || ''
       const invoiceCode = `INV-${payment.id?.substring(0, 8)}`
+
+      const isCash = (payment.payment_method || '').toLowerCase().includes('cash') || 
+        (payment.payment_method || '').toLowerCase().includes('tunai') ||
+        payment.check_in_request?.payment_destination?.toLowerCase().includes('cash') ||
+        payment.check_in_request?.payment_destination?.toLowerCase().includes('resepsionis') ||
+        payment.notes?.toLowerCase().includes('tunai')
 
       const q = searchQuery.toLowerCase().trim()
       const matchesSearch = !q || 
@@ -144,8 +161,10 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
       }
 
       let matchesMethod = true
-      if (methodFilter !== 'all') {
-        matchesMethod = (payment.payment_method || '').toLowerCase() === methodFilter.toLowerCase()
+      if (methodFilter === 'cash') {
+        matchesMethod = isCash
+      } else if (methodFilter === 'transfer') {
+        matchesMethod = !isCash
       }
 
       return matchesSearch && matchesDate && matchesMethod
@@ -153,20 +172,25 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
   }, [payments, tenants, searchQuery, dateFilter, methodFilter])
 
   // Helper method badge
-  const getMethodBadge = (method: string) => {
-    const m = (method || '').toLowerCase()
-    if (m.includes('cash') || m.includes('tunai')) {
+  const getMethodBadge = (payment: any) => {
+    const isCash = (payment.payment_method || '').toLowerCase().includes('cash') || 
+      (payment.payment_method || '').toLowerCase().includes('tunai') ||
+      payment.check_in_request?.payment_destination?.toLowerCase().includes('cash') ||
+      payment.check_in_request?.payment_destination?.toLowerCase().includes('resepsionis') ||
+      payment.notes?.toLowerCase().includes('tunai')
+
+    if (isCash) {
       return (
         <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
           <Banknote className="w-3 h-3 text-amber-600" />
-          <span>Tunai</span>
+          <span>Tunai Resepsionis</span>
         </span>
       )
     }
     return (
       <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-flex items-center gap-1">
         <CreditCard className="w-3 h-3 text-indigo-600" />
-        <span>QRIS / Bank</span>
+        <span>QRIS GoPay</span>
       </span>
     )
   }
@@ -194,21 +218,21 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
 
       {/* Modern Luxury Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Pendapatan */}
+        {/* Total Pendapatan Sewa Murni */}
         <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-3xl p-5 text-white shadow-sm border border-slate-800 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Pendapatan Terkonfirmasi</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Pendapatan Sewa Murni</span>
             <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
             <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
-              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.totalRevenue)}
+              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.totalRentRevenue)}
             </p>
             <p className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Semua Transaksi Sah</span>
+              <span>Eksklusif Uang Deposit</span>
             </p>
           </div>
         </div>
@@ -223,7 +247,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
           </div>
           <div className="mt-3">
             <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-indigo-600">
-              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.monthlyRevenue)}
+              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.monthlyRentRevenue)}
             </p>
             <p className="text-[11px] text-slate-400 mt-1">
               Periode {today.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
@@ -231,10 +255,26 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
           </div>
         </div>
 
+        {/* Titipan Deposit (Refundable) */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Titipan Uang Deposit</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Banknote className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-600">
+              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.totalDeposit)}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">Dikembalikan saat checkout</p>
+          </div>
+        </div>
+
         {/* Kepatuhan Bayar Penghuni */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Penghuni Lunas</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Penghuni Aktif</span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <CheckCircle2 className="w-4 h-4" />
             </div>
@@ -249,25 +289,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                 {stats.totalTenants > 0 ? Math.round((stats.paidTenants / stats.totalTenants) * 100) : 100}%
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Status tagihan sewa aktif</p>
-          </div>
-        </div>
-
-        {/* Status Keterlambatan */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tunggakan / Terlambat</span>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${stats.overdueTenants > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500'}`}>
-              <AlertCircle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className={`text-2xl sm:text-3xl font-black ${stats.overdueTenants > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-              {stats.overdueTenants}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {stats.overdueTenants > 0 ? 'Perlu kirim pengingat tagihan' : 'Tidak ada tunggakan sewa'}
-            </p>
+            <p className="text-[11px] text-slate-400 mt-1">Status tagihan sewa lunas</p>
           </div>
         </div>
       </div>
@@ -417,12 +439,29 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4 font-mono font-extrabold text-indigo-600 text-sm">
-                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(parseFloat(payment.amount))}
+                        <td className="py-3.5 px-4">
+                          {(() => {
+                            const totalAmount = parseFloat(payment.amount) || 0
+                            const depositAmount = parseFloat(payment.check_in_request?.deposit_amount || 0)
+                            const rentAmount = (depositAmount > 0 && totalAmount > depositAmount) ? (totalAmount - depositAmount) : totalAmount
+                            
+                            return (
+                              <div>
+                                <p className="font-mono font-extrabold text-indigo-600 text-sm">
+                                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentAmount)}
+                                </p>
+                                {depositAmount > 0 && (
+                                  <p className="text-[10px] text-amber-600 font-semibold mt-0.5">
+                                    + {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(depositAmount)} (Deposit)
+                                  </p>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </td>
 
                         <td className="py-3.5 px-4">
-                          {getMethodBadge(payment.payment_method)}
+                          {getMethodBadge(payment)}
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -436,7 +475,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                         </td>
 
                         <td className="py-3.5 px-4 text-slate-500 text-[11px]">
-                          {payment.profiles?.full_name || 'Sistem Check-in'}
+                          {payment.profiles?.full_name || 'Admin Graha Menteng'}
                         </td>
 
                         <td className="py-3.5 px-4 text-center">
@@ -497,46 +536,41 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
             <div className="rounded-2xl border border-slate-200 overflow-hidden">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-900 text-white text-[11px] font-extrabold uppercase tracking-wider">
-                    <th className="py-3 px-4">Nama Penghuni</th>
-                    <th className="py-3 px-4">Kamar</th>
-                    <th className="py-3 px-4">Tarif Sewa</th>
-                    <th className="py-3 px-4">Jatuh Tempo</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-center">Aksi</th>
+                  <tr className="bg-slate-900 text-white text-[11px] font-bold tracking-wider uppercase">
+                    <th className="py-3.5 px-4">Nama Penghuni</th>
+                    <th className="py-3.5 px-4">Kamar</th>
+                    <th className="py-3.5 px-4">Tanggal Masuk</th>
+                    <th className="py-3.5 px-4">Jatuh Tempo</th>
+                    <th className="py-3.5 px-4">Status Tagihan</th>
+                    <th className="py-3.5 px-4 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {tenants.map(tenant => {
                     const status = getPaymentStatus(tenant)
-                    const roomLabel = `Kamar ${tenant.rooms?.room_number || '-'}`
-                    const price = tenant.rooms?.price || 100000
-
                     return (
                       <tr key={tenant.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {tenant.full_name}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                          {roomLabel}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">
-                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(price)}
-                        </td>
+                        <td className="py-3.5 px-4 font-bold text-slate-900">{tenant.full_name}</td>
                         <td className="py-3.5 px-4">
-                          <span className={status.isOverdue ? 'text-rose-600 font-bold' : 'text-slate-600'}>
-                            {status.dueDate.toLocaleDateString('id-ID')}
+                          <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-xs">
+                            Kamar {tenant.rooms?.room_number || '-'}
                           </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">
+                          {tenant.check_in_date ? new Date(tenant.check_in_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-slate-800">
+                          {tenant.payment_due_date ? new Date(tenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                         </td>
                         <td className="py-3.5 px-4">
                           <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                             status.hasPaid 
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : status.isOverdue 
-                              ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
                           }`}>
-                            {status.hasPaid ? 'Lunas' : status.isOverdue ? 'Terlambat' : 'Belum Bayar'}
+                            {status.hasPaid ? 'Lunas' : status.isOverdue ? 'Jatuh Tempo' : 'Menunggu Bayar'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
@@ -546,9 +580,9 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                               setSelectedTenant(tenant)
                               setIsModalOpen(true)
                             }}
-                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
                           >
-                            {status.hasPaid ? 'Catat Pembayaran Baru' : 'Tandai Bayar'}
+                            Catat Bayar
                           </button>
                         </td>
                       </tr>
@@ -559,9 +593,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
             </div>
           ) : (
             <div className="p-12 text-center border border-slate-200 rounded-2xl bg-slate-50">
-              <Users className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-              <h3 className="text-sm font-bold text-slate-800">Belum ada penghuni aktif di kamar</h3>
-              <p className="text-xs text-slate-400 mt-1">Penghuni baru yang selesai check-in akan muncul status tagihannya di sini.</p>
+              <p className="text-xs text-slate-400">Belum ada data penghuni aktif.</p>
             </div>
           )}
         </div>
@@ -600,7 +632,17 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
           const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
           const roomType = (tenant?.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip')) ? 'VIP' : 'Non-VIP / Standard'
           const proofUrl = selectedPayment.payment_proof_url || checkInRequest?.payment_proof_url
-          const isCash = (selectedPayment.payment_method || '').toLowerCase().includes('cash') || (selectedPayment.payment_method || '').toLowerCase().includes('tunai')
+          
+          const isCash = (selectedPayment.payment_method || '').toLowerCase().includes('cash') || 
+            (selectedPayment.payment_method || '').toLowerCase().includes('tunai') ||
+            checkInRequest?.payment_destination?.toLowerCase().includes('cash') ||
+            checkInRequest?.payment_destination?.toLowerCase().includes('resepsionis') ||
+            selectedPayment.notes?.toLowerCase().includes('tunai') ||
+            (proofUrl && proofUrl.includes('placehold'))
+
+          const totalAmount = parseFloat(selectedPayment.amount) || 0
+          const depositAmount = parseFloat(checkInRequest?.deposit_amount || 0)
+          const rentAmount = (depositAmount > 0 && totalAmount > depositAmount) ? (totalAmount - depositAmount) : totalAmount
 
           return (
             <div className="space-y-5 py-1">
@@ -633,15 +675,32 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                   </div>
 
                   <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
-                    <span className="text-slate-500">Total Nominal:</span>
-                    <span className="font-mono font-black text-indigo-600 text-sm">
-                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(parseFloat(selectedPayment.amount))}
+                    <span className="text-slate-500">Sewa Kamar:</span>
+                    <span className="font-mono font-extrabold text-indigo-600 text-sm">
+                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentAmount)}
+                    </span>
+                  </div>
+
+                  {depositAmount > 0 && (
+                    <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
+                      <span className="text-slate-500">Titipan Deposit:</span>
+                      <span className="font-mono font-bold text-amber-600">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(depositAmount)}
+                        <span className="text-[10px] text-slate-400 block font-sans font-normal text-right">(Dikembalikan saat checkout)</span>
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
+                    <span className="text-slate-500 font-bold">Total Diterima:</span>
+                    <span className="font-mono font-black text-slate-900 text-sm">
+                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
                     </span>
                   </div>
 
                   <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
                     <span className="text-slate-500">Metode Bayar:</span>
-                    <span className="font-bold text-slate-800">{selectedPayment.payment_method === 'transfer' ? 'QRIS / Transfer Bank' : selectedPayment.payment_method}</span>
+                    <span className="font-bold text-slate-800">{isCash ? 'Tunai di Resepsionis' : 'QRIS GoPay Merchant'}</span>
                   </div>
 
                   <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
@@ -655,12 +714,10 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                     </span>
                   </div>
 
-                  {selectedPayment.profiles?.full_name && (
-                    <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
-                      <span className="text-slate-500">Dikonfirmasi Oleh:</span>
-                      <span className="font-bold text-slate-800">{selectedPayment.profiles.full_name}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
+                    <span className="text-slate-500">Dikonfirmasi Oleh:</span>
+                    <span className="font-bold text-slate-800">{selectedPayment.profiles?.full_name || 'Admin Graha Menteng'}</span>
+                  </div>
 
                   {selectedPayment.notes && (
                     <div className="pt-1">
@@ -675,20 +732,20 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-emerald-300">Bukti Transfer / Pembayaran</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-md ${isCash ? 'bg-amber-900/60 text-amber-300' : 'bg-emerald-900/60 text-emerald-300'}`}>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${isCash ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}`}>
                         {isCash ? 'Tunai' : 'QRIS GoPay'}
                       </span>
                     </div>
 
                     <div 
                       onClick={() => {
-                        if (proofUrl && !proofUrl.includes('placehold')) {
+                        if (!isCash && proofUrl && !proofUrl.includes('placehold')) {
                           setZoomImage({ url: proofUrl, title: `Bukti Bayar: ${tenantName} (Kamar ${roomNumber})` })
                         }
                       }}
-                      className="relative aspect-[1.4/1] bg-slate-950 rounded-xl overflow-hidden cursor-pointer border border-slate-700/60 flex items-center justify-center hover:opacity-95 transition-opacity"
+                      className={`relative aspect-[1.4/1] bg-slate-950 rounded-xl overflow-hidden border border-slate-700/60 flex items-center justify-center ${!isCash && proofUrl && !proofUrl.includes('placehold') ? 'cursor-pointer hover:opacity-95' : ''}`}
                     >
-                      {proofUrl && !proofUrl.includes('placehold') ? (
+                      {!isCash && proofUrl && !proofUrl.includes('placehold') ? (
                         <>
                           <img 
                             src={proofUrl} 

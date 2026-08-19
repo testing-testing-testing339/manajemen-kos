@@ -256,7 +256,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
     // Create tenant record
     const { data: checkInData } = await supabase
       .from('check_in_requests')
-      .select('full_name, phone, email, id_card_number, id_card_photo_url, total_amount, rental_duration, rental_days')
+      .select('full_name, phone, email, id_card_number, id_card_photo_url, total_amount, deposit_amount, payment_method, payment_destination, payment_proof_url, rental_duration, rental_days')
       .eq('id', check_in_id)
       .single()
 
@@ -287,6 +287,14 @@ export async function assignRoom(prevState: any, formData: FormData) {
         paymentDueDate.setDate(paymentDueDate.getDate() + (checkInData.rental_days || 1))
       }
 
+      // Determine actual payment method
+      const isCash = checkInData.payment_method === 'cash' || 
+        checkInData.payment_destination?.toLowerCase().includes('cash') || 
+        checkInData.payment_destination?.toLowerCase().includes('resepsionis') ||
+        checkInData.payment_proof_url?.includes('placehold')
+
+      const actualPaymentMethod = isCash ? 'cash' : 'transfer'
+
       // Create tenant record
       const { data: newTenant, error: tenantError } = await supabase
         .from('tenants')
@@ -296,7 +304,10 @@ export async function assignRoom(prevState: any, formData: FormData) {
           id_card_url: checkInData.id_card_photo_url,
           check_in_date: checkInDate.toISOString().split('T')[0],
           payment_due_date: paymentDueDate.toISOString().split('T')[0],
-          electricity_meter_start: 0 // Default, bisa diubah nanti
+          deposit_amount: checkInData.deposit_amount ? parseFloat(checkInData.deposit_amount) : 100000,
+          rental_duration: checkInData.rental_duration || 'daily',
+          rental_count: checkInData.rental_days || 1,
+          electricity_meter_start: 0
         })
         .select()
         .single()
@@ -311,15 +322,14 @@ export async function assignRoom(prevState: any, formData: FormData) {
             tenant_id: newTenant.id,
             amount: checkInData.total_amount,
             payment_date: new Date().toISOString().split('T')[0],
-            payment_method: 'transfer',
+            payment_method: actualPaymentMethod,
             status: 'confirmed',
             confirmed_by: user.id,
             confirmed_at: new Date().toISOString(),
-            notes: 'Pembayaran dari check-in request'
+            notes: isCash ? 'Pembayaran Tunai di Resepsionis' : 'Pembayaran QRIS GoPay Merchant'
           })
 
         if (paymentError) {
-          // Log error but don't fail the whole process
           if (process.env.NODE_ENV === 'development') {
             console.error('Error creating payment:', paymentError)
           }
