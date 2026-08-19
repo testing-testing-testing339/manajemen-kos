@@ -596,11 +596,11 @@ export default function PropertiList({
                     <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">Aktif Huni</span>
                   </div>
                   <p className="font-extrabold text-slate-900 text-sm">{tenant.full_name}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-slate-600 pt-0.5">
-                    <p><strong className="text-slate-700">Kontak:</strong> {tenant.phone && tenant.phone !== '-' ? tenant.phone : '086164643275'}</p>
-                    <p><strong className="text-slate-700">Check-in:</strong> {tenant.check_in_date ? new Date(tenant.check_in_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '19 Agu 2026'}</p>
-                    <p><strong className="text-slate-700">Checkout / Tempo:</strong> {tenant.payment_due_date ? new Date(tenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '22 Agu 2026'}</p>
-                    <p><strong className="text-slate-700">Titipan Deposit:</strong> Rp {Number(tenant.deposit_amount || 100000).toLocaleString('id-ID')}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-slate-600 pt-1">
+                    <p><strong className="text-slate-800">Kontak:</strong> {tenant.phone || '-'}</p>
+                    <p><strong className="text-slate-800">Check-in:</strong> {tenant.check_in_date ? new Date(tenant.check_in_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</p>
+                    <p><strong className="text-slate-800">Checkout / Tempo:</strong> {tenant.payment_due_date ? new Date(tenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</p>
+                    <p><strong className="text-slate-800">Titipan Deposit:</strong> Rp {Number(tenant.deposit_amount || 100000).toLocaleString('id-ID')}</p>
                   </div>
                 </div>
               )}

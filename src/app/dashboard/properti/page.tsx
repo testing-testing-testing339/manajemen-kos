@@ -93,28 +93,35 @@ export default async function PropertiPage() {
   
   const { data: rawTenants } = await tenantsQuery
 
-  // Fetch check-in requests to get phone number if tenant.phone is empty
+  // Fetch check-in requests to get phone number and details
   const { data: checkInRequests } = await supabase
     .from('check_in_requests')
     .select('assigned_room_id, phone, email, full_name, rental_duration, rental_days, created_at')
-    .eq('status', 'completed')
-
-  const roomToCheckInMap = new Map()
-  if (checkInRequests) {
-    checkInRequests.forEach(cir => {
-      if (cir.assigned_room_id) {
-        roomToCheckInMap.set(cir.assigned_room_id, cir)
-      }
-    })
-  }
+    .order('created_at', { ascending: false })
 
   const tenantsData = (rawTenants || []).map(t => {
-    const cir = roomToCheckInMap.get(t.room_id)
+    const cir = (checkInRequests || []).find(c => 
+      c.assigned_room_id === t.room_id || 
+      c.full_name?.toLowerCase().trim() === t.full_name?.toLowerCase().trim()
+    )
+
+    const checkInDate = t.check_in_date || (cir?.created_at ? new Date(cir.created_at).toISOString().split('T')[0] : null)
+    let paymentDueDate = t.payment_due_date
+    if (!paymentDueDate && checkInDate) {
+      const d = new Date(checkInDate)
+      d.setDate(d.getDate() + (cir?.rental_days || 1))
+      paymentDueDate = d.toISOString().split('T')[0]
+    }
+
     return {
       ...t,
       phone: t.phone || cir?.phone || '-',
       email: t.email || cir?.email || '-',
-      check_in_date: t.check_in_date || (cir?.created_at ? new Date(cir.created_at).toISOString().split('T')[0] : null)
+      check_in_date: checkInDate,
+      payment_due_date: paymentDueDate,
+      rental_duration: t.rental_duration || cir?.rental_duration || 'daily',
+      rental_count: t.rental_count || cir?.rental_days || 1,
+      deposit_amount: t.deposit_amount || 100000
     }
   })
 
