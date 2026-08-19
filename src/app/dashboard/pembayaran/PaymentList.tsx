@@ -114,8 +114,11 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
 
     confirmedPayments.forEach((p: any) => {
       const amount = parseFloat(p.amount) || 0
-      const deposit = parseFloat(p.check_in_request?.deposit_amount || 0)
-      // Pure rent is amount - deposit (if deposit was bundled in total)
+      let deposit = parseFloat(p.check_in_request?.deposit_amount || p.deposit_amount || 0)
+      if (deposit === 0 && amount >= 200000) {
+        deposit = 100000
+      }
+      
       const rent = (deposit > 0 && amount > deposit) ? (amount - deposit) : amount
       
       totalDeposit += deposit
@@ -442,7 +445,10 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                         <td className="py-3.5 px-4">
                           {(() => {
                             const totalAmount = parseFloat(payment.amount) || 0
-                            const depositAmount = parseFloat(payment.check_in_request?.deposit_amount || 0)
+                            let depositAmount = parseFloat(payment.check_in_request?.deposit_amount || payment.deposit_amount || 0)
+                            if (depositAmount === 0 && totalAmount >= 200000) {
+                              depositAmount = 100000
+                            }
                             const rentAmount = (depositAmount > 0 && totalAmount > depositAmount) ? (totalAmount - depositAmount) : totalAmount
                             
                             return (
@@ -641,7 +647,10 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
             (proofUrl && proofUrl.includes('placehold'))
 
           const totalAmount = parseFloat(selectedPayment.amount) || 0
-          const depositAmount = parseFloat(checkInRequest?.deposit_amount || 0)
+          let depositAmount = parseFloat(checkInRequest?.deposit_amount || selectedPayment.deposit_amount || 0)
+          if (depositAmount === 0 && totalAmount >= 200000) {
+            depositAmount = 100000
+          }
           const rentAmount = (depositAmount > 0 && totalAmount > depositAmount) ? (totalAmount - depositAmount) : totalAmount
 
           return (

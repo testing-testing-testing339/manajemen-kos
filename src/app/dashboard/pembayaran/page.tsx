@@ -204,8 +204,8 @@ export default async function PembayaranPage() {
       
       let checkInRequestsQuery = supabase
         .from('check_in_requests')
-        .select('id, full_name, phone, payment_proof_url, id_card_photo_url, selfie_photo_url, total_amount, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, rooms(room_number, floors(branches(name)))')
-        .eq('status', 'completed')
+        .select('id, full_name, phone, payment_proof_url, id_card_photo_url, selfie_photo_url, total_amount, deposit_amount, payment_method, payment_destination, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, rooms(room_number, floors(branches(name)))')
+        .order('created_at', { ascending: false })
       
       if (userRole === 'staff' && userBranchId) {
         checkInRequestsQuery = checkInRequestsQuery.eq('branch_id', userBranchId)
@@ -250,22 +250,6 @@ export default async function PembayaranPage() {
       const { data: profiles, error: profilesError } = profilesResult
       const { data: checkInRequests, error: checkInRequestsError } = checkInRequestsResult
       
-      // Debug log in development
-      if (process.env.NODE_ENV === 'development') {
-        if (confirmedByIds.length > 0) {
-          console.log('Attempting to fetch profiles for IDs:', confirmedByIds)
-          if (profilesError) {
-            console.error('Error fetching profiles:', profilesError)
-          }
-          if (profiles) {
-            console.log('Fetched profiles:', profiles.length, 'profiles found')
-          }
-        }
-        if (checkInRequestsError) {
-          console.error('Error fetching check-in requests:', checkInRequestsError)
-        }
-      }
-      
       // Map profiles to payments
       if (profiles && profiles.length > 0) {
         const profileMap = new Map(profiles.map((p: any) => [p.id, p]))
@@ -278,119 +262,58 @@ export default async function PembayaranPage() {
           }
           return payment
         })
-      } else if (confirmedByIds.length > 0) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('No profiles found for confirmed_by IDs:', confirmedByIds)
-          console.warn('This might be due to RLS policy restrictions')
-        }
       }
       
-      // Process check-in requests for payments (for checkout tenants)
+      // Process check-in requests for payments
+      const enrichedPayments: any[] = []
+      const usedCheckInIds = new Set<string>()
+
       if (checkInRequests && checkInRequests.length > 0) {
-        // Get all assigned room IDs from check-in requests
-        const assignedRoomIds = checkInRequests
-          .map((cir: any) => cir.assigned_room_id)
-          .filter(Boolean)
-        
-        if (assignedRoomIds.length > 0) {
-          // Get all active tenants in these rooms
-          const { data: tenantsFromCheckIn } = await supabase
-            .from('tenants')
-            .select('id, room_id, full_name')
-            .in('room_id', assignedRoomIds)
-          
-          // Create a map: tenant_id -> check_in_request (for active tenants)
-          const tenantToCheckInMap = new Map()
-          if (tenantsFromCheckIn) {
-            tenantsFromCheckIn.forEach((tenant: any) => {
-              const checkIn = checkInRequests.find((cir: any) => cir.assigned_room_id === tenant.room_id)
-              if (checkIn) {
-                tenantToCheckInMap.set(tenant.id, checkIn)
-              }
-            })
+        paymentsData.forEach((payment: any) => {
+          const tenant = payment.tenants
+          let matchedCheckIn: any = null
+
+          // 1. Try match by tenant's room_id or tenant's full_name
+          if (tenant) {
+            matchedCheckIn = checkInRequests.find((cir: any) => 
+              (!usedCheckInIds.has(cir.id)) && (
+                (cir.assigned_room_id && tenant.rooms && cir.assigned_room_id === tenant.room_id) ||
+                (cir.full_name && tenant.full_name && cir.full_name.toLowerCase().trim() === tenant.full_name.toLowerCase().trim())
+              )
+            )
           }
-          
-          // Create a map: room_id -> check_in_request (for matching by room)
-          const roomToCheckInMap = new Map()
-          checkInRequests.forEach((cir: any) => {
-            if (cir.assigned_room_id) {
-              roomToCheckInMap.set(cir.assigned_room_id, cir)
-            }
-          })
-          
-          // Get all active tenant room IDs for filtering checkout check-ins
-          const activeTenantRoomIds = new Set(tenantsFromCheckIn?.map((t: any) => t.room_id) || [])
-          
-          // Enrich payments with check-in request data
-          // For staff, only include payments that match check-in requests in their branch (already filtered above)
-          const enrichedPayments: any[] = []
-          
-          paymentsData.forEach((payment: any) => {
-            // If payment has tenant_id, try to find check-in request via tenant
-            if (payment.tenant_id && tenantToCheckInMap.has(payment.tenant_id)) {
-              const checkIn = tenantToCheckInMap.get(payment.tenant_id)
-              enrichedPayments.push({ ...payment, check_in_request: checkIn })
-              return
-            }
-            
-            // If payment has no tenant_id (checkout), try to match by amount and date proximity
-            // Only match with check-in requests for rooms that are no longer occupied
-            // Only match with check-in requests in staff's branch (already filtered above)
-            if (!payment.tenant_id) {
-              const paymentDate = new Date(payment.payment_date)
-              const paymentAmount = parseFloat(payment.amount)
-              
-              // Find best matching check-in request
-              // Priority: 1) Exact amount match, 2) Date within 3 days, 3) Room not currently occupied
-              let bestMatch: any = null
-              let bestScore = 0
-              
-              checkInRequests.forEach((cir: any) => {
-                // Skip if this room is still occupied
-                if (cir.assigned_room_id && activeTenantRoomIds.has(cir.assigned_room_id)) {
-                  return
-                }
-                
-                const checkInAmount = parseFloat(cir.total_amount)
-                const checkInDate = new Date(cir.created_at)
-                const daysDiff = Math.abs((paymentDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
-                
-                // Calculate match score
-                let score = 0
-                if (Math.abs(checkInAmount - paymentAmount) < 0.01) {
-                  score += 100 // Exact amount match
-                }
-                if (daysDiff <= 3) {
-                  score += 50 - (daysDiff * 10) // Closer dates get higher score
-                }
-                
-                if (score > bestScore) {
-                  bestScore = score
-                  bestMatch = cir
-                }
-              })
-              
-              if (bestMatch && bestScore >= 50) {
-                enrichedPayments.push({ ...payment, check_in_request: bestMatch })
-                return
-              }
-            }
-            
-            // If staff, only include payments that matched (either via tenant or check-in request)
-            // Owner can see all payments even if no match
-            if (userRole === 'staff') {
-              // For staff, exclude payments that didn't match any check-in request
-              // (these are payments from other branches)
-              return
-            }
-            
-            // For owner, include all payments even if no match
+
+          // 2. If no tenant or not matched yet, try match by amount proximity and date
+          if (!matchedCheckIn) {
+            const paymentAmount = parseFloat(payment.amount)
+            matchedCheckIn = checkInRequests.find((cir: any) => 
+              !usedCheckInIds.has(cir.id) && Math.abs(parseFloat(cir.total_amount) - paymentAmount) < 0.01
+            )
+          }
+
+          // 3. Fallback to any remaining check-in request
+          if (!matchedCheckIn) {
+            matchedCheckIn = checkInRequests.find((cir: any) => !usedCheckInIds.has(cir.id))
+          }
+
+          if (matchedCheckIn) {
+            usedCheckInIds.add(matchedCheckIn.id)
+            enrichedPayments.push({
+              ...payment,
+              check_in_request: matchedCheckIn,
+              deposit_amount: matchedCheckIn.deposit_amount || 100000
+            })
+          } else {
             enrichedPayments.push(payment)
-          })
-          
-          // Replace paymentsData with enriched payments
-          paymentsData = enrichedPayments
-        }
+          }
+        })
+        
+        paymentsData = enrichedPayments
+      } else {
+        paymentsData = paymentsData.map((p: any) => ({
+          ...p,
+          deposit_amount: 100000
+        }))
       }
     }
   } catch (e) {
