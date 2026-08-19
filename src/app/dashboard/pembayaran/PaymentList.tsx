@@ -27,7 +27,8 @@ import {
   Eye, 
   ChevronRight,
   Sparkles,
-  Download
+  Download,
+  ExternalLink
 } from 'lucide-react'
 
 type TabType = 'history' | 'tenants_status' | 'pending_confirmation'
@@ -920,6 +921,53 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
           </form>
         )}
       </Modal>
+
+      {/* Lightbox / Zoom Image Modal */}
+      {zoomImage && (
+        <div 
+          onClick={() => setZoomImage(null)}
+          className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="relative max-w-4xl w-full bg-slate-900 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/80">
+              <h3 className="text-sm font-extrabold text-white truncate max-w-[80%]">
+                {zoomImage.title}
+              </h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={zoomImage.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Buka Tab Baru</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setZoomImage(null)}
+                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-rose-500 hover:text-white text-slate-400 flex items-center justify-center text-sm font-bold transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body / Image View */}
+            <div className="p-4 flex items-center justify-center bg-slate-950/40 overflow-auto max-h-[calc(90vh-80px)]">
+              <img
+                src={zoomImage.url}
+                alt={zoomImage.title}
+                className="max-h-[75vh] w-auto object-contain rounded-2xl shadow-lg border border-slate-800"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
