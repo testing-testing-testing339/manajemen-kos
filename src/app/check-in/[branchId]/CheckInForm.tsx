@@ -37,7 +37,9 @@ import {
   Wind, 
   Bath, 
   HelpCircle,
-  RotateCcw
+  RotateCcw,
+  Crown,
+  Receipt
 } from 'lucide-react'
 
 interface CheckInFormProps {
@@ -875,92 +877,132 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       {step === 4 && (
         <div className="space-y-6">
           <div className="border-b border-slate-800 pb-3">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
               <BedDouble className="w-5 h-5 text-indigo-400" />
               Pilih Tipe Kamar & Durasi Sewa
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Graha Aisyah Menteng memiliki 53 kamar dengan harga seragam Rp 100.000 / malam
+              Tarif sewa Rp 100.000 / malam untuk seluruh kamar
             </p>
           </div>
 
-          {/* Room Category Cards */}
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">
+          {/* 1. Room Category Cards */}
+          <div className="space-y-2.5">
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
               1. Pilih Kategori Kamar:
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* VIP Card */}
               <div
                 onClick={() => setRoomCategory('vip')}
-                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
+                className={`p-4 sm:p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
                   roomCategory === 'vip'
-                    ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10'
-                    : 'border-slate-800 bg-slate-850 hover:border-slate-700'
+                    ? 'border-purple-500 bg-purple-950/20 shadow-xl shadow-purple-500/10 ring-2 ring-purple-500/20'
+                    : 'border-slate-800 bg-slate-900/90 hover:border-slate-700'
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                    Kamar VIP (13 Kamar)
-                  </span>
-                  <span className="text-xs font-black text-purple-400">Rp 100.000 / malam</span>
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1">VIP Suite Room</h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
-                  Kamar eksklusif berfasilitas lengkap dengan Smart TV, Queen Bed, AC, dan Kamar Mandi Dalam.
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {['AC', 'Kamar Mandi Dalam', 'Smart TV', 'Wifi', 'Queen Bed', 'Water Heater'].map(f => (
-                    <span key={f} className="text-[10px] px-2 py-0.5 bg-slate-800 text-slate-300 rounded-md border border-slate-700/80">
-                      {f}
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-xs">
+                      <Crown className="w-3.5 h-3.5 text-purple-300" />
+                      Kamar VIP • Lt 1
                     </span>
-                  ))}
+                    <div className="text-right">
+                      <span className="text-sm font-black text-white">Rp 100.000</span>
+                      <span className="text-[10px] text-slate-400 block font-normal">/ malam</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-base font-extrabold text-white mb-1">VIP Suite Room</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed mb-3">
+                    Kamar eksklusif di Lantai 1 dengan Smart TV, Queen Bed, AC, dan Water Heater.
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {['AC Dingin', 'Kamar Mandi Dalam', 'Smart TV', 'Wifi Cepat', 'Queen Bed', 'Water Heater'].map(f => (
+                      <span key={f} className="text-[10px] px-2.5 py-1 bg-slate-800/90 text-slate-300 rounded-lg border border-slate-700/60 font-medium">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={`pt-2.5 border-t flex items-center justify-between text-xs font-bold ${
+                  roomCategory === 'vip' ? 'border-purple-500/30 text-purple-300' : 'border-slate-800 text-slate-500'
+                }`}>
+                  <span>{roomCategory === 'vip' ? '✓ Kategori Dipilih' : 'Ketuk untuk memilih'}</span>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                    roomCategory === 'vip' ? 'bg-purple-500 text-white shadow-sm' : 'border border-slate-700'
+                  }`}>
+                    {roomCategory === 'vip' ? '✓' : ''}
+                  </div>
                 </div>
               </div>
 
               {/* Non-VIP Card */}
               <div
                 onClick={() => setRoomCategory('non_vip')}
-                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
+                className={`p-4 sm:p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
                   roomCategory === 'non_vip'
-                    ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
-                    : 'border-slate-800 bg-slate-850 hover:border-slate-700'
+                    ? 'border-indigo-500 bg-indigo-950/20 shadow-xl shadow-indigo-500/10 ring-2 ring-indigo-500/20'
+                    : 'border-slate-800 bg-slate-900/90 hover:border-slate-700'
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    Kamar Non-VIP (40 Kamar)
-                  </span>
-                  <span className="text-xs font-black text-indigo-400">Rp 100.000 / malam</span>
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1">Standard Room</h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
-                  Kamar nyaman dengan AC, Single Bed, Kamar Mandi Dalam, Lemari, dan Wifi High Speed.
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {['AC', 'Kamar Mandi Dalam', 'Single Bed', 'Wifi High-Speed', 'Meja Belajar'].map(f => (
-                    <span key={f} className="text-[10px] px-2 py-0.5 bg-slate-800 text-slate-300 rounded-md border border-slate-700/80">
-                      {f}
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-xs">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+                      Standard • Lt 2 & 3
                     </span>
-                  ))}
+                    <div className="text-right">
+                      <span className="text-sm font-black text-white">Rp 100.000</span>
+                      <span className="text-[10px] text-slate-400 block font-normal">/ malam</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-base font-extrabold text-white mb-1">Standard Room</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed mb-3">
+                    Kamar nyaman dengan AC, Single Bed, Kamar Mandi Dalam, Lemari, dan Wifi High Speed.
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {['AC Dingin', 'Kamar Mandi Dalam', 'Single Bed', 'Wifi Cepat', 'Meja Belajar', 'Lemari'].map(f => (
+                      <span key={f} className="text-[10px] px-2.5 py-1 bg-slate-800/90 text-slate-300 rounded-lg border border-slate-700/60 font-medium">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={`pt-2.5 border-t flex items-center justify-between text-xs font-bold ${
+                  roomCategory === 'non_vip' ? 'border-indigo-500/30 text-indigo-300' : 'border-slate-800 text-slate-500'
+                }`}>
+                  <span>{roomCategory === 'non_vip' ? '✓ Kategori Dipilih' : 'Ketuk untuk memilih'}</span>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                    roomCategory === 'non_vip' ? 'bg-indigo-500 text-white shadow-sm' : 'border border-slate-700'
+                  }`}>
+                    {roomCategory === 'non_vip' ? '✓' : ''}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Duration Selector */}
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">
+          {/* 2. Duration Selector */}
+          <div className="space-y-3">
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
               2. Pilih Pilihan Durasi Sewa:
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            
+            <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-900 rounded-2xl border border-slate-800">
               <button
                 type="button"
                 onClick={() => setDurationType('daily')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                className={`py-2.5 px-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                   durationType === 'daily'
-                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
-                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 Harian
@@ -968,10 +1010,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <button
                 type="button"
                 onClick={() => setDurationType('weekly')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                className={`py-2.5 px-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                   durationType === 'weekly'
-                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
-                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 Mingguan
@@ -979,10 +1021,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <button
                 type="button"
                 onClick={() => setDurationType('monthly')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                className={`py-2.5 px-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                   durationType === 'monthly'
-                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
-                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 Bulanan
@@ -990,23 +1032,48 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </div>
 
             {/* Sub-inputs for duration */}
-            <div className="mt-3 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/80">
+            <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
               {durationType === 'daily' && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-slate-200">Jumlah Hari Menginap</p>
-                    <p className="text-[11px] text-slate-400">Rp 100.000 / malam</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-extrabold text-white">Jumlah Malam Menginap</p>
+                      <p className="text-[11px] text-slate-400">Rp 100.000 / malam</p>
+                    </div>
+
+                    {/* Stepper +/- */}
+                    <div className="flex items-center gap-2 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setDailyDays(Math.max(1, dailyDays - 1))}
+                        className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                      >
+                        -
+                      </button>
+                      <span className="w-12 text-center text-xs font-black text-white font-mono">
+                        {dailyDays} Malam
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDailyDays(Math.min(30, dailyDays + 1))}
+                        className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5, 6].map(d => (
+
+                  {/* Quick Select Buttons */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-none">
+                    {[1, 2, 3, 4, 5, 6, 7].map(d => (
                       <button
                         key={d}
                         type="button"
                         onClick={() => setDailyDays(d)}
-                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`flex-1 min-w-[42px] py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                           dailyDays === d
                             ? 'bg-indigo-600 text-white shadow-md'
-                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
                         }`}
                       >
                         {d}
@@ -1017,24 +1084,24 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               )}
 
               {durationType === 'weekly' && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-slate-200">Jumlah Minggu</p>
-                    <p className="text-[11px] text-slate-400">Rp 700.000 / minggu (7 hari)</p>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-extrabold text-white">Jumlah Minggu</p>
+                    <p className="text-[11px] text-indigo-400 font-bold">Rp 700.000 / minggu</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {[1, 2, 3].map(w => (
                       <button
                         key={w}
                         type="button"
                         onClick={() => setWeeklyWeeks(w)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                           weeklyWeeks === w
                             ? 'bg-indigo-600 text-white shadow-md'
-                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
                         }`}
                       >
-                        {w} Minggu
+                        {w} Minggu ({w * 7} Hari)
                       </button>
                     ))}
                   </div>
@@ -1042,21 +1109,21 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               )}
 
               {durationType === 'monthly' && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-slate-200">Jumlah Bulan</p>
-                    <p className="text-[11px] text-slate-400">Rp 3.000.000 / bulan</p>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-extrabold text-white">Jumlah Bulan</p>
+                    <p className="text-[11px] text-indigo-400 font-bold">Rp 3.000.000 / bulan</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     {[1, 3, 6, 12].map(m => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => setMonthlyMonths(m)}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                           monthlyMonths === m
                             ? 'bg-indigo-600 text-white shadow-md'
-                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
                         }`}
                       >
                         {m} Bln
@@ -1068,51 +1135,70 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </div>
           </div>
 
-          {/* Deposit Notification Card */}
-          <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl space-y-1">
-            <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4" /> Uang Jaminan Deposit (Refundable)
+          {/* 3. Comprehensive Transparent Billing Breakdown Card */}
+          <div className="bg-gradient-to-b from-slate-900 to-slate-950 p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Receipt className="w-4 h-4 text-indigo-400" />
+                Rincian Biaya Sewa
               </span>
-              <span>Rp 100.000</span>
+              <span className="text-[11px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+                {roomCategory === 'vip' ? 'VIP Suite' : 'Standard Room'}
+              </span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Deposit sebesar <strong>Rp 100.000</strong> akan dikembalikan utuh ke rekening / tunai Anda saat check-out setelah pemeriksaan kamar selesai.
-            </p>
+
+            <div className="space-y-2 text-xs">
+              {/* Rent item */}
+              <div className="flex justify-between text-slate-300">
+                <span className="flex items-center gap-1">
+                  Biaya Sewa ({durationType === 'daily' ? `${dailyDays} Malam` : durationType === 'weekly' ? `${weeklyWeeks} Minggu` : `${monthlyMonths} Bulan`}):
+                </span>
+                <span className="font-bold text-white font-mono">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentSubtotal)}
+                </span>
+              </div>
+
+              {/* Deposit item */}
+              <div className="flex justify-between text-slate-300">
+                <div>
+                  <span className="font-medium block">Uang Titipan Deposit</span>
+                  <span className="text-[10px] text-emerald-400 block font-normal">
+                    (100% Dikembalikan utuh saat checkout)
+                  </span>
+                </div>
+                <span className="font-bold text-emerald-400 font-mono">
+                  Rp 100.000
+                </span>
+              </div>
+            </div>
+
+            {/* Total Highlight */}
+            <div className="pt-3 border-t border-slate-800 flex justify-between items-center bg-slate-900/60 p-3 rounded-2xl">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Dibayar:</span>
+                <span className="text-[10px] text-slate-500 font-medium">Termasuk Deposit Refundable</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 font-mono">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Price Breakdown Summary */}
-          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
-            <div className="flex justify-between text-xs text-slate-400">
-              <span>Biaya Sewa ({durationType === 'daily' ? `${dailyDays} hari` : durationType === 'weekly' ? `${weeklyWeeks} minggu` : `${monthlyMonths} bulan`}):</span>
-              <span className="font-semibold text-slate-200">
-                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentSubtotal)}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs text-slate-400">
-              <span>Uang Deposit (Dikembalikan saat checkout):</span>
-              <span className="font-semibold text-emerald-400">Rp 100.000</span>
-            </div>
-            <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
-              <span className="text-xs font-bold text-white uppercase tracking-wider">Total Pembayaran:</span>
-              <span className="text-lg font-black text-indigo-400">
-                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-2">
+          {/* Navigation Buttons */}
+          <div className="flex gap-3 pt-1">
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-2xl border border-slate-700 cursor-pointer transition-colors"
             >
               Kembali
             </button>
             <button
               type="button"
               onClick={() => setStep(5)}
-              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:opacity-95 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 cursor-pointer transition-all"
             >
               Lanjut: Aturan & Ketentuan
             </button>
