@@ -107,6 +107,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       setCameraLoading(true)
       setError('')
 
+      // Check browser support
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Kamera tidak didukung pada browser Anda atau halaman tidak diakses via HTTPS/localhost. Silakan gunakan tombol "Upload Dari Galeri / Kamera HP".')
+      }
+
       // Stop any existing stream
       if (idCardStreamRef.current) {
         idCardStreamRef.current.getTracks().forEach(t => t.stop())
@@ -117,28 +122,58 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         selfieStreamRef.current = null
       }
 
-      await new Promise(r => setTimeout(r, 100))
+      let stream: MediaStream | null = null
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: type === 'id_card' ? { ideal: 'environment' } : 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      })
+      // Try with facing mode
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: type === 'id_card' ? { ideal: 'environment' } : 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        })
+      } catch (errFacing) {
+        console.warn('Fallback to basic video getUserMedia:', errFacing)
+        // Fallback without strict constraints
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        })
+      }
 
-      const targetVideo = type === 'id_card' ? idCardVideoRef.current : selfieVideoRef.current
-      const targetStreamRef = type === 'id_card' ? idCardStreamRef : selfieStreamRef
-
-      if (targetVideo && stream) {
-        targetVideo.srcObject = stream
+      if (stream) {
+        const targetStreamRef = type === 'id_card' ? idCardStreamRef : selfieStreamRef
         targetStreamRef.current = stream
         setCameraActive(type)
-        await targetVideo.play().catch(() => {})
+
+        // Give React a tick to render video element, then attach stream
+        setTimeout(async () => {
+          const targetVideo = type === 'id_card' ? idCardVideoRef.current : selfieVideoRef.current
+          if (targetVideo && stream) {
+            targetVideo.srcObject = stream
+            try {
+              await targetVideo.play()
+            } catch (playErr) {
+              console.warn('Auto-play caught:', playErr)
+            }
+          }
+        }, 50)
       }
     } catch (err: any) {
       console.error('Camera access error:', err)
-      setError('Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan di browser.')
+      let msg = 'Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan di browser.'
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        msg = 'Izin kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda atau gunakan tombol Upload.'
+      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+        msg = 'Kamera tidak terdeteksi pada perangkat Anda. Silakan gunakan tombol Upload Foto.'
+      } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+        msg = 'Kamera sedang digunakan oleh aplikasi lain. Silakan tutup aplikasi lain dan coba lagi.'
+      } else if (err?.message) {
+        msg = err.message
+      }
+      setError(msg)
     } finally {
       setCameraLoading(false)
     }
@@ -550,34 +585,34 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div className="space-y-4">
               {/* ID Card Framing Container (Aspect Ratio 16:10 / 1.58:1) */}
               <div className="relative w-full max-w-md mx-auto aspect-[1.58/1] bg-slate-950 rounded-3xl overflow-hidden border-2 border-dashed border-indigo-500/40 flex items-center justify-center group shadow-2xl">
+                {/* Permanent video element */}
+                <video
+                  ref={idCardVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${cameraActive === 'id_card' ? 'block' : 'hidden'}`}
+                />
+
                 {cameraActive === 'id_card' ? (
-                  <>
-                    <video
-                      ref={idCardVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                    {/* Visual Card Guideline Overlay */}
-                    <div className="absolute inset-4 rounded-2xl border-2 border-indigo-400/80 pointer-events-none flex flex-col justify-between p-3">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-600/80 text-white px-2 py-0.5 rounded-md backdrop-blur-md">
-                          KTP INDONESIA
-                        </span>
-                        <div className="w-7 h-7 border-t-2 border-r-2 border-indigo-400 rounded-tr-lg" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[11px] font-semibold text-white/90 drop-shadow-md bg-black/40 px-3 py-1 rounded-full inline-block backdrop-blur-xs">
-                          Posisikan KTP pas di dalam bingkai
-                        </p>
-                      </div>
-                      <div className="flex justify-between items-end">
-                        <div className="w-7 h-7 border-b-2 border-l-2 border-indigo-400 rounded-bl-lg" />
-                        <div className="w-7 h-7 border-b-2 border-r-2 border-indigo-400 rounded-br-lg" />
-                      </div>
+                  /* Visual Card Guideline Overlay */
+                  <div className="absolute inset-4 rounded-2xl border-2 border-indigo-400/80 pointer-events-none flex flex-col justify-between p-3">
+                    <div className="flex justify-between items-start">
+                      <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-600/80 text-white px-2 py-0.5 rounded-md backdrop-blur-md">
+                        KTP INDONESIA
+                      </span>
+                      <div className="w-7 h-7 border-t-2 border-r-2 border-indigo-400 rounded-tr-lg" />
                     </div>
-                  </>
+                    <div className="text-center">
+                      <p className="text-[11px] font-semibold text-white/90 drop-shadow-md bg-black/40 px-3 py-1 rounded-full inline-block backdrop-blur-xs">
+                        Posisikan KTP pas di dalam bingkai
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-end">
+                      <div className="w-7 h-7 border-b-2 border-l-2 border-indigo-400 rounded-bl-lg" />
+                      <div className="w-7 h-7 border-b-2 border-r-2 border-indigo-400 rounded-br-lg" />
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-center p-6 space-y-3">
                     <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/20">
@@ -585,7 +620,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-200">Kamera KTP Belum Dibuka</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Buka kamera atau unggah file foto KTP yang jelas</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Klik Buka Kamera atau gunakan tombol Ambil / Upload Foto</p>
                     </div>
                   </div>
                 )}
@@ -594,36 +629,48 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               {/* Action Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md mx-auto">
                 {cameraActive === 'id_card' ? (
-                  <button
-                    type="button"
-                    onClick={() => capturePhoto('id_card')}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Ambil Foto KTP
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => capturePhoto('id_card')}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                      Ambil Foto KTP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => stopCamera('id_card')}
+                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
+                    >
+                      Tutup Kamera
+                    </button>
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => startCamera('id_card')}
-                    disabled={cameraLoading}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera'}
-                  </button>
-                )}
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => startCamera('id_card')}
+                      disabled={cameraLoading}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                      {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera'}
+                    </button>
 
-                <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center">
-                  <Upload className="w-4 h-4 text-indigo-400" />
-                  <span>Upload Dari Galeri</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e, 'id_card_photo')}
-                  />
-                </label>
+                    <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center">
+                      <Upload className="w-4 h-4 text-indigo-400" />
+                      <span>Ambil / Upload File</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleFileUpload(e, 'id_card_photo')}
+                      />
+                    </label>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -699,59 +746,76 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           {!formData.selfie_photo ? (
             <div className="space-y-4">
               <div className="relative w-full max-w-xs mx-auto aspect-square bg-slate-950 rounded-3xl overflow-hidden border-2 border-dashed border-indigo-500/40 flex items-center justify-center shadow-2xl">
+                {/* Permanent video element */}
+                <video
+                  ref={selfieVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${cameraActive === 'selfie' ? 'block' : 'hidden'}`}
+                />
+
                 {cameraActive === 'selfie' ? (
-                  <>
-                    <video
-                      ref={selfieVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-6 rounded-full border-2 border-dashed border-indigo-400/80 pointer-events-none" />
-                  </>
+                  <div className="absolute inset-6 rounded-full border-2 border-dashed border-indigo-400/80 pointer-events-none flex items-center justify-center">
+                    <span className="text-[10px] font-bold text-white/80 bg-black/50 px-2 py-0.5 rounded-full backdrop-blur-xs">
+                      Posisikan Wajah
+                    </span>
+                  </div>
                 ) : (
                   <div className="text-center p-6 space-y-2">
                     <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
                       <Camera className="w-6 h-6" />
                     </div>
                     <p className="text-xs font-bold text-slate-200">Kamera Selfie</p>
+                    <p className="text-[10px] text-slate-400">Klik Buka Kamera atau Ambil Foto Selfie</p>
                   </div>
                 )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xs mx-auto">
                 {cameraActive === 'selfie' ? (
-                  <button
-                    type="button"
-                    onClick={() => capturePhoto('selfie')}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Ambil Selfie
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => capturePhoto('selfie')}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                      Ambil Selfie
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => stopCamera('selfie')}
+                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
+                    >
+                      Tutup Kamera
+                    </button>
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => startCamera('selfie')}
-                    disabled={cameraLoading}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Buka Kamera
-                  </button>
-                )}
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => startCamera('selfie')}
+                      disabled={cameraLoading}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                      {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera'}
+                    </button>
 
-                <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center">
-                  <Upload className="w-4 h-4 text-indigo-400" />
-                  <span>Upload Foto</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e, 'selfie_photo')}
-                  />
-                </label>
+                    <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center">
+                      <Upload className="w-4 h-4 text-indigo-400" />
+                      <span>Ambil / Upload File</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="user"
+                        className="hidden"
+                        onChange={(e) => handleFileUpload(e, 'selfie_photo')}
+                      />
+                    </label>
+                  </>
+                )}
               </div>
             </div>
           ) : (
