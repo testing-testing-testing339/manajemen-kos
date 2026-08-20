@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import StaffList from './StaffList'
+import Forbidden from '@/components/Forbidden'
 
 export default async function StaffPage() {
   const cookieStore = await cookies()
@@ -35,7 +36,12 @@ export default async function StaffPage() {
 
   // Only owner can access this page
   if (profile?.role !== 'owner') {
-    redirect('/dashboard')
+    return (
+      <Forbidden 
+        title="Akses Manajemen Staff Khusus Owner" 
+        message="Hanya akun Pemilik Kost (Owner) yang memiliki wewenang untuk menambah, mengubah, atau menghapus akun Staff operasional." 
+      />
+    )
   }
 
   // Get all staff (non-owner profiles)

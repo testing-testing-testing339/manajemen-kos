@@ -239,7 +239,15 @@ export async function updateRoom(prevState: any, formData: FormData) {
   const price_per_month = formData.get('price_per_month') ? parseFloat(formData.get('price_per_month') as string) : null
   const price_per_6months = formData.get('price_per_6months') ? parseFloat(formData.get('price_per_6months') as string) : null
   const facilitiesStr = formData.get('facilities') as string
-  const facilities = facilitiesStr ? facilitiesStr.split(',').map(f => f.trim()).filter(f => f) : []
+  let facilities = facilitiesStr ? facilitiesStr.split(',').map(f => f.trim()).filter(f => f) : []
+  
+  const pln_id = (formData.get('pln_id') as string)?.trim()
+  if (pln_id !== undefined) {
+    facilities = facilities.filter(f => !f.toLowerCase().startsWith('id pln:') && !f.toLowerCase().startsWith('pln:'))
+    if (pln_id) {
+      facilities.push(`ID PLN: ${pln_id}`)
+    }
+  }
   
   // For backward compatibility
   const price = price_per_month || (price_per_day * 30)

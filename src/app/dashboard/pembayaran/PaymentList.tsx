@@ -22,11 +22,11 @@ import {
   ArrowUpRight, 
   TrendingUp, 
   ShieldCheck, 
+  ShieldAlert,
   Building2, 
   Users, 
   Eye, 
   ChevronRight,
-  Sparkles,
   Download,
   ExternalLink
 } from 'lucide-react'
@@ -109,20 +109,34 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
       return p.status === undefined || p.status === null || p.status === 'confirmed'
     })
 
-    let totalDeposit = 0
+    // 1. Titipan Uang Deposit: ONLY count active deposit from currently ACTIVE tenants
+    // If tenant checked out, deposit is refunded or claimed, so active liability becomes Rp 0!
+    let totalActiveDeposit = 0
+    tenants.forEach((t: any) => {
+      totalActiveDeposit += parseFloat(t.deposit_amount || 100000)
+    })
+
     let totalRentRevenue = 0
     let monthlyRentRevenue = 0
 
     confirmedPayments.forEach((p: any) => {
       const amount = parseFloat(p.amount) || 0
-      let deposit = parseFloat(p.check_in_request?.deposit_amount || p.deposit_amount || 0)
-      if (deposit === 0 && amount >= 200000) {
-        deposit = 100000
+      const isClaimOrPenalty = p.payment_method === 'deposit_deduction' || 
+        p.notes?.includes('[Klaim Deposit]') || 
+        p.notes?.includes('[Pelunasan Check-Out]')
+
+      let rent = 0
+      if (isClaimOrPenalty) {
+        // Claimed deposit / Penalty is revenue to kos!
+        rent = amount
+      } else {
+        let deposit = parseFloat(p.check_in_request?.deposit_amount || p.deposit_amount || 0)
+        if (deposit === 0 && amount >= 200000) {
+          deposit = 100000
+        }
+        rent = (deposit > 0 && amount > deposit) ? (amount - deposit) : amount
       }
       
-      const rent = (deposit > 0 && amount > deposit) ? (amount - deposit) : amount
-      
-      totalDeposit += deposit
       totalRentRevenue += rent
 
       const paymentDate = new Date(p.payment_date || p.created_at)
@@ -133,7 +147,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
     
     const pendingCount = payments.filter((p: any) => p.status === 'pending' || (p.status === undefined && p.confirmed_by === null)).length
 
-    return { totalTenants, paidTenants, overdueTenants, totalRentRevenue, totalDeposit, monthlyRentRevenue, pendingCount }
+    return { totalTenants, paidTenants, overdueTenants, totalRentRevenue, totalDeposit: totalActiveDeposit, monthlyRentRevenue, pendingCount }
   }, [tenants, payments, paidTenantIds, currentMonth, currentYear, today])
 
   // Filtered Payments History
@@ -177,11 +191,31 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
 
   // Helper method badge
   const getMethodBadge = (payment: any) => {
+    const isDepositClaim = payment.payment_method === 'deposit_deduction' || payment.notes?.includes('[Klaim Deposit]')
+    if (isDepositClaim) {
+      return (
+        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200 inline-flex items-center gap-1">
+          <ShieldAlert className="w-3 h-3 text-purple-600" />
+          <span>Klaim Deposit (Ganti Rugi)</span>
+        </span>
+      )
+    }
+
+    const isCheckoutSettlement = payment.notes?.includes('[Pelunasan Check-Out]')
     const isCash = (payment.payment_method || '').toLowerCase().includes('cash') || 
       (payment.payment_method || '').toLowerCase().includes('tunai') ||
       payment.check_in_request?.payment_destination?.toLowerCase().includes('cash') ||
       payment.check_in_request?.payment_destination?.toLowerCase().includes('resepsionis') ||
       payment.notes?.toLowerCase().includes('tunai')
+
+    if (isCheckoutSettlement) {
+      return (
+        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
+          <Banknote className="w-3 h-3 text-rose-600" />
+          <span>Pelunasan Denda ({isCash ? 'Tunai' : 'Transfer'})</span>
+        </span>
+      )
+    }
 
     if (isCash) {
       return (
@@ -446,6 +480,35 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                         <td className="py-3.5 px-4">
                           {(() => {
                             const totalAmount = parseFloat(payment.amount) || 0
+                            const isDepositClaim = payment.payment_method === 'deposit_deduction' || payment.notes?.includes('[Klaim Deposit]')
+                            const isCheckoutSettlement = payment.notes?.includes('[Pelunasan Check-Out]')
+
+                            if (isDepositClaim) {
+                              return (
+                                <div>
+                                  <p className="font-mono font-extrabold text-purple-700 text-sm">
+                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
+                                  </p>
+                                  <p className="text-[10px] text-purple-600 font-semibold mt-0.5">
+                                    (Klaim Deposit - Ganti Rugi)
+                                  </p>
+                                </div>
+                              )
+                            }
+
+                            if (isCheckoutSettlement) {
+                              return (
+                                <div>
+                                  <p className="font-mono font-extrabold text-rose-700 text-sm">
+                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
+                                  </p>
+                                  <p className="text-[10px] text-rose-600 font-semibold mt-0.5">
+                                    (Pelunasan Denda/Kerusakan)
+                                  </p>
+                                </div>
+                              )
+                            }
+
                             let depositAmount = parseFloat(payment.check_in_request?.deposit_amount || payment.deposit_amount || 0)
                             if (depositAmount === 0 && totalAmount >= 200000) {
                               depositAmount = 100000
@@ -647,12 +710,15 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
             selectedPayment.notes?.toLowerCase().includes('tunai') ||
             (proofUrl && proofUrl.includes('placehold'))
 
+          const isDepositClaim = selectedPayment.payment_method === 'deposit_deduction' || selectedPayment.notes?.includes('[Klaim Deposit]')
+          const isCheckoutSettlement = selectedPayment.notes?.includes('[Pelunasan Check-Out]')
+
           const totalAmount = parseFloat(selectedPayment.amount) || 0
           let depositAmount = parseFloat(checkInRequest?.deposit_amount || selectedPayment.deposit_amount || 0)
-          if (depositAmount === 0 && totalAmount >= 200000) {
+          if (depositAmount === 0 && totalAmount >= 200000 && !isDepositClaim && !isCheckoutSettlement) {
             depositAmount = 100000
           }
-          const rentAmount = (depositAmount > 0 && totalAmount > depositAmount) ? (totalAmount - depositAmount) : totalAmount
+          const rentAmount = (depositAmount > 0 && totalAmount > depositAmount && !isDepositClaim && !isCheckoutSettlement) ? (totalAmount - depositAmount) : totalAmount
 
           return (
             <div className="space-y-5 py-1">
@@ -684,14 +750,30 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                     </span>
                   </div>
 
-                  <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
-                    <span className="text-slate-500">Sewa Kamar:</span>
-                    <span className="font-mono font-extrabold text-indigo-600 text-sm">
-                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentAmount)}
-                    </span>
-                  </div>
+                  {isDepositClaim ? (
+                    <div className="flex justify-between border-b border-slate-200/60 pb-1.5 bg-purple-50 p-2 rounded-lg border border-purple-100">
+                      <span className="text-purple-900 font-semibold">Jenis Transaksi:</span>
+                      <span className="font-mono font-extrabold text-purple-700 text-xs">
+                        Klaim Deposit (Ganti Rugi / Denda)
+                      </span>
+                    </div>
+                  ) : isCheckoutSettlement ? (
+                    <div className="flex justify-between border-b border-slate-200/60 pb-1.5 bg-rose-50 p-2 rounded-lg border border-rose-100">
+                      <span className="text-rose-900 font-semibold">Jenis Transaksi:</span>
+                      <span className="font-mono font-extrabold text-rose-700 text-xs">
+                        Pelunasan Denda & Kerusakan
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
+                      <span className="text-slate-500">Sewa Kamar:</span>
+                      <span className="font-mono font-extrabold text-indigo-600 text-sm">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentAmount)}
+                      </span>
+                    </div>
+                  )}
 
-                  {depositAmount > 0 && (
+                  {depositAmount > 0 && !isDepositClaim && !isCheckoutSettlement && (
                     <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
                       <span className="text-slate-500">Titipan Deposit:</span>
                       <span className="font-mono font-bold text-amber-600">
@@ -702,7 +784,7 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
                   )}
 
                   <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
-                    <span className="text-slate-500 font-bold">Total Diterima:</span>
+                    <span className="text-slate-500 font-bold">Total Masuk Kas:</span>
                     <span className="font-mono font-black text-slate-900 text-sm">
                       {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
                     </span>
@@ -710,7 +792,9 @@ export default function PaymentList({ initialTenants, initialPayments }: { initi
 
                   <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
                     <span className="text-slate-500">Metode Bayar:</span>
-                    <span className="font-bold text-slate-800">{isCash ? 'Tunai di Resepsionis' : 'QRIS GoPay Merchant'}</span>
+                    <span className="font-bold text-slate-800">
+                      {isDepositClaim ? 'Potongan / Klaim Deposit' : (isCash ? 'Tunai di Resepsionis' : 'QRIS GoPay / Transfer')}
+                    </span>
                   </div>
 
                   <div className="flex justify-between border-b border-slate-200/60 pb-1.5">

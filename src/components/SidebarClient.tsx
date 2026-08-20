@@ -11,7 +11,7 @@ import {
   UserCheck, 
   QrCode, 
   ShieldCheck, 
-  Sparkles,
+  Zap,
   ChevronRight
 } from 'lucide-react'
 
@@ -57,6 +57,7 @@ function SidebarClient({
   }
 
   if (userRole === 'owner') {
+    menuItems.push({ href: '/dashboard/pln', label: 'ID Meteran PLN', icon: Zap, badge: undefined })
     menuItems.push({ href: '/dashboard/staff', label: 'Manajemen Staff', icon: ShieldCheck, badge: undefined })
   }
 
@@ -115,15 +116,12 @@ function SidebarClient({
       {/* System Badge */}
       <div className="p-4 border-t border-slate-100">
         <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 rounded-2xl p-3.5 border border-indigo-100/80">
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="w-4 h-4 text-indigo-600" />
-            <p className="text-xs font-bold text-indigo-950">Sistem Manajemen</p>
-          </div>
-          <p className="text-[11px] text-indigo-700/90 leading-relaxed">
-            Kelola operasional kamar & pembayaran secara realtime
+          <p className="text-xs font-bold text-indigo-950">Sistem Manajemen</p>
+          <p className="text-[11px] text-indigo-600 font-medium mt-0.5">
+            Build By KV
           </p>
           {userRole && (
-            <div className="mt-2 pt-2 border-t border-indigo-100/60 flex items-center justify-between">
+            <div className="mt-2.5 pt-2 border-t border-indigo-100/60 flex items-center justify-between">
               <span className="text-[10px] text-indigo-500 font-medium uppercase">Role</span>
               <span className="text-[11px] font-bold px-2 py-0.5 bg-indigo-600 text-white rounded-full capitalize">
                 {userRole}

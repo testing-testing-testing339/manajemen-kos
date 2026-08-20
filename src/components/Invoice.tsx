@@ -43,11 +43,14 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
   const nik = checkInRequest?.id_card_number || tenant?.id_card_number || '-'
   
   // Format payment method
+  const isDepositClaim = payment.payment_method === 'deposit_deduction' || payment.notes?.includes('[Klaim Deposit]')
+  const isCheckoutSettlement = payment.notes?.includes('[Pelunasan Check-Out]')
+  
   const paymentMethodMap: Record<string, string> = {
     'cash': 'Tunai di Resepsionis',
     'qris': 'QRIS GoPay Merchant',
     'transfer': 'Transfer Bank / QRIS',
-    'deposit_deduction': 'Pemotongan Deposit',
+    'deposit_deduction': 'Pemotongan / Klaim Deposit',
     'e-wallet': 'GoPay / E-Wallet',
     'other': 'Lainnya'
   }
@@ -55,9 +58,18 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
     (payment.payment_method || '').toLowerCase().includes('tunai') ||
     checkInRequest?.payment_destination?.toLowerCase().includes('cash') ||
     checkInRequest?.payment_destination?.toLowerCase().includes('resepsionis') ||
-    payment.notes?.toLowerCase().includes('tunai')
+    (payment.notes?.toLowerCase().includes('tunai') && !isDepositClaim)
 
-  const paymentMethodDisplay = isCash ? 'Tunai di Resepsionis' : (paymentMethodMap[payment.payment_method] || 'QRIS GoPay Merchant')
+  let paymentMethodDisplay = 'QRIS GoPay Merchant'
+  if (isDepositClaim) {
+    paymentMethodDisplay = 'Potongan / Klaim Deposit'
+  } else if (isCheckoutSettlement) {
+    paymentMethodDisplay = isCash ? 'Pelunasan Tunai di Resepsionis' : 'Pelunasan Transfer Bank / QRIS'
+  } else if (isCash) {
+    paymentMethodDisplay = 'Tunai di Resepsionis'
+  } else if (paymentMethodMap[payment.payment_method]) {
+    paymentMethodDisplay = paymentMethodMap[payment.payment_method]
+  }
   
   // Format dates
   const paymentDate = new Date(payment.payment_date || payment.created_at)

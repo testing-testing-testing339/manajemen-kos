@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import PaymentList from './PaymentList'
 
 export default async function PembayaranPage() {
@@ -23,20 +24,22 @@ export default async function PembayaranPage() {
 
   // Get user profile to check role and branch
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/login')
+  }
+
   let userRole: string | null = null
   let userBranchId: string | null = null
   
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, branch_id')
-      .eq('id', user.id)
-      .single()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, branch_id')
+    .eq('id', user.id)
+    .single()
     
-    if (profile) {
-      userRole = profile.role || null
-      userBranchId = profile.branch_id || null
-    }
+  if (profile) {
+    userRole = profile.role || null
+    userBranchId = profile.branch_id || null
   }
 
   // OPTIMIZATION: Get branch metadata once and reuse (floors, rooms, tenant IDs)
@@ -264,15 +267,32 @@ export default async function PembayaranPage() {
         })
       }
       
-      // Process check-in requests for payments
+      // Process check-in requests and notes metadata for payments
       const enrichedPayments: any[] = []
       const usedCheckInIds = new Set<string>()
 
-      if (checkInRequests && checkInRequests.length > 0) {
-        paymentsData.forEach((payment: any) => {
-          const tenant = payment.tenants
-          let matchedCheckIn: any = null
+      paymentsData.forEach((payment: any) => {
+        let tenant = payment.tenants
+        const isCheckoutPenaltyOrClaim = payment.payment_method === 'deposit_deduction' || 
+          payment.notes?.includes('[Klaim Deposit]') || 
+          payment.notes?.includes('[Pelunasan Check-Out]') ||
+          payment.notes?.includes('Denda') ||
+          payment.notes?.includes('Kerusakan')
 
+        // Extract tenant name and room from notes if not present
+        let extractedName: string | null = null
+        let extractedRoom: string | null = null
+        if (payment.notes) {
+          const nameMatch = payment.notes.match(/Tamu:\s*([^|]+)/i)
+          if (nameMatch) extractedName = nameMatch[1].trim()
+          const roomMatch = payment.notes.match(/Kamar:\s*([^|]+)/i)
+          if (roomMatch) extractedRoom = roomMatch[1].trim()
+        }
+
+        let matchedCheckIn: any = null
+
+        // Try match check-in request if available
+        if (checkInRequests && checkInRequests.length > 0) {
           // 1. Try match by tenant's room_id or tenant's full_name
           if (tenant) {
             matchedCheckIn = checkInRequests.find((cir: any) => 
@@ -283,38 +303,56 @@ export default async function PembayaranPage() {
             )
           }
 
-          // 2. If no tenant or not matched yet, try match by amount proximity and date
-          if (!matchedCheckIn) {
+          // 2. Try match by extracted name
+          if (!matchedCheckIn && extractedName) {
+            matchedCheckIn = checkInRequests.find((cir: any) => 
+              cir.full_name && cir.full_name.toLowerCase().trim() === extractedName?.toLowerCase().trim()
+            )
+          }
+
+          // 3. For initial check-in payments without tenant, try match by amount
+          if (!matchedCheckIn && !isCheckoutPenaltyOrClaim) {
             const paymentAmount = parseFloat(payment.amount)
             matchedCheckIn = checkInRequests.find((cir: any) => 
               !usedCheckInIds.has(cir.id) && Math.abs(parseFloat(cir.total_amount) - paymentAmount) < 0.01
             )
           }
 
-          // 3. Fallback to any remaining check-in request
-          if (!matchedCheckIn) {
+          // 4. Fallback for unlinked payments
+          if (!matchedCheckIn && !isCheckoutPenaltyOrClaim) {
             matchedCheckIn = checkInRequests.find((cir: any) => !usedCheckInIds.has(cir.id))
           }
+        }
 
-          if (matchedCheckIn) {
-            usedCheckInIds.add(matchedCheckIn.id)
-            enrichedPayments.push({
-              ...payment,
-              check_in_request: matchedCheckIn,
-              deposit_amount: matchedCheckIn.deposit_amount || 100000
-            })
-          } else {
-            enrichedPayments.push(payment)
+        if (matchedCheckIn && !isCheckoutPenaltyOrClaim) {
+          usedCheckInIds.add(matchedCheckIn.id)
+        }
+
+        // Construct synthetic tenant data if missing
+        if (!tenant && (extractedName || matchedCheckIn)) {
+          tenant = {
+            id: payment.tenant_id,
+            full_name: extractedName || matchedCheckIn?.full_name || 'Tamu Checkout',
+            rooms: {
+              room_number: extractedRoom || matchedCheckIn?.rooms?.room_number || '-',
+              floors: {
+                branches: {
+                  name: matchedCheckIn?.rooms?.floors?.branches?.name || 'Graha Aisyah Menteng'
+                }
+              }
+            }
           }
+        }
+
+        enrichedPayments.push({
+          ...payment,
+          tenants: tenant,
+          check_in_request: matchedCheckIn || null,
+          deposit_amount: isCheckoutPenaltyOrClaim ? 0 : (matchedCheckIn?.deposit_amount || 100000)
         })
-        
-        paymentsData = enrichedPayments
-      } else {
-        paymentsData = paymentsData.map((p: any) => ({
-          ...p,
-          deposit_amount: 100000
-        }))
-      }
+      })
+      
+      paymentsData = enrichedPayments
     }
   } catch (e) {
     // Log errors in development

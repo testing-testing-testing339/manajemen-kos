@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { 
   Building2, 
@@ -35,7 +36,9 @@ export default async function DashboardPage() {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) {
+    redirect('/login')
+  }
 
   // Fetch user profile
   const { data: profile } = await supabase

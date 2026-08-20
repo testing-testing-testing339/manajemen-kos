@@ -55,6 +55,7 @@ export default function TenantList({
   const [checkoutTime, setCheckoutTime] = useState<string>('')
   const [damageFee, setDamageFee] = useState<number>(0)
   const [checkoutNotes, setCheckoutNotes] = useState<string>('')
+  const [additionalPaymentMethod, setAdditionalPaymentMethod] = useState<'cash' | 'transfer'>('cash')
   
   // Filter States
   const [searchQuery, setSearchQuery] = useState('')
@@ -83,6 +84,7 @@ export default function TenantList({
       setCheckoutTime(`${hours}:${mins}`)
       setDamageFee(0)
       setCheckoutNotes('')
+      setAdditionalPaymentMethod('cash')
     }
   }, [checkoutTenant])
 
@@ -109,9 +111,11 @@ export default function TenantList({
     }
   }, [checkoutTime])
 
-  const initialDeposit = 100000
-  const netRefund = Math.max(0, initialDeposit - calculatedLateFee - damageFee)
-  const additionalPayNeeded = Math.max(0, (calculatedLateFee + damageFee) - initialDeposit)
+  const initialDeposit = checkoutTenant?.deposit_amount ? parseFloat(checkoutTenant.deposit_amount) : 100000
+  const totalCharge = calculatedLateFee + damageFee
+  const claimedDeposit = Math.min(initialDeposit, totalCharge)
+  const netRefund = Math.max(0, initialDeposit - totalCharge)
+  const additionalPayNeeded = Math.max(0, totalCharge - initialDeposit)
 
   // Helper to determine due date status
   const getDueStatus = (dueDateStr: string) => {
@@ -384,7 +388,7 @@ export default function TenantList({
               onChange={(e) => setSelectedFloor(e.target.value)}
               className="w-full appearance-none pl-9.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
             >
-              <option value="all">🪜 Semua Lantai</option>
+              <option value="all">Semua Lantai</option>
               {floors.map(f => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
@@ -439,7 +443,11 @@ export default function TenantList({
           <form action={checkoutAction} className="space-y-4 py-1">
             <input type="hidden" name="id" value={checkoutTenant.id} />
             <input type="hidden" name="late_fee" value={calculatedLateFee} />
+            <input type="hidden" name="damage_fee" value={damageFee} />
             <input type="hidden" name="deposit_refund" value={netRefund} />
+            <input type="hidden" name="additional_pay_needed" value={additionalPayNeeded} />
+            <input type="hidden" name="claimed_deposit" value={claimedDeposit} />
+            <input type="hidden" name="additional_payment_method" value={additionalPaymentMethod} />
 
             <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
               <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
@@ -480,7 +488,7 @@ export default function TenantList({
                       ? 'bg-emerald-100 text-emerald-800'
                       : 'bg-amber-100 text-amber-800'
                   }`}>
-                    {calculatedLateFee === 0 ? 'Tepat Waktu (\u2264 12:00)' : `Telat (${checkoutTime} WIB)`}
+                    {calculatedLateFee === 0 ? 'Tepat Waktu (≤ 12:00)' : `Telat (${checkoutTime} WIB)`}
                   </span>
                 </div>
 
@@ -517,32 +525,84 @@ export default function TenantList({
               </div>
             </div>
 
-            {/* Rincian Pengembalian Deposit */}
-            <div className="bg-emerald-950/10 p-4 rounded-2xl border border-emerald-500/30 space-y-2 text-xs">
+            {/* Rincian Pengembalian & Klaim Deposit */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between text-slate-700">
                 <span>Uang Deposit Terdaftar:</span>
-                <span className="font-bold text-slate-900">Rp 100.000</span>
+                <span className="font-bold text-slate-900">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(initialDeposit)}
+                </span>
               </div>
-              <div className="flex justify-between text-red-600">
-                <span>Potongan Denda Telat:</span>
-                <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}</span>
-              </div>
+              {calculatedLateFee > 0 && (
+                <div className="flex justify-between text-red-600">
+                  <span>Denda Keterlambatan:</span>
+                  <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}</span>
+                </div>
+              )}
               {damageFee > 0 && (
                 <div className="flex justify-between text-red-600">
-                  <span>Potongan Biaya Lain:</span>
+                  <span>Biaya Kerusakan:</span>
                   <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(damageFee)}</span>
                 </div>
               )}
-              <div className="pt-2 border-t border-emerald-200/60 flex justify-between items-center text-sm font-extrabold">
-                <span className="text-emerald-900">Uang Kembali ke Tamu:</span>
+              {claimedDeposit > 0 && (
+                <div className="flex justify-between text-purple-700 bg-purple-50 p-2 rounded-lg border border-purple-100 font-medium">
+                  <span>Deposit Diklaim (Ganti Rugi):</span>
+                  <span className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(claimedDeposit)}</span>
+                </div>
+              )}
+              
+              <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-extrabold">
+                <span className="text-emerald-900">Sisa Deposit Kembali ke Tamu:</span>
                 <span className="text-emerald-700 text-base">
                   {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(netRefund)}
                 </span>
               </div>
+
               {additionalPayNeeded > 0 && (
-                <p className="text-[11px] text-red-600 font-bold bg-red-50 p-2 rounded-lg border border-red-200">
-                  Denda melebihi deposit! Tamu harus membayar kekurangan sebesar: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(additionalPayNeeded)}
-                </p>
+                <div className="mt-2 space-y-2 pt-2 border-t border-red-200">
+                  <div className="bg-red-50 p-2.5 rounded-xl border border-red-200">
+                    <p className="text-xs text-red-700 font-bold flex items-center justify-between">
+                      <span>Kekurangan Biaya (Wajib Bayar):</span>
+                      <span className="text-sm font-black text-red-700">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(additionalPayNeeded)}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-red-500 mt-0.5">
+                      * Denda & kerusakan melebihi deposit. Tamu harus melunasi sisa kekurangan ini.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Metode Pelunasan Kekurangan oleh Tamu:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdditionalPaymentMethod('cash')}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                          additionalPaymentMethod === 'cash'
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Tunai Resepsionis
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdditionalPaymentMethod('transfer')}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                          additionalPaymentMethod === 'transfer'
+                            ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Transfer / QRIS
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -556,7 +616,7 @@ export default function TenantList({
                 rows={2}
                 value={checkoutNotes}
                 onChange={(e) => setCheckoutNotes(e.target.value)}
-                placeholder="Contoh: Kunci kamar diserahkan lengkap, AC dan fasilitas berfungsi baik."
+                placeholder="Contoh: Kunci kamar diserahkan lengkap, AC dan fasilitas diperiksa."
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
