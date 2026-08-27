@@ -52,6 +52,7 @@ export default function TenantList({
   
   // Checkout Modal states
   const [checkoutTenant, setCheckoutTenant] = useState<any>(null)
+  const [checkoutDate, setCheckoutDate] = useState<string>('')
   const [checkoutTime, setCheckoutTime] = useState<string>('')
   const [damageFee, setDamageFee] = useState<number>(0)
   const [checkoutNotes, setCheckoutNotes] = useState<string>('')
@@ -75,12 +76,16 @@ export default function TenantList({
     }
   }, [checkoutState, router])
 
-  // Set default current time when checkout modal opens
+  // Set default current date and time when checkout modal opens
   useEffect(() => {
     if (checkoutTenant) {
       const now = new Date()
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
       const hours = String(now.getHours()).padStart(2, '0')
       const mins = String(now.getMinutes()).padStart(2, '0')
+      setCheckoutDate(`${year}-${month}-${day}`)
       setCheckoutTime(`${hours}:${mins}`)
       setDamageFee(0)
       setCheckoutNotes('')
@@ -88,28 +93,87 @@ export default function TenantList({
     }
   }, [checkoutTenant])
 
-  // Calculate late fee based on checkout time
-  const calculatedLateFee = useMemo(() => {
-    if (!checkoutTime) return 0
+  // Calculate late fee based on checkout date & time vs tenant's payment due date
+  const { lateFee: calculatedLateFee, lateStatusText, isLate } = useMemo(() => {
+    if (!checkoutTenant || !checkoutDate || !checkoutTime) {
+      return { lateFee: 0, lateStatusText: 'Tepat Waktu (≤ 12:00 WIB)', isLate: false }
+    }
+
+    const dueDateStr = checkoutTenant.payment_due_date
+    if (!dueDateStr) {
+      return { lateFee: 0, lateStatusText: 'Tepat Waktu (≤ 12:00 WIB)', isLate: false }
+    }
+
+    // Compare date parts
+    const [cYear, cMonth, cDay] = checkoutDate.split('-').map(Number)
+    const [dYear, dMonth, dDay] = dueDateStr.split('-').map(Number)
+
+    const cDateObj = new Date(cYear, cMonth - 1, cDay)
+    const dDateObj = new Date(dYear, dMonth - 1, dDay)
+
+    const diffTime = cDateObj.getTime() - dDateObj.getTime()
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+    // 1. Check-out SEBELUM tanggal jatuh tempo (masih dalam masa sewa aktif)
+    if (diffDays < 0) {
+      return { 
+        lateFee: 0, 
+        lateStatusText: `Check-Out Lebih Awal (${Math.abs(diffDays)} hari sebelum batas selesai)`, 
+        isLate: false 
+      }
+    }
+
     const [hStr, mStr] = checkoutTime.split(':')
     const hours = parseInt(hStr) || 0
     const minutes = parseInt(mStr) || 0
     const totalMinutes = hours * 60 + minutes
 
-    const checkoutStandardMinutes = 12 * 60 // 12:00
-    const threePMMinutes = 15 * 60 // 15:00
-    const fivePMMinutes = 17 * 60 // 17:00
+    const checkoutStandardMinutes = 12 * 60 // 12:00 WIB
+    const threePMMinutes = 15 * 60 // 15:00 WIB
+    const fivePMMinutes = 17 * 60 // 17:00 WIB
 
-    if (totalMinutes <= checkoutStandardMinutes) {
-      return 0
-    } else if (totalMinutes <= threePMMinutes) {
-      return 50000 // Telat s/d jam 15:00 (3 sore)
-    } else if (totalMinutes <= fivePMMinutes) {
-      return 100000 // Telat jam 15:00 s/d 17:00 (5 sore)
-    } else {
-      return 100000 // Telat lewat jam 17:00 (denda 1 hari)
+    // 2. Check-out PADA tanggal jatuh tempo (diffDays === 0)
+    if (diffDays === 0) {
+      if (totalMinutes <= checkoutStandardMinutes) {
+        return { 
+          lateFee: 0, 
+          lateStatusText: 'Tepat Waktu (≤ 12:00 WIB)', 
+          isLate: false 
+        }
+      } else if (totalMinutes <= threePMMinutes) {
+        return { 
+          lateFee: 50000, 
+          lateStatusText: `Telat (${checkoutTime} WIB, s/d 15:00 WIB)`, 
+          isLate: true 
+        }
+      } else if (totalMinutes <= fivePMMinutes) {
+        return { 
+          lateFee: 100000, 
+          lateStatusText: `Telat (${checkoutTime} WIB, 15:00–17:00 WIB)`, 
+          isLate: true 
+        }
+      } else {
+        return { 
+          lateFee: 100000, 
+          lateStatusText: `Telat (${checkoutTime} WIB, > 17:00 WIB / 1 Hari)`, 
+          isLate: true 
+        }
+      }
     }
-  }, [checkoutTime])
+
+    // 3. Check-out SETELAH tanggal jatuh tempo (diffDays > 0)
+    let fee = diffDays * 100000
+    if (totalMinutes > checkoutStandardMinutes) {
+      if (totalMinutes <= threePMMinutes) fee += 50000
+      else fee += 100000
+    }
+
+    return {
+      lateFee: fee,
+      lateStatusText: `Telat ${diffDays} Hari (${checkoutTime} WIB)`,
+      isLate: true
+    }
+  }, [checkoutTenant, checkoutDate, checkoutTime])
 
   const initialDeposit = checkoutTenant?.deposit_amount ? parseFloat(checkoutTenant.deposit_amount) : 100000
   const totalCharge = calculatedLateFee + damageFee
@@ -461,46 +525,68 @@ export default function TenantList({
               </div>
             </div>
 
-            {/* Jam Checkout & Perhitungan Denda */}
+            {/* Tanggal & Jam Checkout & Perhitungan Denda */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800">
-                    Jam Check-Out Tamu:
-                  </label>
-                  <p className="text-[11px] text-slate-500">Batas normal: 12:00 WIB</p>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Batas Selesai Sewa (Normal):</span>
+                  <p className="text-xs font-extrabold text-slate-800 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>
+                      {checkoutTenant.payment_due_date 
+                        ? new Date(checkoutTenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) 
+                        : '-'} • Pukul 12:00 WIB
+                    </span>
+                  </p>
                 </div>
-                <input
-                  type="time"
-                  required
-                  value={checkoutTime}
-                  onChange={(e) => setCheckoutTime(e.target.value)}
-                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                />
+                <div className="flex items-center gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Tgl Check-Out:</label>
+                    <input
+                      type="date"
+                      required
+                      value={checkoutDate}
+                      onChange={(e) => setCheckoutDate(e.target.value)}
+                      className="px-2.5 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Jam:</label>
+                    <input
+                      type="time"
+                      required
+                      value={checkoutTime}
+                      onChange={(e) => setCheckoutTime(e.target.value)}
+                      className="px-2.5 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Denda Rule Indicator */}
               <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600 font-medium">Status Waktu Check-Out:</span>
-                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                    calculatedLateFee === 0
+                  <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
+                    !isLate
                       ? 'bg-emerald-100 text-emerald-800'
                       : 'bg-amber-100 text-amber-800'
                   }`}>
-                    {calculatedLateFee === 0 ? 'Tepat Waktu (≤ 12:00)' : `Telat (${checkoutTime} WIB)`}
+                    {lateStatusText}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600 font-medium">Denda Keterlambatan:</span>
-                  <span className={`font-black ${calculatedLateFee > 0 ? 'text-red-600' : 'text-slate-800'}`}>
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}
+                  <span className={`font-black ${calculatedLateFee > 0 ? 'text-red-600 text-sm' : 'text-emerald-700'}`}>
+                    {calculatedLateFee > 0 
+                      ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)
+                      : 'Rp 0 (Bebas Denda)'}
                   </span>
                 </div>
 
                 <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-100">
-                  * Aturan denda: s/d 15:00 denda Rp 50.000 | 15:00–17:00 denda Rp 100.000 | &gt; 17:00 denda Rp 100.000 (1 hari).
+                  * Aturan denda: Berlaku pada/setelah tanggal jatuh tempo. s/d 15:00 WIB denda Rp 50.000 | 15:00–17:00 WIB denda Rp 100.000 | &gt; 17:00 WIB denda Rp 100.000 (1 hari).
                 </p>
               </div>
 
