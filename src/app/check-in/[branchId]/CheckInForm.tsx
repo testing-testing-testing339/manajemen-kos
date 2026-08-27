@@ -515,74 +515,22 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* =========================================================================
-          DEVELOPER / OWNER MAINTENANCE BAR (Hanya aktif via ?dev=true dari Admin)
-      ========================================================================= */}
+      {/* Tombol Ringkas Auto-Fill Data Dummy (Hanya muncul jika URL mengandung ?dev=true) */}
       {devMode && (
-        <div className="bg-gradient-to-r from-amber-950/50 via-slate-900 to-amber-950/50 border-2 border-amber-500/50 rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-2xl animate-in fade-in slide-in-from-top-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 pb-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-              <div>
-                <span className="text-xs font-black uppercase tracking-wider text-amber-300 block">
-                  Mode Pengembang Admin (Preview & Testing)
-                </span>
-                <span className="text-[10px] text-amber-400/80">
-                  Bypass validasi aktif. Anda dapat berpindah langkah bebas untuk inspeksi form.
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleAutoFillDev}
-                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 hover:scale-105 active:scale-95"
-                title="Isi form dengan data dummy testing"
-              >
-                <span>Auto-Fill Data Dummy</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleResetForm}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition-colors cursor-pointer"
-                title="Reset Form ke awal"
-              >
-                <span>Reset</span>
-              </button>
-            </div>
+        <div className="flex items-center justify-between p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            <span className="text-xs font-bold text-amber-300">Mode Uji Coba Admin</span>
           </div>
-
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-200/80 mb-2">
-              Navigasi Cepat Antar Langkah:
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5">
-              {[
-                { num: 1, label: '1. Data Diri' },
-                { num: 2, label: '2. Foto KTP' },
-                { num: 3, label: '3. Foto Selfie' },
-                { num: 4, label: '4. Pilih Kamar' },
-                { num: 5, label: '5. Aturan Kost' },
-                { num: 6, label: '6. Pembayaran' }
-              ].map(s => (
-                <button
-                  key={s.num}
-                  type="button"
-                  onClick={() => {
-                    setStep(s.num)
-                    setError('')
-                  }}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all cursor-pointer text-center ${
-                    step === s.num
-                      ? 'bg-amber-400 text-slate-950 shadow-md ring-2 ring-amber-300/60 scale-102'
-                      : 'bg-slate-900 text-amber-300 hover:bg-slate-800 border border-amber-500/30'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={handleAutoFillDev}
+            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 hover:scale-105 active:scale-95"
+            title="Isi form otomatis dengan data dummy untuk kemudahan testing"
+          >
+            <Zap className="w-3.5 h-3.5 fill-slate-950" />
+            <span>Auto-Fill Data Dummy</span>
+          </button>
         </div>
       )}
 
