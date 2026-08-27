@@ -20,7 +20,8 @@ import {
   Image as ImageIcon,
   Cpu,
   ArrowUpRight,
-  Info
+  Info,
+  Building2
 } from 'lucide-react'
 
 interface TableMetric {
@@ -144,12 +145,12 @@ export default function DeveloperDashboard({
           </button>
 
           <Link
-            href="/check-in?dev=true"
+            href="/check-in"
             target="_blank"
             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
           >
-            <Wrench className="w-3.5 h-3.5 text-amber-400" />
-            <span>Buka Check-In (Dev Mode)</span>
+            <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Buka Formulir Check-In</span>
             <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
           </Link>
         </div>
@@ -411,10 +412,10 @@ export default function DeveloperDashboard({
           </div>
 
           <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl space-y-1">
-            <p className="text-slate-400 text-[11px] font-bold uppercase">Mode Developer Check-in</p>
+            <p className="text-slate-400 text-[11px] font-bold uppercase">Formulir Check-in Tamu</p>
             <p className="text-emerald-400 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Aktif via URL parameter (?dev=true)</span>
+              <span>Publik & Terenkripsi HTTPS</span>
             </p>
           </div>
 
