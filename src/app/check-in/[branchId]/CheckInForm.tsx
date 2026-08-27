@@ -34,13 +34,17 @@ import {
   Check, 
   Tv, 
   Wifi, 
+  WifiOff,
   Wind, 
   Bath, 
   HelpCircle,
   RotateCcw,
   Crown,
   Receipt,
-  FileText
+  FileText,
+  Car,
+  Info,
+  Zap
 } from 'lucide-react'
 
 interface CheckInFormProps {
@@ -50,6 +54,7 @@ interface CheckInFormProps {
 
 type RoomCategory = 'vip' | 'non_vip'
 type DurationType = 'daily' | 'weekly' | 'monthly'
+type MonthlyPackage = 'ac' | 'non_ac'
 type PaymentMethod = 'qris' | 'cash'
 type GuaranteeType = 'deposit' | 'ktp'
 
@@ -113,6 +118,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     setRoomCategory('vip')
     setDurationType('daily')
     setDailyDays(2)
+    setMonthlyPackage('ac')
     setPaymentMethod('qris')
     setValidationErrors({})
     setError('')
@@ -155,19 +161,21 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const [dailyDays, setDailyDays] = useState<number>(1)
   const [weeklyWeeks, setWeeklyWeeks] = useState<number>(1)
   const [monthlyMonths, setMonthlyMonths] = useState<number>(1)
+  const [monthlyPackage, setMonthlyPackage] = useState<MonthlyPackage>('ac')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('qris')
 
-  // Pricing Constants
-  const BASE_PRICE_PER_DAY = 100000
-  const BASE_PRICE_PER_WEEK = 700000 // 7 x 100rb
-  const BASE_PRICE_PER_MONTH = 3000000 // 30 x 100rb
+  // Pricing Constants (Ketentuan Graha Aisyah Menteng)
+  const BASE_PRICE_PER_DAY = 100000 // Rp 100.000 / malam (Tarif Flat)
+  const BASE_PRICE_PER_WEEK = 500000 // Rp 500.000 / minggu
+  const BASE_PRICE_PER_MONTH_AC = 1350000 // Rp 1.350.000 / bulan (Kamar AC / Berfasilitas)
+  const BASE_PRICE_PER_MONTH_NON_AC = 650000 // Rp 650.000 / bulan (Kamar Non-AC / Non-Fasilitas)
   const DEPOSIT_AMOUNT = guaranteeType === 'deposit' ? 100000 : 0 // Rp 100k if deposit option, Rp 0 if KTP guarantee option
 
   // Calculated Totals
   const rentSubtotal = 
     durationType === 'daily' ? BASE_PRICE_PER_DAY * dailyDays :
     durationType === 'weekly' ? BASE_PRICE_PER_WEEK * weeklyWeeks :
-    BASE_PRICE_PER_MONTH * monthlyMonths
+    (monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC : BASE_PRICE_PER_MONTH_AC) * monthlyMonths
 
   const totalAmount = rentSubtotal + DEPOSIT_AMOUNT
 
@@ -383,13 +391,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       submitData.append('terms_accepted', 'true')
 
       // Selected room type JSON for compatibility
+      const isVip = roomCategory === 'vip'
       const roomTypeInfo = {
         category: roomCategory,
-        name: roomCategory === 'vip' ? 'Kamar VIP' : 'Kamar Non-VIP',
+        name: isVip ? 'Kamar VIP Belakang Warkop' : 'Kamar Standard',
+        monthly_package: durationType === 'monthly' ? monthlyPackage : undefined,
         price_per_day: BASE_PRICE_PER_DAY,
-        facilities: roomCategory === 'vip'
-          ? ['AC', 'Kamar Mandi Dalam', 'Smart TV', 'Wifi High-Speed', 'Queen Bed', 'Lemari Pakaian', 'Meja Kerja', 'Water Heater']
-          : ['AC', 'Kamar Mandi Dalam', 'Wifi High-Speed', 'Single Bed', 'Lemari Pakaian', 'Meja Belajar']
+        price_per_week: BASE_PRICE_PER_WEEK,
+        price_per_month: monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC : BASE_PRICE_PER_MONTH_AC,
+        facilities: isVip
+          ? ['Parkiran Lebih Luas', 'Kloset Duduk', 'Kamar Mandi Dalam', 'Single Bed', 'AC', 'Lemari Pakaian', 'Meja']
+          : ['Kamar Mandi Dalam', 'Single Bed', monthlyPackage === 'non_ac' ? 'Non-AC' : 'AC', 'Lemari Pakaian', 'Meja Belajar'],
+        notes: durationType !== 'daily' ? 'No include token PLN, handuk, sprei, dan selimut' : undefined
       }
       submitData.append('selected_room_type', JSON.stringify(roomTypeInfo))
 
@@ -446,9 +459,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <p className="text-base font-bold text-white">{formData.full_name}</p>
             </div>
             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-              roomCategory === 'vip' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+              roomCategory === 'vip' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
             }`}>
-              {roomCategory === 'vip' ? 'Kamar VIP' : 'Kamar Non-VIP'}
+              {roomCategory === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room'}
             </span>
           </div>
 
@@ -456,7 +469,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div>
               <p className="text-slate-400">Durasi Sewa:</p>
               <p className="font-semibold text-slate-200">
-                {durationType === 'daily' ? `${dailyDays} Hari` : durationType === 'weekly' ? `${weeklyWeeks} Minggu` : `${monthlyMonths} Bulan`}
+                {durationType === 'daily' ? `${dailyDays} Hari (Harian)` : durationType === 'weekly' ? `${weeklyWeeks} Minggu (Mingguan)` : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC' : 'AC'})`}
               </p>
             </div>
             <div>
@@ -466,8 +479,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               </p>
             </div>
             <div>
-              <p className="text-slate-400">Deposit (Refundable):</p>
-              <p className="font-semibold text-emerald-400">Rp 100.000</p>
+              <p className="text-slate-400">{guaranteeType === 'deposit' ? 'Deposit (Refundable):' : 'Jaminan Menginap:'}</p>
+              <p className={`font-semibold ${guaranteeType === 'deposit' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {guaranteeType === 'deposit' ? 'Rp 100.000' : 'Jaminan KTP Asli (Rp 0)'}
+              </p>
             </div>
             <div>
               <p className="text-slate-400">Total Tagihan:</p>
@@ -487,11 +502,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           <ul className="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
             <li>Tunjukkan KTP asli Anda ke resepsionis Graha Aisyah Menteng.</li>
             {paymentMethod === 'cash' ? (
-              <li>Lakukan pembayaran tunai sebesar <strong>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong> (termasuk deposit Rp 100.000).</li>
+              <li>Lakukan pembayaran tunai sebesar <strong>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong> {guaranteeType === 'deposit' ? '(termasuk deposit Rp 100.000)' : ''}.</li>
             ) : (
               <li>Staf akan memverifikasi bukti pembayaran QRIS Anda dan menyerahkan kunci kamar.</li>
             )}
-            <li>Deposit Rp 100.000 akan dikembalikan tunai/transfer saat Anda check-out.</li>
+            {guaranteeType === 'deposit' ? (
+              <li>Uang deposit Rp 100.000 akan dikembalikan tunai/transfer saat Anda check-out setelah penyerahan kunci.</li>
+            ) : (
+              <li>KTP asli yang dititipkan sebagai jaminan akan diserahkan kembali saat Anda check-out.</li>
+            )}
+            {durationType !== 'daily' && (
+              <li className="text-amber-300">Untuk sewa {durationType === 'weekly' ? 'mingguan' : 'bulanan'}, token listrik PLN diisi mandiri dan perlengkapan tidur (sprei/selimut/handuk) disediakan mandiri.</li>
+            )}
           </ul>
         </div>
 
@@ -1178,11 +1200,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
                   <h3 className="text-base font-extrabold text-white mb-1">VIP Belakang Warkop</h3>
                   <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                    Kamar eksklusif di bagian VIP Belakang Warkop dengan fasilitas lengkap (AC, Smart TV, dan Water Heater).
+                    Kamar di area VIP Belakang Warkop dengan keunggulan <strong className="text-purple-300">Parkiran Lebih Luas & Kloset Duduk</strong>.
                   </p>
 
                   <div className="flex flex-wrap gap-1.5 mb-4">
-                    {['AC Dingin', 'Kamar Mandi Dalam', 'Smart TV', 'Wifi Cepat', 'Queen Bed', 'Water Heater'].map(f => (
+                    {['Parkiran Luas (Mobil & Motor)', 'Kloset Duduk', 'Kamar Mandi Dalam', 'Single Bed', 'AC Dingin', 'Lemari & Meja'].map(f => (
                       <span key={f} className="text-[10px] px-2.5 py-1 bg-slate-800/90 text-slate-300 rounded-lg border border-slate-700/60 font-medium">
                         {f}
                       </span>
@@ -1202,7 +1224,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 </div>
               </div>
 
-              {/* Non-VIP Card */}
+              {/* Non-VIP (Standard) Card */}
               <div
                 onClick={() => setRoomCategory('non_vip')}
                 className={`p-4 sm:p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
@@ -1213,8 +1235,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-xs">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-xs">
                       Standard • Dasar & Gedung Atas
                     </span>
                     <div className="text-right">
@@ -1225,11 +1246,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
                   <h3 className="text-base font-extrabold text-white mb-1">Standard Room</h3>
                   <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                    Kamar di Lantai Dasar dan Gedung Atas (Lt 2 & 3) dengan Single Bed, Kamar Mandi Dalam, Lemari, dan Wifi.
+                    Kamar di Lantai Dasar dan Gedung Atas (Lt 2 & 3) dengan Single Bed, Kamar Mandi Dalam, Lemari Pakaian, dan Meja.
                   </p>
 
                   <div className="flex flex-wrap gap-1.5 mb-4">
-                    {['AC Dingin', 'Kamar Mandi Dalam', 'Single Bed', 'Wifi Cepat', 'Meja Belajar', 'Lemari'].map(f => (
+                    {['Kamar Mandi Dalam', 'Single Bed', 'AC / Non-AC', 'Meja Belajar', 'Lemari Pakaian'].map(f => (
                       <span key={f} className="text-[10px] px-2.5 py-1 bg-slate-800/90 text-slate-300 rounded-lg border border-slate-700/60 font-medium">
                         {f}
                       </span>
@@ -1266,7 +1287,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
-                Harian
+                Harian (Rp 100rb)
               </button>
               <button
                 type="button"
@@ -1277,7 +1298,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
-                Mingguan
+                Mingguan (Rp 500rb)
               </button>
               <button
                 type="button"
@@ -1288,18 +1309,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
-                Bulanan
+                Bulanan (Mulai 650rb)
               </button>
             </div>
 
             {/* Sub-inputs for duration */}
-            <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
+            <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-4">
               {durationType === 'daily' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-extrabold text-white">Jumlah Malam Menginap</p>
-                      <p className="text-[11px] text-slate-400">Rp 100.000 / malam</p>
+                      <p className="text-[11px] text-slate-400">Rp 100.000 / malam (Flat Seluruh Kamar)</p>
                     </div>
 
                     {/* Stepper +/- */}
@@ -1345,52 +1366,115 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               )}
 
               {durationType === 'weekly' && (
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-extrabold text-white">Jumlah Minggu</p>
-                    <p className="text-[11px] text-indigo-400 font-bold">Rp 700.000 / minggu</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[1, 2, 3].map(w => (
-                      <button
-                        key={w}
-                        type="button"
-                        onClick={() => setWeeklyWeeks(w)}
-                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          weeklyWeeks === w
-                            ? 'bg-indigo-600 text-white shadow-md'
-                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                        }`}
-                      >
-                        {w} Minggu
-                      </button>
-                    ))}
+                    <div>
+                      <p className="text-xs font-extrabold text-white">Jumlah Minggu</p>
+                      <p className="text-[11px] text-indigo-400 font-bold">Tarif Rp 500.000 / minggu</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {[1, 2, 3].map(w => (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => setWeeklyWeeks(w)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            weeklyWeeks === w
+                              ? 'bg-indigo-600 text-white shadow-md'
+                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                          }`}
+                        >
+                          {w} Mgg
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
 
               {durationType === 'monthly' && (
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-extrabold text-white">Jumlah Bulan</p>
-                    <p className="text-[11px] text-indigo-400 font-bold">Rp 3.000.000 / bulan</p>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[1, 3, 6, 12].map(m => (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
+                      Pilihan Paket Fasilitas Bulanan:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <button
-                        key={m}
                         type="button"
-                        onClick={() => setMonthlyMonths(m)}
-                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          monthlyMonths === m
-                            ? 'bg-indigo-600 text-white shadow-md'
-                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                        onClick={() => setMonthlyPackage('ac')}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          monthlyPackage === 'ac'
+                            ? 'bg-indigo-950/40 border-indigo-500 text-white ring-1 ring-indigo-500/50'
+                            : 'bg-slate-800/60 border-slate-700/80 text-slate-400 hover:border-slate-600'
                         }`}
                       >
-                        {m} Bln
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className="text-xs font-black text-indigo-300 flex items-center gap-1">
+                            <Wind className="w-3.5 h-3.5 text-indigo-400" /> Kamar Ber-AC
+                          </span>
+                          <span className="text-xs font-black text-white font-mono">Rp 1.350.000</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Unit kamar ber-AC dingin & kamar mandi dalam</p>
                       </button>
-                    ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setMonthlyPackage('non_ac')}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          monthlyPackage === 'non_ac'
+                            ? 'bg-indigo-950/40 border-indigo-500 text-white ring-1 ring-indigo-500/50'
+                            : 'bg-slate-800/60 border-slate-700/80 text-slate-400 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className="text-xs font-black text-emerald-300 flex items-center gap-1">
+                            Kamar Non-AC / Standar
+                          </span>
+                          <span className="text-xs font-black text-white font-mono">Rp 650.000</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Hemat budget, kamar mandi dalam & kasur</p>
+                      </button>
+                    </div>
                   </div>
+
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-extrabold text-white">Durasi Periode Bulan</p>
+                      <p className="text-[11px] text-slate-400">
+                        {monthlyPackage === 'non_ac' ? 'Rp 650.000 / bulan' : 'Rp 1.350.000 / bulan'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {[1, 3, 6, 12].map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setMonthlyMonths(m)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            monthlyMonths === m
+                              ? 'bg-indigo-600 text-white shadow-md'
+                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                          }`}
+                        >
+                          {m} Bln
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Informative Notice Banner for Weekly and Monthly */}
+              {durationType !== 'daily' && (
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs text-amber-200">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                    <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Ketentuan Khusus Sewa {durationType === 'weekly' ? 'Mingguan' : 'Bulanan'}:</span>
+                  </div>
+                  <ul className="text-[11px] text-amber-200/90 space-y-1 list-disc list-inside pl-1">
+                    <li><strong>Token Listrik PLN:</strong> Belum termasuk token listrik (No Include). Pengisian token PLN dilakukan mandiri oleh penyewa per kamar.</li>
+                    <li><strong>Perlengkapan Kamar:</strong> Tidak termasuk handuk, sprei, dan selimut (No Include). Penyewa dihimbau membawa perlengkapan tidur sendiri.</li>
+                  </ul>
                 </div>
               )}
             </div>
@@ -1404,7 +1488,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 Rincian Biaya Sewa
               </span>
               <span className="text-[11px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
-                {roomCategory === 'vip' ? 'VIP Suite' : 'Standard Room'}
+                {roomCategory === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room'}
               </span>
             </div>
 
@@ -1412,7 +1496,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               {/* Rent item */}
               <div className="flex justify-between text-slate-300">
                 <span className="flex items-center gap-1">
-                  Biaya Sewa ({durationType === 'daily' ? `${dailyDays} Malam` : durationType === 'weekly' ? `${weeklyWeeks} Minggu` : `${monthlyMonths} Bulan`}):
+                  Biaya Sewa ({durationType === 'daily' 
+                    ? `${dailyDays} Malam (Harian)` 
+                    : durationType === 'weekly' 
+                      ? `${weeklyWeeks} Minggu (@ Rp 500rb)` 
+                      : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC @ Rp 650rb' : 'AC @ Rp 1,35jt'})`}):
                 </span>
                 <span className="font-bold text-white font-mono">
                   {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentSubtotal)}

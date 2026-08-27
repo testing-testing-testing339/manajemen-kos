@@ -296,21 +296,34 @@ export async function assignRoom(prevState: any, formData: FormData) {
       const actualPaymentMethod = isCash ? 'cash' : 'transfer'
 
       // Create tenant record
-      const { data: newTenant, error: tenantError } = await supabase
+      const tenantInsertPayload: any = {
+        room_id: room_id,
+        full_name: checkInData.full_name,
+        id_card_url: checkInData.id_card_photo_url,
+        check_in_date: checkInDate.toISOString().split('T')[0],
+        payment_due_date: paymentDueDate.toISOString().split('T')[0],
+        deposit_amount: checkInData.deposit_amount ? parseFloat(checkInData.deposit_amount) : 100000,
+        rental_duration: checkInData.rental_duration || 'daily',
+        rental_count: checkInData.rental_days || 1,
+        electricity_meter_start: 0
+      }
+
+      let { data: newTenant, error: tenantError } = await supabase
         .from('tenants')
-        .insert({
-          room_id: room_id,
-          full_name: checkInData.full_name,
-          id_card_url: checkInData.id_card_photo_url,
-          check_in_date: checkInDate.toISOString().split('T')[0],
-          payment_due_date: paymentDueDate.toISOString().split('T')[0],
-          deposit_amount: checkInData.deposit_amount ? parseFloat(checkInData.deposit_amount) : 100000,
-          rental_duration: checkInData.rental_duration || 'daily',
-          rental_count: checkInData.rental_days || 1,
-          electricity_meter_start: 0
-        })
+        .insert(tenantInsertPayload)
         .select()
         .single()
+
+      if (tenantError && (tenantError.message?.includes('rental_duration') || tenantError.message?.includes('check constraint'))) {
+        tenantInsertPayload.rental_duration = 'daily'
+        const retryTenant = await supabase
+          .from('tenants')
+          .insert(tenantInsertPayload)
+          .select()
+          .single()
+        newTenant = retryTenant.data
+        tenantError = retryTenant.error
+      }
 
       if (tenantError) throw tenantError
 

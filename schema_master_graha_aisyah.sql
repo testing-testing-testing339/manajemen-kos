@@ -11,8 +11,8 @@
 ALTER TABLE rooms 
 ADD COLUMN IF NOT EXISTS room_type text DEFAULT 'non_vip',
 ADD COLUMN IF NOT EXISTS price_per_day numeric DEFAULT 100000,
-ADD COLUMN IF NOT EXISTS price_per_week numeric DEFAULT 700000,
-ADD COLUMN IF NOT EXISTS price_per_month numeric DEFAULT 3000000;
+ADD COLUMN IF NOT EXISTS price_per_week numeric DEFAULT 500000,
+ADD COLUMN IF NOT EXISTS price_per_month numeric DEFAULT 1350000;
 
 -- 2. Pastikan kolom-kolom baru tersedia pada tabel check_in_requests
 ALTER TABLE check_in_requests
@@ -24,6 +24,18 @@ ADD COLUMN IF NOT EXISTS rental_days integer DEFAULT 1,
 ADD COLUMN IF NOT EXISTS rental_weeks integer DEFAULT 1,
 ADD COLUMN IF NOT EXISTS rental_months integer DEFAULT 1,
 ADD COLUMN IF NOT EXISTS rejection_reason text;
+
+-- Pastikan CHECK constraint rental_duration mendukung 'weekly'
+DO $$
+BEGIN
+  ALTER TABLE check_in_requests DROP CONSTRAINT IF EXISTS check_in_requests_rental_duration_check;
+  ALTER TABLE check_in_requests 
+    ADD CONSTRAINT check_in_requests_rental_duration_check 
+    CHECK (rental_duration IN ('daily', 'weekly', 'monthly', '6months', '12months'));
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL;
+END $$;
 
 -- 3. Set foreign key check_in_requests -> rooms menjadi ON DELETE SET NULL
 DO $$

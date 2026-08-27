@@ -214,33 +214,52 @@ export async function POST(request: Request) {
     }
 
     // Insert into check_in_requests
-    const { error: insertError } = await supabase
+    const basePayload = {
+      branch_id,
+      full_name: sanitizedName,
+      phone: sanitizedPhone,
+      email: sanitizedEmail,
+      id_card_number: sanitizedIdCard,
+      id_card_photo_url: id_card_photo_url || null,
+      selfie_photo_url,
+      selected_room_type,
+      room_category: room_category || 'vip',
+      rental_duration: rental_duration,
+      rental_days: rental_days ? parseInt(rental_days) : (rental_duration === 'weekly' ? (rental_weeks ? parseInt(rental_weeks) * 7 : 7) : 1),
+      rental_weeks: rental_weeks ? parseInt(rental_weeks) : 1,
+      rental_months: rental_months ? parseInt(rental_months) : 1,
+      deposit_amount: parseFloat(deposit_amount),
+      total_amount: sanitizedAmount,
+      payment_method: payment_method || 'qris',
+      payment_destination: sanitizedPaymentDest,
+      payment_proof_url,
+      terms_accepted: true,
+      terms_accepted_at: new Date().toISOString(),
+      status: 'pending'
+    }
+
+    let { error: insertError } = await supabase
       .from('check_in_requests')
-      .insert({
-        branch_id,
-        full_name: sanitizedName,
-        phone: sanitizedPhone,
-        email: sanitizedEmail,
-        id_card_number: sanitizedIdCard,
-        id_card_photo_url: id_card_photo_url || null,
-        selfie_photo_url,
-        selected_room_type,
-        room_category: room_category || 'vip',
-        rental_duration: rental_duration,
-        rental_days: rental_days ? parseInt(rental_days) : 1,
-        rental_weeks: rental_weeks ? parseInt(rental_weeks) : 1,
-        rental_months: rental_months ? parseInt(rental_months) : 1,
-        deposit_amount: parseFloat(deposit_amount),
-        total_amount: sanitizedAmount,
-        payment_method: payment_method || 'qris',
-        payment_destination: sanitizedPaymentDest,
-        payment_proof_url,
-        terms_accepted: true,
-        terms_accepted_at: new Date().toISOString(),
-        status: 'pending'
-      })
+      .insert(basePayload)
 
     if (insertError) {
+      // If DB constraint check_in_requests_rental_duration_check fails because 'weekly' is not in older DB constraint enum:
+      if (insertError.message?.includes('rental_duration') || insertError.message?.includes('check constraint')) {
+        console.warn('DB rental_duration constraint triggered, retrying with fallback value daily:', insertError.message)
+        const fallbackPayload = {
+          ...basePayload,
+          rental_duration: 'daily', // fallback so older PostgreSQL check constraint accepts it
+          rental_days: rental_duration === 'weekly' ? (rental_weeks ? parseInt(rental_weeks) * 7 : 7) : (rental_days ? parseInt(rental_days) : 1)
+        }
+        const { error: retryError } = await supabase
+          .from('check_in_requests')
+          .insert(fallbackPayload)
+        
+        if (!retryError) {
+          return NextResponse.json({ success: true })
+        }
+        insertError = retryError
+      }
       return NextResponse.json({ error: 'Gagal menyimpan reservasi: ' + insertError.message }, { status: 400 })
     }
 

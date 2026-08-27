@@ -315,7 +315,7 @@ export default function PropertiList({
                 </span>
               ))
           ) : (
-            <span className="text-[10px] text-slate-400">AC, Wifi, Km. Mandi</span>
+            <span className="text-[10px] text-slate-400">AC, Single Bed, Km. Mandi</span>
           )}
         </div>
       </div>,
@@ -325,7 +325,7 @@ export default function PropertiList({
           Rp 100.000 <span className="text-[10px] font-normal text-slate-500">/malam</span>
         </p>
         <p className="text-[10px] text-slate-400">
-          Rp 700k/mgg • Rp 3jt/bln
+          Rp 500k/mgg • Rp 1,35jt/bln
         </p>
       </div>,
 
@@ -765,7 +765,7 @@ export default function PropertiList({
                 </div>
                 <div>
                   <p className="text-slate-400 font-bold text-[10px] uppercase">Tarif Mingguan / Bulanan</p>
-                  <p className="font-bold text-slate-800">Rp 700k/mgg • Rp 3jt/bln</p>
+                  <p className="font-bold text-slate-800">Rp 500k/mgg • Rp 1,35jt/bln</p>
                 </div>
               </div>
 
@@ -924,7 +924,7 @@ export default function PropertiList({
             <input
               type="text"
               name="facilities"
-              defaultValue="AC, Smart TV, Kamar Mandi Dalam, Wifi High-Speed, Kasur, Lemari Pakaian"
+              defaultValue="AC, Kamar Mandi Dalam, Single Bed, Lemari Pakaian, Meja"
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
             />
           </div>
@@ -1021,7 +1021,7 @@ export default function PropertiList({
                       type="text"
                       name="facilities"
                       defaultValue={regularFacilities}
-                      placeholder="AC, Smart TV, Kamar Mandi Dalam, Kasur, Wifi"
+                      placeholder="AC, Kamar Mandi Dalam, Single Bed, Lemari Pakaian, Meja"
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                     />
                   </div>
