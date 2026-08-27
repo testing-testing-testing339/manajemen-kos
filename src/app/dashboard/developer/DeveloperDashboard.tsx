@@ -145,12 +145,12 @@ export default function DeveloperDashboard({
           </button>
 
           <Link
-            href="/check-in"
+            href="/check-in?dev=true"
             target="_blank"
             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
           >
-            <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Buka Formulir Check-In</span>
+            <Wrench className="w-3.5 h-3.5 text-amber-400" />
+            <span>Buka Check-In (Dev Mode)</span>
             <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
           </Link>
         </div>
