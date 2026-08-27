@@ -506,6 +506,8 @@ export default function TenantList({
         {checkoutTenant && (
           <form action={checkoutAction} className="space-y-4 py-1">
             <input type="hidden" name="id" value={checkoutTenant.id} />
+            <input type="hidden" name="checkout_date" value={checkoutDate} />
+            <input type="hidden" name="checkout_time" value={checkoutTime} />
             <input type="hidden" name="late_fee" value={calculatedLateFee} />
             <input type="hidden" name="damage_fee" value={damageFee} />
             <input type="hidden" name="deposit_refund" value={netRefund} />

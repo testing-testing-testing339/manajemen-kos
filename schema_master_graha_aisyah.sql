@@ -49,7 +49,30 @@ EXCEPTION
     NULL;
 END $$;
 
--- 4. Inisialisasi 52 Kamar dan 4 Section di Graha Aisyah Menteng
+-- 4. Tabel Riwayat Check-Out Tamu
+CREATE TABLE IF NOT EXISTS checkout_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_name text NOT NULL,
+  phone text,
+  room_number text,
+  floor_name text,
+  room_type text,
+  check_in_date date,
+  due_date date,
+  checkout_date date DEFAULT CURRENT_DATE,
+  checkout_time text,
+  deposit_amount numeric DEFAULT 100000,
+  late_fee numeric DEFAULT 0,
+  damage_fee numeric DEFAULT 0,
+  claimed_deposit numeric DEFAULT 0,
+  deposit_refund numeric DEFAULT 0,
+  additional_pay_needed numeric DEFAULT 0,
+  notes text,
+  processed_by text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- 5. Inisialisasi 52 Kamar dan 4 Section di Graha Aisyah Menteng
 DO $$
 DECLARE
   v_branch_id uuid;

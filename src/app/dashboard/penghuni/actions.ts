@@ -67,6 +67,9 @@ export async function processCheckout(prevState: any, formData: FormData) {
   const additional_payment_method = (formData.get('additional_payment_method') as string) || 'cash'
   const checkout_notes = (formData.get('notes') as string) || ''
 
+  const checkout_date_input = (formData.get('checkout_date') as string) || new Date().toISOString().split('T')[0]
+  const checkout_time_input = (formData.get('checkout_time') as string) || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+
   const cookieStore = await cookies()
 
   const supabase = createServerClient(
@@ -99,13 +102,36 @@ export async function processCheckout(prevState: any, formData: FormData) {
   // Get tenant and room details
   const { data: tenant } = await adminClient
     .from('tenants')
-    .select('id, room_id, full_name, deposit_amount, rooms(room_number)')
+    .select('id, room_id, full_name, deposit_amount, check_in_date, payment_due_date, rooms(room_number, room_type, floors(name, branches(name)))')
     .eq('id', id)
     .single()
 
   if (!tenant) return { error: 'Data penghuni tidak ditemukan' }
 
-  const roomNumber = (tenant.rooms as any)?.room_number || '-'
+  const roomData = tenant.rooms as any
+  const roomNumber = roomData?.room_number || '-'
+  const floorName = roomData?.floors?.name || '-'
+  const roomType = roomData?.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room'
+
+  let tenantPhone = ''
+  if (tenant.room_id) {
+    const { data: cir } = await adminClient
+      .from('check_in_requests')
+      .select('phone')
+      .eq('assigned_room_id', tenant.room_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (cir?.phone) tenantPhone = cir.phone
+  }
+
+  // Get admin profile name
+  let processedByName = 'Resepsionis'
+  if (user) {
+    const { data: userProfile } = await adminClient.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
+    processedByName = userProfile?.full_name || user.email || 'Resepsionis'
+  }
+
   const tenantDeposit = tenant.deposit_amount ? parseFloat(tenant.deposit_amount) : 100000
   const totalCharge = late_fee + damage_fee
   const actualClaimedDeposit = claimed_deposit_input > 0 ? claimed_deposit_input : Math.min(tenantDeposit, totalCharge)
@@ -115,7 +141,33 @@ export async function processCheckout(prevState: any, formData: FormData) {
   const todayStr = new Date().toISOString().split('T')[0]
   const timestampStr = new Date().toISOString()
 
-  // 1. If deposit is claimed (for late fee or damages), record as claimed deposit transaction
+  // 1. Catat ke tabel checkout_history
+  try {
+    await adminClient.from('checkout_history').insert({
+      tenant_name: tenant.full_name,
+      phone: tenantPhone || null,
+      room_number: roomNumber,
+      floor_name: floorName,
+      room_type: roomType,
+      check_in_date: tenant.check_in_date || null,
+      due_date: tenant.payment_due_date || null,
+      checkout_date: checkout_date_input,
+      checkout_time: checkout_time_input,
+      deposit_amount: tenantDeposit,
+      late_fee: late_fee,
+      damage_fee: damage_fee,
+      claimed_deposit: actualClaimedDeposit,
+      deposit_refund: actualRefund,
+      additional_pay_needed: actualExtraToPay,
+      notes: checkout_notes || null,
+      processed_by: processedByName,
+      created_at: timestampStr
+    })
+  } catch (histErr) {
+    console.warn('Could not insert to checkout_history directly:', histErr)
+  }
+
+  // 2. If deposit is claimed (for late fee or damages), record as claimed deposit transaction
   if (actualClaimedDeposit > 0) {
     const claimNotes = `[Klaim Deposit] Tamu: ${tenant.full_name} | Kamar: ${roomNumber} | Denda Telat: Rp ${late_fee.toLocaleString('id-ID')} | Kerusakan: Rp ${damage_fee.toLocaleString('id-ID')} | Deposit Terklaim: Rp ${actualClaimedDeposit.toLocaleString('id-ID')} | Sisa Deposit Kembali: Rp ${actualRefund.toLocaleString('id-ID')}${checkout_notes ? ` | Catatan: ${checkout_notes}` : ''}`
     
@@ -131,7 +183,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
     })
   }
 
-  // 2. If charges exceeded deposit, record the additional excess payment settled by guest
+  // 3. If charges exceeded deposit, record the additional excess payment settled by guest
   if (actualExtraToPay > 0) {
     const extraMethod = additional_payment_method === 'transfer' ? 'transfer' : 'cash'
     const extraNotes = `[Pelunasan Check-Out] Tamu: ${tenant.full_name} | Kamar: ${roomNumber} | Pelunasan Biaya Tambahan/Kerusakan (Kekurangan Denda Melebihi Deposit)${checkout_notes ? ` | Catatan: ${checkout_notes}` : ''}`
@@ -148,7 +200,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
     })
   }
 
-  // 3. Mark check-in request as checked_out
+  // 4. Mark check-in request as checked_out
   if (tenant.room_id) {
     await adminClient
       .from('check_in_requests')
@@ -157,7 +209,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
       .eq('status', 'completed')
   }
 
-  // 4. Mark room as unoccupied
+  // 5. Mark room as unoccupied
   if (tenant.room_id) {
     await adminClient
       .from('rooms')
@@ -165,11 +217,12 @@ export async function processCheckout(prevState: any, formData: FormData) {
       .eq('id', tenant.room_id)
   }
 
-  // 5. Delete tenant record
+  // 6. Delete tenant record
   const { error: deleteError } = await adminClient.from('tenants').delete().eq('id', id)
   if (deleteError) return { error: deleteError.message }
 
   revalidatePath('/dashboard/penghuni')
+  revalidatePath('/dashboard/riwayat-checkout')
   revalidatePath('/dashboard/kamar')
   revalidatePath('/dashboard/properti')
   revalidatePath('/dashboard/pembayaran')
