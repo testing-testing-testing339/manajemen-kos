@@ -7,6 +7,7 @@ import { createStaff, updateStaff, deleteStaff, changeStaffPassword } from './ac
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
+import { Users, UserCheck, UserX, Plus, KeyRound, Pencil, Trash2, ShieldCheck, Mail, Phone, Building2 } from 'lucide-react'
 
 export default function StaffList({ initialStaff, initialBranches }: { initialStaff: any[], initialBranches: any[] }) {
   const [staff, setStaff] = useState(initialStaff)
@@ -61,16 +62,16 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
   const activeStaff = staff.filter(s => s.is_active !== false).length
   const inactiveStaff = totalStaff - activeStaff
 
-  const headers = ['Foto', 'Nama', 'Email', 'Role', 'Cabang', 'Telepon', 'Status', 'Actions']
+  const headers = ['Foto', 'Nama', 'Email Login', 'Role', 'Cabang', 'Telepon', 'Status', 'Aksi']
   const rows = staff.map(staffMember => {
     const statusBadge = staffMember.is_active !== false ? (
-      <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold flex items-center gap-1 w-fit">
-        <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+      <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold inline-flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
         Aktif
       </span>
     ) : (
-      <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-semibold flex items-center gap-1 w-fit">
-        <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+      <span className="px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-xs font-bold inline-flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
         Nonaktif
       </span>
     )
@@ -81,47 +82,56 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
           <img 
             src={staffMember.photo_url} 
             alt={staffMember.full_name}
-            className="w-12 h-12 rounded-full object-cover border-2 border-gray-200"
+            className="w-10 h-10 rounded-full object-cover border border-slate-200"
           />
         ) : (
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+          <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold text-sm">
             {(staffMember.full_name || 'S').charAt(0).toUpperCase()}
           </div>
         )}
       </div>,
-      <span key={`name-${staffMember.id}`} className="font-semibold text-gray-900">{staffMember.full_name}</span>,
-      <span key={`email-${staffMember.id}`} className="text-sm text-gray-600">
+      <div key={`name-${staffMember.id}`}>
+        <p className="font-bold text-slate-900">{staffMember.full_name}</p>
+        <p className="text-[11px] text-slate-400">ID: {staffMember.id.substring(0, 8)}</p>
+      </div>,
+      <span key={`email-${staffMember.id}`} className="font-mono text-xs font-semibold text-indigo-950 bg-indigo-50/60 px-2.5 py-1 rounded-lg border border-indigo-100/80">
         {staffMember.email || 'N/A'}
       </span>,
-      <span key={`role-${staffMember.id}`} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">{staffMember.role}</span>,
-      <span key={`branch-${staffMember.id}`} className="text-sm">{staffMember.branches?.name || '-'}</span>,
-      <span key={`phone-${staffMember.id}`} className="text-sm">{staffMember.phone || '-'}</span>,
+      <span key={`role-${staffMember.id}`} className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md text-xs font-bold uppercase tracking-wider">
+        {staffMember.role}
+      </span>,
+      <span key={`branch-${staffMember.id}`} className="text-xs font-medium text-slate-700">{staffMember.branches?.name || '-'}</span>,
+      <span key={`phone-${staffMember.id}`} className="text-xs text-slate-600">{staffMember.phone || '-'}</span>,
       statusBadge,
-      <div key={`actions-${staffMember.id}`} className="flex gap-2">
+      <div key={`actions-${staffMember.id}`} className="flex items-center gap-1.5">
         <button
+          type="button"
           onClick={() => {
             setSelectedStaff(staffMember)
             setIsEditModalOpen(true)
           }}
-          className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-all duration-150 active:scale-95 text-sm"
+          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold transition-all text-xs cursor-pointer flex items-center gap-1"
         >
-          Edit
+          <Pencil className="w-3.5 h-3.5" />
+          <span>Edit</span>
         </button>
         <button
+          type="button"
           onClick={() => {
             setSelectedStaff(staffMember)
             setIsPasswordModalOpen(true)
           }}
-          className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 font-medium transition-all duration-150 active:scale-95 text-sm"
+          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-lg font-bold transition-all text-xs cursor-pointer flex items-center gap-1"
         >
-          Ganti Password
+          <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+          <span>Ganti Password</span>
         </button>
         <form action={deleteAction}>
           <input type="hidden" name="staff_id" value={staffMember.id} />
           <SubmitButton
             variant="danger"
-            className="px-3 py-1.5 text-sm font-medium"
-            loadingText="Menghapus..."
+            className="px-2.5 py-1.5 text-xs font-bold"
+            loadingText="Hapus..."
           >
             Hapus
           </SubmitButton>
@@ -131,70 +141,68 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
   })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-black text-base">
-              KM
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Manajemen Staff</h1>
-              <p className="text-xs sm:text-sm text-slate-500">Graha Aisyah Menteng • Hak Akses Administrator & Resepsionis</p>
-            </div>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Manajemen Staff
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Graha Aisyah Menteng • Kelola hak akses login resepsionis shift pagi dan shift malam
+          </p>
         </div>
+
         <button 
           onClick={() => setIsModalOpen(true)} 
-          className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+          className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-xs flex items-center gap-2 text-xs cursor-pointer active:scale-95"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Tambah Staff
+          <Plus className="w-4 h-4" />
+          <span>Tambah Staff Baru</span>
         </button>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold opacity-90">Total Staff</h3>
-            <svg className="w-6 h-6 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Staff</p>
+            <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{totalStaff}</p>
           </div>
-          <p className="text-3xl font-bold">{totalStaff}</p>
+          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+            <Users className="w-5 h-5" />
+          </div>
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold opacity-90">Staff Aktif</h3>
-            <svg className="w-6 h-6 opacity-80" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Staff Aktif</p>
+            <p className="text-2xl sm:text-3xl font-black text-emerald-600 mt-1">{activeStaff}</p>
           </div>
-          <p className="text-3xl font-bold">{activeStaff}</p>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <UserCheck className="w-5 h-5" />
+          </div>
         </div>
 
-        <div className="bg-gradient-to-br from-gray-500 to-gray-600 rounded-xl shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold opacity-90">Staff Nonaktif</h3>
-            <svg className="w-6 h-6 opacity-80" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Staff Nonaktif</p>
+            <p className="text-2xl sm:text-3xl font-black text-slate-700 mt-1">{inactiveStaff}</p>
           </div>
-          <p className="text-3xl font-bold">{inactiveStaff}</p>
+          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center">
+            <UserX className="w-5 h-5" />
+          </div>
         </div>
       </div>
 
       {/* Staff Table */}
-      <Table headers={headers} rows={rows} />
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6">
+        <Table headers={headers} rows={rows} />
+      </div>
 
       {/* Create Staff Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Tambah Staff Baru</h2>
+        <h2 className="text-xl font-bold mb-4 text-slate-900">Tambah Staff Baru</h2>
         <StaffForm 
           action={createAction}
           branches={branches}
@@ -210,7 +218,7 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
       }}>
         {selectedStaff && (
           <>
-            <h2 className="text-2xl font-bold mb-6 text-gray-900">Edit Staff</h2>
+            <h2 className="text-xl font-bold mb-4 text-slate-900">Edit Staff</h2>
             <StaffForm 
               action={updateAction}
               branches={branches}
@@ -232,22 +240,21 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
       }}>
         {selectedStaff && (
           <>
-            <h2 className="text-2xl font-bold mb-6 text-gray-900">Ganti Password</h2>
-            <form action={passwordAction} className="space-y-5">
+            <h2 className="text-xl font-bold mb-4 text-slate-900">Ganti Password Staff</h2>
+            <form action={passwordAction} className="space-y-4">
               <input type="hidden" name="staff_id" value={selectedStaff.id} />
               
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Staff
-                </label>
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <p className="font-semibold text-gray-900">{selectedStaff.full_name}</p>
-                  <p className="text-sm text-gray-600">{selectedStaff.email}</p>
-                </div>
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Akun Staff</p>
+                <p className="font-bold text-slate-900 text-sm">{selectedStaff.full_name}</p>
+                <p className="font-mono text-xs text-indigo-600 font-semibold">{selectedStaff.email}</p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Password baru akan digunakan saat staf login dengan email di atas.
+                </p>
               </div>
 
               <div>
-                <label htmlFor="new_password" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="new_password" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                   Password Baru *
                 </label>
                 <input
@@ -256,13 +263,13 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
                   type="password"
                   required
                   minLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="Masukkan password baru (minimal 6 karakter)"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Minimal 6 karakter"
                 />
               </div>
 
               <div>
-                <label htmlFor="confirm_password" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="confirm_password" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                   Konfirmasi Password Baru *
                 </label>
                 <input
@@ -271,8 +278,8 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
                   type="password"
                   required
                   minLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="Konfirmasi password baru"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Ulangi password baru"
                 />
               </div>
 
@@ -289,16 +296,16 @@ export default function StaffList({ initialStaff, initialBranches }: { initialSt
                     setIsPasswordModalOpen(false)
                     setSelectedStaff(null)
                   }}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <SubmitButton
-                  variant="success"
-                  className="flex-1 px-4 py-3"
+                  variant="primary"
+                  className="flex-1 px-4 py-2.5 text-xs font-bold"
                   loadingText="Mengganti password..."
                 >
-                  Ganti Password
+                  Simpan Password Baru
                 </SubmitButton>
               </div>
             </form>
@@ -337,21 +344,21 @@ function StaffForm({
   }
 
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} className="space-y-4">
       {staff && <input type="hidden" name="staff_id" value={staff.id} />}
       
       {/* Photo Upload */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Foto Staff</label>
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Foto Staff</label>
         <div className="flex items-center gap-4">
           {photoPreview ? (
             <img 
               src={photoPreview} 
               alt="Preview" 
-              className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+              className="w-16 h-16 rounded-full object-cover border-2 border-slate-200"
             />
           ) : (
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl">
+            <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold text-xl">
               {staff?.full_name?.charAt(0).toUpperCase() || 'S'}
             </div>
           )}
@@ -361,58 +368,46 @@ function StaffForm({
               name="photo"
               accept="image/*"
               onChange={handlePhotoChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
             />
-            <p className="mt-1 text-xs text-gray-500">Format: JPG, PNG. Max 2MB</p>
+            <p className="mt-1 text-[11px] text-slate-400">Format: JPG, PNG. Maksimal 2MB</p>
           </div>
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Lengkap *</label>
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Nama Lengkap *</label>
         <input 
           name="full_name" 
           type="text" 
           required 
           defaultValue={staff?.full_name || ''}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" 
+          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
           placeholder="Masukkan nama lengkap" 
         />
       </div>
 
-      {!staff ? (
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Email *</label>
-          <input 
-            name="email" 
-            type="email" 
-            required 
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" 
-            placeholder="email@example.com" 
-          />
-          <p className="mt-1 text-xs text-gray-500">Email akan digunakan untuk login</p>
-        </div>
-      ) : (
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-          <input 
-            type="email" 
-            value={staff.email || 'N/A'}
-            disabled
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed" 
-          />
-          <p className="mt-1 text-xs text-gray-500">Email tidak dapat diubah</p>
-        </div>
-      )}
+      <div>
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Email Login *</label>
+        <input 
+          name="email" 
+          type="email" 
+          required 
+          defaultValue={staff?.email || ''}
+          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+          placeholder="staff@grahamenteng.com" 
+        />
+        <p className="mt-1 text-[11px] text-slate-400">Email ini digunakan staf untuk login ke sistem</p>
+      </div>
 
       {!staff && (
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Password *</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Password Awal *</label>
           <input 
             name="password" 
             type="password" 
             required={!staff}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" 
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
             placeholder="Minimal 6 karakter" 
           />
         </div>

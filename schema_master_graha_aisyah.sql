@@ -1,5 +1,10 @@
 -- =========================================================================
--- SETUP SINGLE BRANCH: KOST JL. MENTENG (TEPAT 53 KAMAR: 13 VIP, 40 NON-VIP)
+-- SETUP MASTER SINGLE BRANCH: GRAHA AISYAH MENTENG
+-- (TOTAL TEPAT 52 KAMAR: 4 SECTION / LANTAI)
+-- 1. VIP Belakang Warkop: 13 Kamar
+-- 2. Dasar: 18 Kamar
+-- 3. Gedung Atas Lt 2: 17 Kamar (1-8, 13-21)
+-- 4. Gedung Atas Lt 3: 4 Kamar (9-12)
 -- =========================================================================
 
 -- 1. Pastikan kolom-kolom baru tersedia pada tabel rooms
@@ -32,14 +37,14 @@ EXCEPTION
     NULL;
 END $$;
 
--- 4. Inisialisasi Tepat 53 Kamar di Graha Aisyah Menteng
+-- 4. Inisialisasi 52 Kamar dan 4 Section di Graha Aisyah Menteng
 DO $$
 DECLARE
   v_branch_id uuid;
-  v_floor_1_id uuid;
-  v_floor_2_id uuid;
-  v_floor_3_id uuid;
-  i integer;
+  v_floor_vip_id uuid;
+  v_floor_dasar_id uuid;
+  v_floor_lt2_id uuid;
+  v_floor_lt3_id uuid;
 BEGIN
   -- Cek atau buat cabang Graha Aisyah Menteng
   SELECT id INTO v_branch_id FROM branches WHERE name ILIKE '%Menteng%' LIMIT 1;
@@ -57,20 +62,25 @@ BEGIN
   -- Pastikan semua profil staff/owner terhubung ke cabang Graha Aisyah Menteng
   UPDATE profiles SET branch_id = v_branch_id WHERE branch_id IS NULL OR branch_id != v_branch_id;
 
-  -- Buat / Update Lantai (Lantai 1, Lantai 2, Lantai 3)
-  SELECT id INTO v_floor_1_id FROM floors WHERE branch_id = v_branch_id AND name = 'Lantai 1' LIMIT 1;
-  IF v_floor_1_id IS NULL THEN
-    INSERT INTO floors (branch_id, name) VALUES (v_branch_id, 'Lantai 1') RETURNING id INTO v_floor_1_id;
+  -- Buat / Update 4 Section Lantai
+  SELECT id INTO v_floor_vip_id FROM floors WHERE branch_id = v_branch_id AND name = 'VIP Belakang Warkop' LIMIT 1;
+  IF v_floor_vip_id IS NULL THEN
+    INSERT INTO floors (branch_id, name) VALUES (v_branch_id, 'VIP Belakang Warkop') RETURNING id INTO v_floor_vip_id;
   END IF;
 
-  SELECT id INTO v_floor_2_id FROM floors WHERE branch_id = v_branch_id AND name = 'Lantai 2' LIMIT 1;
-  IF v_floor_2_id IS NULL THEN
-    INSERT INTO floors (branch_id, name) VALUES (v_branch_id, 'Lantai 2') RETURNING id INTO v_floor_2_id;
+  SELECT id INTO v_floor_dasar_id FROM floors WHERE branch_id = v_branch_id AND name = 'Dasar' LIMIT 1;
+  IF v_floor_dasar_id IS NULL THEN
+    INSERT INTO floors (branch_id, name) VALUES (v_branch_id, 'Dasar') RETURNING id INTO v_floor_dasar_id;
   END IF;
 
-  SELECT id INTO v_floor_3_id FROM floors WHERE branch_id = v_branch_id AND name = 'Lantai 3' LIMIT 1;
-  IF v_floor_3_id IS NULL THEN
-    INSERT INTO floors (branch_id, name) VALUES (v_branch_id, 'Lantai 3') RETURNING id INTO v_floor_3_id;
+  SELECT id INTO v_floor_lt2_id FROM floors WHERE branch_id = v_branch_id AND name = 'Gedung Atas Lt 2' LIMIT 1;
+  IF v_floor_lt2_id IS NULL THEN
+    INSERT INTO floors (branch_id, name) VALUES (v_branch_id, 'Gedung Atas Lt 2') RETURNING id INTO v_floor_lt2_id;
+  END IF;
+
+  SELECT id INTO v_floor_lt3_id FROM floors WHERE branch_id = v_branch_id AND name = 'Gedung Atas Lt 3' LIMIT 1;
+  IF v_floor_lt3_id IS NULL THEN
+    INSERT INTO floors (branch_id, name) VALUES (v_branch_id, 'Gedung Atas Lt 3') RETURNING id INTO v_floor_lt3_id;
   END IF;
 
   -- Hubungkan lantai ke cabang Graha Aisyah Menteng
@@ -79,106 +89,8 @@ BEGIN
   -- Hapus cabang lama selain Graha Aisyah Menteng
   DELETE FROM branches WHERE id != v_branch_id;
 
-  -- 13 KAMAR VIP LANTAI 1 (Kamar 1 s/d 13)
-  FOR i IN 1..13 LOOP
-    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_number = i::text) THEN
-      INSERT INTO rooms (floor_id, room_number, price, price_per_day, price_per_week, price_per_month, room_type, facilities, is_occupied)
-      VALUES (
-        v_floor_1_id,
-        i::text,
-        100000,
-        100000,
-        700000,
-        3000000,
-        'vip',
-        '["AC", "Kamar Mandi Dalam", "Smart TV", "Wifi High-Speed", "Kasur Queen Bed", "Lemari Pakaian", "Meja Kerja", "Water Heater"]'::jsonb,
-        false
-      );
-    ELSE
-      UPDATE rooms 
-      SET floor_id = v_floor_1_id,
-          price = 100000,
-          price_per_day = 100000,
-          price_per_week = 700000,
-          price_per_month = 3000000,
-          room_type = 'vip',
-          facilities = '["AC", "Kamar Mandi Dalam", "Smart TV", "Wifi High-Speed", "Kasur Queen Bed", "Lemari Pakaian", "Meja Kerja", "Water Heater"]'::jsonb
-      WHERE room_number = i::text;
-    END IF;
-  END LOOP;
+  -- Hapus lantai selain 4 section ini
+  DELETE FROM floors WHERE id NOT IN (v_floor_vip_id, v_floor_dasar_id, v_floor_lt2_id, v_floor_lt3_id);
 
-  -- 20 KAMAR NON-VIP LANTAI 2 (Kamar 14 s/d 33)
-  FOR i IN 14..33 LOOP
-    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_number = i::text) THEN
-      INSERT INTO rooms (floor_id, room_number, price, price_per_day, price_per_week, price_per_month, room_type, facilities, is_occupied)
-      VALUES (
-        v_floor_2_id,
-        i::text,
-        100000,
-        100000,
-        700000,
-        3000000,
-        'non_vip',
-        '["AC", "Kamar Mandi Dalam", "Wifi High-Speed", "Kasur Single Bed", "Lemari Pakaian", "Meja Belajar"]'::jsonb,
-        false
-      );
-    ELSE
-      UPDATE rooms 
-      SET floor_id = v_floor_2_id,
-          price = 100000,
-          price_per_day = 100000,
-          price_per_week = 700000,
-          price_per_month = 3000000,
-          room_type = 'non_vip',
-          facilities = '["AC", "Kamar Mandi Dalam", "Wifi High-Speed", "Kasur Single Bed", "Lemari Pakaian", "Meja Belajar"]'::jsonb
-      WHERE room_number = i::text;
-    END IF;
-  END LOOP;
-
-  -- 20 KAMAR NON-VIP LANTAI 3 (Kamar 34 s/d 53)
-  FOR i IN 34..53 LOOP
-    IF NOT EXISTS (SELECT 1 FROM rooms WHERE room_number = i::text) THEN
-      INSERT INTO rooms (floor_id, room_number, price, price_per_day, price_per_week, price_per_month, room_type, facilities, is_occupied)
-      VALUES (
-        v_floor_3_id,
-        i::text,
-        100000,
-        100000,
-        700000,
-        3000000,
-        'non_vip',
-        '["AC", "Kamar Mandi Dalam", "Wifi High-Speed", "Kasur Single Bed", "Lemari Pakaian", "Meja Belajar"]'::jsonb,
-        false
-      );
-    ELSE
-      UPDATE rooms 
-      SET floor_id = v_floor_3_id,
-          price = 100000,
-          price_per_day = 100000,
-          price_per_week = 700000,
-          price_per_month = 3000000,
-          room_type = 'non_vip',
-          facilities = '["AC", "Kamar Mandi Dalam", "Wifi High-Speed", "Kasur Single Bed", "Lemari Pakaian", "Meja Belajar"]'::jsonb
-      WHERE room_number = i::text;
-    END IF;
-  END LOOP;
-
-  -- HAPUS SEMUA KAMAR LAIN YANG DI LUAR NOMOR 1 S/D 53
-  DELETE FROM rooms 
-  WHERE room_number ~ '^\d+$' AND (room_number::int < 1 OR room_number::int > 53);
-
-  -- Set semua harga seragam 100rb/hari
-  UPDATE rooms 
-  SET price = 100000, price_per_day = 100000, price_per_week = 700000, price_per_month = 3000000;
-
-  RAISE NOTICE 'Selesai! Total kamar sekarang tepat 53: 13 VIP dan 40 Non-VIP.';
+  RAISE NOTICE 'Inisialisasi 4 Section Lantai Selesai!';
 END $$;
-
--- Verifikasi hasil akhir
-SELECT 
-  r.room_type as tipe_kamar,
-  COUNT(*) as jumlah_kamar,
-  MIN(r.price_per_day) as harga_per_malam
-FROM rooms r
-GROUP BY r.room_type
-ORDER BY r.room_type DESC;

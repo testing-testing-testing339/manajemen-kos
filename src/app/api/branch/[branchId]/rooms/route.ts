@@ -67,11 +67,20 @@ export async function GET(
     return NextResponse.json({ error: roomsError.message }, { status: 500 })
   }
 
-  // Log for debugging (only in development)
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`Found ${rooms?.length || 0} available rooms for branch ${branchId}`)
-  }
+  // Clean facilities for public view (strip internal staff notes like Kondisi: AC Mati or ID PLN)
+  const cleanedRooms = (rooms || []).map(r => ({
+    ...r,
+    facilities: Array.isArray(r.facilities)
+      ? r.facilities.filter((f: string) => 
+          !f.toLowerCase().startsWith('id pln:') && 
+          !f.toLowerCase().startsWith('pln:') && 
+          !f.toLowerCase().startsWith('kondisi:') &&
+          !f.toLowerCase().includes('mati') &&
+          !f.toLowerCase().includes('rusak')
+        )
+      : r.facilities
+  }))
 
-  return NextResponse.json(rooms || [])
+  return NextResponse.json(cleanedRooms)
 }
 

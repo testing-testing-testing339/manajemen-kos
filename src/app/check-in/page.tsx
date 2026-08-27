@@ -57,19 +57,9 @@ export default function CheckInRootPage() {
         <div className="bg-slate-900/90 border border-slate-800/80 backdrop-blur-xl rounded-3xl shadow-2xl p-6 sm:p-10">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 mx-auto mb-4 border border-indigo-400/30">
-              <span className="text-white text-2xl font-black tracking-wider">KM</span>
-            </div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Sistem Registrasi Mandiri Tamu
-            </span>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              {branch.name}
+              Formulir Checkin {branch.name}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-md mx-auto">
-              {branch.address}
-            </p>
           </div>
 
           <Suspense fallback={<LoadingSpinner size="lg" text="Memuat formulir..." />}>

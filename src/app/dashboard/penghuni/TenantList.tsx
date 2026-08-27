@@ -213,15 +213,15 @@ export default function TenantList({
       <div key={`room-${tenant.id}`}>
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs">
           <DoorClosed className="w-3.5 h-3.5 text-indigo-600" />
-          <span>{roomNumber}</span>
+          <span>Kamar {roomNumber}</span>
           {isVip && (
             <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 text-[10px] font-extrabold rounded">
               VIP
             </span>
           )}
         </div>
-        <p className="text-[11px] text-slate-400 mt-1 font-medium">
-          Graha Aisyah Menteng • {floorName}
+        <p className="text-[11px] text-slate-500 mt-1 font-semibold">
+          {floorName}
         </p>
       </div>,
 

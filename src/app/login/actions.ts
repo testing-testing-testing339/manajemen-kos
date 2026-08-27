@@ -6,8 +6,12 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 export async function login(prevState: any, formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase()
+  const password = ((formData.get('password') as string) || '').trim()
+
+  if (!email || !password) {
+    return { error: 'Email dan password wajib diisi' }
+  }
 
   const cookieStore = await cookies()
 
@@ -20,9 +24,14 @@ export async function login(prevState: any, formData: FormData) {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options)
+            })
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing user sessions.
+          }
         },
       },
     }
@@ -34,6 +43,10 @@ export async function login(prevState: any, formData: FormData) {
   })
 
   if (error) {
+    console.error('Login error for', email, error)
+    if (error.message.includes('Invalid login credentials')) {
+      return { error: 'Email atau password salah. Silakan periksa kembali.' }
+    }
     return { error: error.message }
   }
 

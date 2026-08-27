@@ -12,7 +12,8 @@ import {
   QrCode, 
   ShieldCheck, 
   Zap,
-  ChevronRight
+  ChevronRight,
+  HardDrive
 } from 'lucide-react'
 
 function SidebarClient({ 
@@ -59,6 +60,7 @@ function SidebarClient({
   if (userRole === 'owner') {
     menuItems.push({ href: '/dashboard/pln', label: 'ID Meteran PLN', icon: Zap, badge: undefined })
     menuItems.push({ href: '/dashboard/staff', label: 'Manajemen Staff', icon: ShieldCheck, badge: undefined })
+    menuItems.push({ href: '/dashboard/developer', label: 'Monitor & Storage', icon: HardDrive, badge: undefined })
   }
 
   return (

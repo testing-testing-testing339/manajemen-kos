@@ -126,23 +126,39 @@ export default function PlnManager({
 
   // Filtered rooms
   const filteredRooms = useMemo(() => {
-    return rooms.filter(room => {
-      const plnId = getPlnId(room.facilities)
-      const q = searchQuery.toLowerCase().trim()
-      
-      const matchSearch = !q || 
-        room.room_number.toLowerCase().includes(q) || 
-        plnId.toLowerCase().includes(q) ||
-        room.floors?.name?.toLowerCase().includes(q)
+    const orderMap: Record<string, number> = {
+      'vip belakang warkop': 1,
+      'dasar': 2,
+      'gedung atas lt 2': 3,
+      'gedung atas lt 3': 4
+    }
 
-      const matchFloor = selectedFloor === 'all' || room.floors?.id === selectedFloor
+    return rooms
+      .filter(room => {
+        const plnId = getPlnId(room.facilities)
+        const q = searchQuery.toLowerCase().trim()
+        
+        const matchSearch = !q || 
+          room.room_number.toLowerCase().includes(q) || 
+          plnId.toLowerCase().includes(q) ||
+          room.floors?.name?.toLowerCase().includes(q)
 
-      let matchStatus = true
-      if (selectedStatus === 'set') matchStatus = Boolean(plnId)
-      if (selectedStatus === 'unset') matchStatus = !plnId
+        const matchFloor = selectedFloor === 'all' || room.floors?.id === selectedFloor
 
-      return matchSearch && matchFloor && matchStatus
-    })
+        let matchStatus = true
+        if (selectedStatus === 'set') matchStatus = Boolean(plnId)
+        if (selectedStatus === 'unset') matchStatus = !plnId
+
+        return matchSearch && matchFloor && matchStatus
+      })
+      .sort((a, b) => {
+        const floorA = orderMap[a.floors?.name?.toLowerCase().trim() || ''] || 99
+        const floorB = orderMap[b.floors?.name?.toLowerCase().trim() || ''] || 99
+        if (floorA !== floorB) return floorA - floorB
+        const numA = parseInt(a.room_number.replace(/\D/g, '')) || 0
+        const numB = parseInt(b.room_number.replace(/\D/g, '')) || 0
+        return numA - numB
+      })
   }, [rooms, searchQuery, selectedFloor, selectedStatus])
 
   return (

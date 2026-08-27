@@ -6,14 +6,18 @@ import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
 export async function createStaff(prevState: any, formData: FormData) {
-  const full_name = formData.get('full_name') as string
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const full_name = (formData.get('full_name') as string)?.trim()
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase()
+  const password = ((formData.get('password') as string) || '').trim()
   const branch_id = formData.get('branch_id') as string
   const phone = formData.get('phone') as string
   const address = formData.get('address') as string
   const notes = formData.get('notes') as string
   const photo = formData.get('photo') as File
+
+  if (!email || !password || !full_name) {
+    return { error: 'Nama lengkap, email, dan password wajib diisi' }
+  }
 
   const cookieStore = await cookies()
 
@@ -45,24 +49,20 @@ export async function createStaff(prevState: any, formData: FormData) {
     .single()
 
   if (profile?.role !== 'owner') {
-    return { error: 'Only owner can create staff' }
+    return { error: 'Hanya owner yang dapat membuat akun staff' }
   }
 
-  // Create auth user directly using service role (more reliable than API route)
+  // Create auth user directly using service role
   try {
-    // Check if service role key is available
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!serviceRoleKey) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('SUPABASE_SERVICE_ROLE_KEY is not set in environment variables')
-      }
-      return { error: 'Service role key not configured. Please set SUPABASE_SERVICE_ROLE_KEY in .env.local file and restart the dev server.' }
+      return { error: 'Service role key not configured' }
     }
 
     // Create admin client with service role
     const adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      serviceRoleKey,
       {
         auth: {
           autoRefreshToken: false,
@@ -76,17 +76,18 @@ export async function createStaff(prevState: any, formData: FormData) {
       email,
       password,
       email_confirm: true,
+      user_metadata: {
+        full_name,
+        role: 'staff'
+      }
     })
 
     if (authError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error creating auth user:', authError)
-      }
-      return { error: authError.message || 'Failed to create user account' }
+      return { error: authError.message || 'Gagal membuat akun user' }
     }
 
     if (!authData?.user) {
-      return { error: 'Failed to create user - no user data returned' }
+      return { error: 'Gagal membuat user - tidak ada data user' }
     }
 
     // Upload photo if provided
@@ -109,17 +110,13 @@ export async function createStaff(prevState: any, formData: FormData) {
             .from('staff-photos')
             .getPublicUrl(filePath)
           photoUrl = urlData.publicUrl
-        } else if (process.env.NODE_ENV === 'development') {
-          console.error('Photo upload error:', uploadError)
         }
       } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Photo upload exception:', error)
-        }
+        console.error('Photo upload error:', error)
       }
     }
 
-    // Check if profile already exists (in case of retry or previous failed attempt)
+    // Check if profile already exists
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('id')
@@ -127,7 +124,7 @@ export async function createStaff(prevState: any, formData: FormData) {
       .single()
 
     if (existingProfile) {
-      // Profile already exists, update it instead
+      // Profile already exists, update it
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
@@ -213,7 +210,8 @@ export async function createStaff(prevState: any, formData: FormData) {
 
 export async function updateStaff(prevState: any, formData: FormData) {
   const staff_id = formData.get('staff_id') as string
-  const full_name = formData.get('full_name') as string
+  const full_name = (formData.get('full_name') as string)?.trim()
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase()
   const branch_id = formData.get('branch_id') as string
   const phone = formData.get('phone') as string
   const address = formData.get('address') as string
@@ -251,7 +249,7 @@ export async function updateStaff(prevState: any, formData: FormData) {
     .single()
 
   if (profile?.role !== 'owner') {
-    return { error: 'Only owner can update staff' }
+    return { error: 'Hanya owner yang dapat mengubah data staff' }
   }
 
   // Upload new photo if provided
@@ -274,13 +272,9 @@ export async function updateStaff(prevState: any, formData: FormData) {
           .from('staff-photos')
           .getPublicUrl(filePath)
         photoUrl = urlData.publicUrl
-      } else if (process.env.NODE_ENV === 'development') {
-        console.error('Photo upload error:', uploadError)
       }
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Photo upload error:', error)
-      }
+      console.error('Photo upload error:', error)
     }
   }
 
@@ -294,6 +288,10 @@ export async function updateStaff(prevState: any, formData: FormData) {
     is_active,
   }
 
+  if (email) {
+    updateData.email = email
+  }
+
   if (photoUrl) {
     updateData.photo_url = photoUrl
   }
@@ -304,6 +302,28 @@ export async function updateStaff(prevState: any, formData: FormData) {
     .eq('id', staff_id)
 
   if (updateError) return { error: updateError.message }
+
+  // If email was provided/updated, sync with auth.users
+  if (email && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const adminClient = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      )
+      await adminClient.auth.admin.updateUserById(staff_id, {
+        email,
+        email_confirm: true
+      })
+    } catch (authSyncErr) {
+      console.error('Auth email sync error:', authSyncErr)
+    }
+  }
 
   revalidatePath('/dashboard/staff')
   return { success: true }
@@ -342,7 +362,7 @@ export async function deleteStaff(prevState: any, formData: FormData) {
     .single()
 
   if (profile?.role !== 'owner') {
-    return { error: 'Only owner can delete staff' }
+    return { error: 'Hanya owner yang dapat menghapus staff' }
   }
 
   // Delete profile first
@@ -368,10 +388,7 @@ export async function deleteStaff(prevState: any, formData: FormData) {
       )
       await adminClient.auth.admin.deleteUser(staff_id)
     } catch (error) {
-      // Silently handle cleanup errors
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error deleting auth user:', error)
-      }
+      console.error('Error deleting auth user:', error)
     }
   }
 
@@ -381,8 +398,8 @@ export async function deleteStaff(prevState: any, formData: FormData) {
 
 export async function changeStaffPassword(prevState: any, formData: FormData) {
   const staff_id = formData.get('staff_id') as string
-  const new_password = formData.get('new_password') as string
-  const confirm_password = formData.get('confirm_password') as string
+  const new_password = ((formData.get('new_password') as string) || '').trim()
+  const confirm_password = ((formData.get('confirm_password') as string) || '').trim()
 
   if (!staff_id || !new_password || !confirm_password) {
     return { error: 'Semua field harus diisi' }
@@ -426,13 +443,13 @@ export async function changeStaffPassword(prevState: any, formData: FormData) {
     .single()
 
   if (profile?.role !== 'owner') {
-    return { error: 'Only owner can change staff password' }
+    return { error: 'Hanya owner yang dapat mengubah password staff' }
   }
 
   // Verify staff exists and is a staff member
   const { data: staffProfile } = await supabase
     .from('profiles')
-    .select('id, role')
+    .select('id, role, email, full_name')
     .eq('id', staff_id)
     .single()
 
@@ -461,24 +478,46 @@ export async function changeStaffPassword(prevState: any, formData: FormData) {
       }
     )
 
-    const { error: updateError } = await adminClient.auth.admin.updateUserById(
+    const emailToSync = staffProfile.email ? staffProfile.email.trim().toLowerCase() : undefined
+
+    let { error: updateError } = await adminClient.auth.admin.updateUserById(
       staff_id,
-      { password: new_password }
+      {
+        password: new_password,
+        ...(emailToSync ? { email: emailToSync } : {}),
+        email_confirm: true
+      }
     )
 
-    if (updateError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error updating password:', updateError)
+    // If user was not in auth.users, create it directly
+    if (updateError && (updateError.message?.toLowerCase().includes('not found') || (updateError as any).status === 404)) {
+      if (emailToSync) {
+        const { error: createError } = await adminClient.auth.admin.createUser({
+          id: staff_id,
+          email: emailToSync,
+          password: new_password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: staffProfile.full_name,
+            role: 'staff'
+          }
+        })
+        if (!createError) {
+          updateError = null
+        } else {
+          updateError = createError
+        }
       }
+    }
+
+    if (updateError) {
       return { error: updateError.message || 'Gagal mengubah password' }
     }
 
     revalidatePath('/dashboard/staff')
     return { success: true }
   } catch (error: any) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Unexpected error in changeStaffPassword:', error)
-    }
+    console.error('Unexpected error in changeStaffPassword:', error)
     return { error: error?.message || 'Terjadi kesalahan saat mengubah password' }
   }
 }

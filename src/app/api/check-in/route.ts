@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     const full_name = formData.get('full_name') as string
     const phone = formData.get('phone') as string
     const email = formData.get('email') as string
+    const guarantee_type = (formData.get('guarantee_type') as string) || 'deposit'
     const id_card_number = formData.get('id_card_number') as string
     const selected_room_type = formData.get('selected_room_type') as string
     const room_category = (formData.get('room_category') as string) || 'vip'
@@ -44,11 +45,11 @@ export async function POST(request: Request) {
     const rental_days = formData.get('rental_days') as string
     const rental_weeks = formData.get('rental_weeks') as string
     const rental_months = formData.get('rental_months') as string
-    const deposit_amount = (formData.get('deposit_amount') as string) || '100000'
+    const deposit_amount = guarantee_type === 'deposit' ? ((formData.get('deposit_amount') as string) || '100000') : '0'
     const total_amount = formData.get('total_amount') as string
     const payment_method = (formData.get('payment_method') as string) || 'qris'
     const payment_destination = formData.get('payment_destination') as string
-    const id_card_photo = formData.get('id_card_photo') as File
+    const id_card_photo = formData.get('id_card_photo') as File | null
     const selfie_photo = formData.get('selfie_photo') as File
     const payment_proof = formData.get('payment_proof') as File | null
 
@@ -99,13 +100,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // Validate ID card number
+    // Validate ID card number (mandatory for system registration)
+    let sanitizedIdCard: string = '-'
     if (!id_card_number) {
       errors.push('Nomor KTP wajib diisi')
     } else {
       const idCardValidation = validateIdCardNumber(id_card_number)
       if (!idCardValidation.valid) {
         errors.push('Nomor KTP harus 16 digit angka')
+      } else {
+        sanitizedIdCard = idCardValidation.sanitized
       }
     }
 
@@ -119,9 +123,9 @@ export async function POST(request: Request) {
       }
     }
 
-    // Validate files
+    // Validate files: KTP photo is mandatory for system registration
     if (!id_card_photo || id_card_photo.size === 0) {
-      errors.push('Foto KTP wajib diisi')
+      errors.push('Foto KTP wajib diunggah untuk verifikasi identitas')
     } else {
       const idCardFileValidation = validateFile(id_card_photo, ['image/'], 8)
       if (!idCardFileValidation.valid) {
@@ -129,6 +133,7 @@ export async function POST(request: Request) {
       }
     }
 
+    // Selfie photo is always mandatory for guest face verification
     if (!selfie_photo || selfie_photo.size === 0) {
       errors.push('Foto selfie wajib diisi')
     } else {
@@ -138,15 +143,17 @@ export async function POST(request: Request) {
       }
     }
 
-    // Payment proof is only mandatory for QRIS
-    if (payment_method === 'qris') {
-      if (!payment_proof || payment_proof.size === 0) {
+    // Payment proof is mandatory for both QRIS and Cash handover photo
+    if (!payment_proof || payment_proof.size === 0) {
+      if (payment_method === 'qris') {
         errors.push('Bukti pembayaran QRIS wajib diunggah')
       } else {
-        const proofFileValidation = validateFile(payment_proof, ['image/'], 8)
-        if (!proofFileValidation.valid) {
-          errors.push(proofFileValidation.error || 'Bukti transfer tidak valid')
-        }
+        errors.push('Foto bukti serah terima uang tunai ke petugas resepsionis wajib diunggah')
+      }
+    } else {
+      const proofFileValidation = validateFile(payment_proof, ['image/'], 8)
+      if (!proofFileValidation.valid) {
+        errors.push(proofFileValidation.error || 'Foto bukti pembayaran tidak valid')
       }
     }
 
@@ -157,7 +164,6 @@ export async function POST(request: Request) {
     // Sanitize inputs
     const sanitizedName = validateFullName(full_name).sanitized
     const sanitizedPhone = validatePhone(phone).sanitized
-    const sanitizedIdCard = validateIdCardNumber(id_card_number).sanitized
     const sanitizedPaymentDest = sanitizeString(payment_destination || 'Graha Aisyah Menteng')
     const sanitizedAmount = validateAmount(total_amount).sanitized
 
@@ -166,21 +172,21 @@ export async function POST(request: Request) {
     let selfie_photo_url = ''
     let payment_proof_url = ''
 
-    // Upload ID card photo
-    const idCardFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard}-id-card.jpg`
-    const { error: idCardError } = await supabase.storage
-      .from('check-in-photos')
-      .upload(idCardFileName, id_card_photo, { cacheControl: '3600', upsert: false })
-    
-    if (idCardError) {
-      return NextResponse.json({ error: 'Gagal mengupload foto KTP: ' + idCardError.message }, { status: 500 })
+    // Upload ID card photo if provided
+    if (id_card_photo && id_card_photo.size > 0) {
+      const idCardFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard || 'id'}-id-card.jpg`
+      const { error: idCardError } = await supabase.storage
+        .from('check-in-photos')
+        .upload(idCardFileName, id_card_photo, { cacheControl: '3600', upsert: false })
+      
+      if (!idCardError) {
+        const { data: idCardUrlData } = supabase.storage.from('check-in-photos').getPublicUrl(idCardFileName)
+        id_card_photo_url = idCardUrlData.publicUrl
+      }
     }
-    
-    const { data: idCardUrlData } = supabase.storage.from('check-in-photos').getPublicUrl(idCardFileName)
-    id_card_photo_url = idCardUrlData.publicUrl
 
     // Upload selfie photo
-    const selfieFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard}-selfie.jpg`
+    const selfieFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard || 'selfie'}-selfie.jpg`
     const { error: selfieError } = await supabase.storage
       .from('check-in-photos')
       .upload(selfieFileName, selfie_photo, { cacheControl: '3600', upsert: false })
@@ -194,7 +200,7 @@ export async function POST(request: Request) {
 
     // Upload payment proof if provided
     if (payment_proof && payment_proof.size > 0) {
-      const proofFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard}-payment-proof.jpg`
+      const proofFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard || 'payment'}-payment-proof.jpg`
       const { error: proofError } = await supabase.storage
         .from('check-in-photos')
         .upload(proofFileName, payment_proof, { cacheControl: '3600', upsert: false })
@@ -216,7 +222,7 @@ export async function POST(request: Request) {
         phone: sanitizedPhone,
         email: sanitizedEmail,
         id_card_number: sanitizedIdCard,
-        id_card_photo_url,
+        id_card_photo_url: id_card_photo_url || null,
         selfie_photo_url,
         selected_room_type,
         room_category: room_category || 'vip',
@@ -224,7 +230,7 @@ export async function POST(request: Request) {
         rental_days: rental_days ? parseInt(rental_days) : 1,
         rental_weeks: rental_weeks ? parseInt(rental_weeks) : 1,
         rental_months: rental_months ? parseInt(rental_months) : 1,
-        deposit_amount: deposit_amount ? parseFloat(deposit_amount) : 100000,
+        deposit_amount: parseFloat(deposit_amount),
         total_amount: sanitizedAmount,
         payment_method: payment_method || 'qris',
         payment_destination: sanitizedPaymentDest,

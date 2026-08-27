@@ -14,7 +14,8 @@ import {
   CheckCircle2, 
   Clock, 
   ArrowUpRight,
-  PlusCircle
+  PlusCircle,
+  Wrench
 } from 'lucide-react'
 
 export default async function DashboardPage() {
@@ -233,15 +234,17 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900">53</span>
+            <span className="text-2xl font-black text-slate-900">{totalRooms || 52}</span>
             <span className="text-xs font-semibold text-purple-600">
-              Kamar
+              Kamar (4 Section)
             </span>
           </div>
-          <div className="mt-3 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+          <div className="mt-3 flex items-center justify-between text-[10px] font-semibold text-slate-500">
             <span className="text-purple-600">13 VIP</span>
             <span>•</span>
-            <span className="text-indigo-600">40 Non-VIP</span>
+            <span className="text-indigo-600">18 Dasar</span>
+            <span>•</span>
+            <span className="text-blue-600">21 Gedung Atas</span>
           </div>
         </div>
       </div>
@@ -251,7 +254,7 @@ export default async function DashboardPage() {
         <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
           <span>Aksi & Navigasi Cepat</span>
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           <Link
             href="/dashboard/properti"
             className="group p-4 bg-white rounded-2xl border border-slate-200/80 hover:border-indigo-200 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
@@ -263,7 +266,7 @@ export default async function DashboardPage() {
               <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
                 Properti & Kamar
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Atur cabang, lantai, & tarif</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Denah 4 section & kamar</p>
             </div>
           </Link>
 
@@ -278,7 +281,7 @@ export default async function DashboardPage() {
               <p className="text-sm font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">
                 Daftar Penghuni
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Kelola penyewa & jatuh tempo</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Kelola penyewa & tempo</p>
             </div>
           </Link>
 
@@ -293,7 +296,7 @@ export default async function DashboardPage() {
               <p className="text-sm font-bold text-slate-800 group-hover:text-purple-600 transition-colors">
                 Pembayaran
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Verifikasi & cetak invoice</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Verifikasi & invoice</p>
             </div>
           </Link>
 
@@ -308,7 +311,22 @@ export default async function DashboardPage() {
               <p className="text-sm font-bold text-slate-800 group-hover:text-amber-600 transition-colors">
                 QR Check-in
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Buat barcode check-in tamu</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Barcode check-in tamu</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/developer"
+            className="group p-4 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-2xl border border-indigo-200/80 hover:border-indigo-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-700 flex items-center justify-center shadow-xs mb-3 group-hover:scale-105 transition-transform">
+              <Wrench className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-indigo-950 group-hover:text-indigo-700 transition-colors">
+                Monitor & Developer
+              </p>
+              <p className="text-[11px] text-indigo-800/80 mt-0.5 font-medium">Kapasitas DB & Storage</p>
             </div>
           </Link>
         </div>

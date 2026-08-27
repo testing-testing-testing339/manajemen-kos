@@ -39,7 +39,8 @@ import {
   HelpCircle,
   RotateCcw,
   Crown,
-  Receipt
+  Receipt,
+  FileText
 } from 'lucide-react'
 
 interface CheckInFormProps {
@@ -50,10 +51,88 @@ interface CheckInFormProps {
 type RoomCategory = 'vip' | 'non_vip'
 type DurationType = 'daily' | 'weekly' | 'monthly'
 type PaymentMethod = 'qris' | 'cash'
+type GuaranteeType = 'deposit' | 'ktp'
 
 export default function CheckInForm({ branchId, branchName }: CheckInFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(1)
+  const [devMode, setDevMode] = useState(false)
+
+  // Check if developer preview mode is enabled via URL param (?dev=true) or localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const isDev = urlParams.get('dev') === 'true' || localStorage.getItem('graha_dev_mode') === 'true'
+      if (isDev) {
+        setDevMode(true)
+      }
+    }
+  }, [])
+
+  const toggleDevMode = () => {
+    const nextState = !devMode
+    setDevMode(nextState)
+    if (typeof window !== 'undefined') {
+      if (nextState) {
+        localStorage.setItem('graha_dev_mode', 'true')
+      } else {
+        localStorage.removeItem('graha_dev_mode')
+      }
+    }
+  }
+
+  // Create dummy image file for dev autofill testing
+  const createDummyFile = (filename: string): File => {
+    const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+    const byteCharacters = atob(base64)
+    const byteNumbers = new Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    }
+    const byteArray = new Uint8Array(byteNumbers)
+    const blob = new Blob([byteArray], { type: 'image/png' })
+    return new File([blob], filename, { type: 'image/png' })
+  }
+
+  // Auto-Fill sample data for instant full-form preview & testing
+  const handleAutoFillDev = () => {
+    const dummyKtp = createDummyFile('dummy_ktp_tester.png')
+    const dummySelfie = createDummyFile('dummy_selfie_tester.png')
+    const dummyProof = createDummyFile('dummy_payment_proof.png')
+
+    setFormData({
+      full_name: 'Budi Santoso (Tester Dev)',
+      phone: '081234567890',
+      email: 'dev.tester@graha.com',
+      id_card_number: '1234567890123456',
+      id_card_photo: dummyKtp,
+      selfie_photo: dummySelfie,
+      terms_accepted: true,
+      payment_proof: dummyProof,
+    })
+    setRoomCategory('vip')
+    setDurationType('daily')
+    setDailyDays(2)
+    setPaymentMethod('qris')
+    setValidationErrors({})
+    setError('')
+  }
+
+  const handleResetForm = () => {
+    setFormData({
+      full_name: '',
+      phone: '',
+      email: '',
+      id_card_number: '',
+      id_card_photo: null,
+      selfie_photo: null,
+      terms_accepted: false,
+      payment_proof: null,
+    })
+    setStep(1)
+    setValidationErrors({})
+    setError('')
+  }
 
   // Form State
   const [formData, setFormData] = useState({
@@ -67,6 +146,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     payment_proof: null as File | null,
   })
 
+  // Guarantee Selection (Deposit Rp 100k or Titip KTP Asli)
+  const [guaranteeType, setGuaranteeType] = useState<GuaranteeType>('deposit')
+
   // Room & Duration selections
   const [roomCategory, setRoomCategory] = useState<RoomCategory>('vip')
   const [durationType, setDurationType] = useState<DurationType>('daily')
@@ -79,7 +161,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const BASE_PRICE_PER_DAY = 100000
   const BASE_PRICE_PER_WEEK = 700000 // 7 x 100rb
   const BASE_PRICE_PER_MONTH = 3000000 // 30 x 100rb
-  const DEPOSIT_AMOUNT = 100000 // Refundable Deposit
+  const DEPOSIT_AMOUNT = guaranteeType === 'deposit' ? 100000 : 0 // Rp 100k if deposit option, Rp 0 if KTP guarantee option
 
   // Calculated Totals
   const rentSubtotal = 
@@ -245,6 +327,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
   // Validation
   const validateStep1 = () => {
+    if (devMode) return true // Bypass in Dev Mode for quick maintenance/testing
     const errs: { [key: string]: string } = {}
     const nameV = validateFullName(formData.full_name)
     if (!nameV.valid) errs.full_name = 'Nama lengkap minimal 2 karakter (hanya huruf dan spasi)'
@@ -258,7 +341,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     }
 
     const idCardV = validateIdCardNumber(formData.id_card_number)
-    if (!idCardV.valid) errs.id_card_number = 'Nomor KTP harus 16 digit angka'
+    if (!idCardV.valid) errs.id_card_number = 'Nomor KTP (NIK) harus 16 digit angka'
 
     setValidationErrors(errs)
     return Object.keys(errs).length === 0
@@ -270,8 +353,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     setLoading(true)
     setError('')
 
-    if (paymentMethod === 'qris' && !formData.payment_proof) {
-      setError('Harap lampirkan bukti pembayaran QRIS')
+    if (!formData.payment_proof && !devMode) {
+      if (paymentMethod === 'qris') {
+        setError('Harap lampirkan bukti pembayaran QRIS')
+      } else {
+        setError('Harap foto dan lampirkan bukti serah terima uang tunai ke petugas resepsionis')
+      }
       setLoading(false)
       return
     }
@@ -282,7 +369,8 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       submitData.append('full_name', sanitizeString(formData.full_name))
       submitData.append('phone', sanitizeString(formData.phone))
       submitData.append('email', sanitizeString(formData.email || ''))
-      submitData.append('id_card_number', sanitizeString(formData.id_card_number))
+      submitData.append('guarantee_type', guaranteeType)
+      submitData.append('id_card_number', sanitizeString(formData.id_card_number || '-'))
       submitData.append('room_category', roomCategory)
       submitData.append('rental_duration', durationType)
       submitData.append('rental_days', durationType === 'daily' ? dailyDays.toString() : (durationType === 'weekly' ? (weeklyWeeks * 7).toString() : (monthlyMonths * 30).toString()))
@@ -291,7 +379,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       submitData.append('deposit_amount', DEPOSIT_AMOUNT.toString())
       submitData.append('total_amount', totalAmount.toString())
       submitData.append('payment_method', paymentMethod)
-      submitData.append('payment_destination', paymentMethod === 'qris' ? 'QRIS GoPay Merchant - Graha Aisyah Menteng' : 'Resepsionis Tunai / Cash')
+      submitData.append('payment_destination', paymentMethod === 'qris' ? 'QRIS Standar Pembayaran Nasional - Graha Aisyah Menteng' : 'Resepsionis Tunai / Cash')
       submitData.append('terms_accepted', 'true')
 
       // Selected room type JSON for compatibility
@@ -311,7 +399,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       if (formData.selfie_photo) {
         submitData.append('selfie_photo', formData.selfie_photo)
       }
-      if (formData.payment_proof && paymentMethod === 'qris') {
+      if (formData.payment_proof) {
         submitData.append('payment_proof', formData.payment_proof)
       }
 
@@ -419,6 +507,85 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* =========================================================================
+          DEVELOPER / OWNER MAINTENANCE BAR
+      ========================================================================= */}
+      {devMode && (
+        <div className="bg-gradient-to-r from-amber-950/50 via-slate-900 to-amber-950/50 border-2 border-amber-500/50 rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-2xl animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider text-amber-300 block">
+                  Mode Pengembang (Owner Preview & Maintenance)
+                </span>
+                <span className="text-[10px] text-amber-400/80">
+                  Bypass validasi aktif. Anda dapat berpindah langkah bebas untuk inspeksi form.
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAutoFillDev}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 hover:scale-105 active:scale-95"
+                title="Isi form dengan data dummy testing"
+              >
+                <span>Auto-Fill Data Dummy</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                title="Reset Form ke awal"
+              >
+                <span>Reset</span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleDevMode}
+                className="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold rounded-xl border border-rose-500/30 transition-colors cursor-pointer"
+                title="Tutup Mode Developer"
+              >
+                <span>Tutup</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-200/80 mb-2">
+              Navigasi Cepat Antar Langkah:
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5">
+              {[
+                { num: 1, label: '1. Data Diri' },
+                { num: 2, label: '2. Foto KTP' },
+                { num: 3, label: '3. Foto Selfie' },
+                { num: 4, label: '4. Pilih Kamar' },
+                { num: 5, label: '5. Aturan Kost' },
+                { num: 6, label: '6. Pembayaran' }
+              ].map(s => (
+                <button
+                  key={s.num}
+                  type="button"
+                  onClick={() => {
+                    setStep(s.num)
+                    setError('')
+                  }}
+                  className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all cursor-pointer text-center ${
+                    step === s.num
+                      ? 'bg-amber-400 text-slate-950 shadow-md ring-2 ring-amber-300/60 scale-102'
+                      : 'bg-slate-900 text-amber-300 hover:bg-slate-800 border border-amber-500/30'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Progress Stepper Indicator */}
       <div className="flex items-center justify-between mb-8 px-2">
         {[
@@ -430,19 +597,27 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           { num: 6, label: 'Bayar' }
         ].map((s, idx, arr) => (
           <div key={s.num} className="flex items-center flex-1">
-            <div className="flex flex-col items-center">
+            <div 
+              onClick={() => {
+                if (devMode) {
+                  setStep(s.num)
+                  setError('')
+                }
+              }}
+              className={`flex flex-col items-center select-none ${devMode ? 'cursor-pointer group' : ''}`}
+            >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                 step === s.num
                   ? 'bg-gradient-to-tr from-indigo-500 to-purple-600 text-white ring-4 ring-indigo-500/20 shadow-md scale-110'
                   : step > s.num
                   ? 'bg-emerald-500 text-white'
                   : 'bg-slate-800 text-slate-500 border border-slate-700'
-              }`}>
+              } ${devMode ? 'group-hover:border-amber-400 group-hover:scale-105' : ''}`}>
                 {step > s.num ? <Check className="w-4 h-4" /> : s.num}
               </div>
               <span className={`text-[10px] font-semibold mt-1 hidden sm:block ${
                 step === s.num ? 'text-indigo-400 font-bold' : step > s.num ? 'text-emerald-400' : 'text-slate-500'
-              }`}>
+              } ${devMode ? 'group-hover:text-amber-300' : ''}`}>
                 {s.label}
               </span>
             </div>
@@ -477,6 +652,76 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </p>
           </div>
 
+          {/* Pilihan Jaminan Menginap */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+              Jaminan Kamar & Kunci *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Opsi Deposit */}
+              <div
+                onClick={() => setGuaranteeType('deposit')}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                  guaranteeType === 'deposit'
+                    ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30'
+                    : 'border-slate-800 bg-slate-850/60 hover:border-slate-700'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Deposit Rp 100.000</h4>
+                      <p className="text-xs text-indigo-400 font-medium mt-0.5">KTP fisik tidak ditahan</p>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 shrink-0 transition-colors ${
+                      guaranteeType === 'deposit'
+                        ? 'border-indigo-500 bg-indigo-600'
+                        : 'border-slate-600 bg-slate-800'
+                    }`}>
+                      {guaranteeType === 'deposit' && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Deposit dikembalikan penuh saat checkout. KTP fisik asli tetap Anda bawa ke kamar.
+                  </p>
+                </div>
+              </div>
+
+              {/* Opsi KTP */}
+              <div
+                onClick={() => setGuaranteeType('ktp')}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                  guaranteeType === 'ktp'
+                    ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30'
+                    : 'border-slate-800 bg-slate-850/60 hover:border-slate-700'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Titip KTP Fisik</h4>
+                      <p className="text-xs text-indigo-400 font-medium mt-0.5">Tanpa biaya deposit (Rp 0)</p>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 shrink-0 transition-colors ${
+                      guaranteeType === 'ktp'
+                        ? 'border-indigo-500 bg-indigo-600'
+                        : 'border-slate-600 bg-slate-800'
+                    }`}>
+                      {guaranteeType === 'ktp' && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    KTP fisik asli dititipkan di meja resepsionis selama masa inap dan dikembalikan saat checkout.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
               Nama Lengkap (Sesuai KTP) *
@@ -487,7 +732,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 required
                 value={formData.full_name}
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                placeholder="Masukkan nama lengkap"
+                placeholder="Masukkan nama lengkap Anda"
                 className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
                   validationErrors.full_name ? 'border-red-500' : 'border-slate-700'
                 }`}
@@ -580,6 +825,16 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Posisikan KTP secara horizontal di dalam bingkai panduan kartu di bawah ini
+            </p>
+          </div>
+
+          {/* Guarantee info notice in Step 2 */}
+          <div className="p-3.5 bg-slate-850/80 border border-slate-800 rounded-2xl text-xs text-slate-300 leading-relaxed flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+            <p>
+              {guaranteeType === 'deposit'
+                ? 'Catatan: Foto KTP digunakan untuk verifikasi identitas sistem. KTP fisik asli tetap Anda bawa karena memilih opsi jaminan deposit.'
+                : 'Catatan: Foto KTP digunakan untuk verifikasi sistem, dan fisik KTP asli dititipkan ke staf resepsionis saat serah terima kunci.'}
             </p>
           </div>
 
@@ -713,7 +968,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (!formData.id_card_photo) {
+                if (!devMode && !formData.id_card_photo) {
                   setError('Harap ambil atau unggah foto KTP terlebih dahulu')
                   return
                 }
@@ -721,7 +976,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 setError('')
                 setStep(3)
               }}
-              disabled={!formData.id_card_photo}
+              disabled={!devMode && !formData.id_card_photo}
               className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               Lanjut: Foto Selfie
@@ -737,13 +992,20 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         <div className="space-y-4">
           <div className="border-b border-slate-800 pb-3 mb-2">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <User className="w-5 h-5 text-indigo-400" />
-              Foto Selfie Tamu
+              <Camera className="w-5 h-5 text-indigo-400" />
+              Foto Selfie Wajah Anda
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Ambil foto selfie wajah Anda dengan pencahayaan yang cukup
+              Posisikan wajah Anda di tengah bingkai lingkaran untuk verifikasi identitas
             </p>
           </div>
+
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <p>{error}</p>
+            </div>
+          )}
 
           {!formData.selfie_photo ? (
             <div className="space-y-4">
@@ -754,7 +1016,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   autoPlay
                   playsInline
                   muted
-                  className={`w-full h-full object-cover ${cameraActive === 'selfie' ? 'block' : 'hidden'}`}
+                  className={`w-full h-full object-cover scale-x-[-1] ${cameraActive === 'selfie' ? 'block' : 'hidden'}`}
                 />
 
                 {cameraActive === 'selfie' ? (
@@ -854,7 +1116,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (!formData.selfie_photo) {
+                if (!devMode && !formData.selfie_photo) {
                   setError('Harap ambil atau unggah foto selfie Anda')
                   return
                 }
@@ -862,7 +1124,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 setError('')
                 setStep(4)
               }}
-              disabled={!formData.selfie_photo}
+              disabled={!devMode && !formData.selfie_photo}
               className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               Lanjut: Pilih Kamar & Durasi
@@ -906,7 +1168,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-xs">
                       <Crown className="w-3.5 h-3.5 text-purple-300" />
-                      Kamar VIP • Lt 1
+                      VIP Belakang Warkop
                     </span>
                     <div className="text-right">
                       <span className="text-sm font-black text-white">Rp 100.000</span>
@@ -914,9 +1176,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                   </div>
 
-                  <h3 className="text-base font-extrabold text-white mb-1">VIP Suite Room</h3>
+                  <h3 className="text-base font-extrabold text-white mb-1">VIP Belakang Warkop</h3>
                   <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                    Kamar eksklusif di Lantai 1 dengan Smart TV, Queen Bed, AC, dan Water Heater.
+                    Kamar eksklusif di bagian VIP Belakang Warkop dengan fasilitas lengkap (AC, Smart TV, dan Water Heater).
                   </p>
 
                   <div className="flex flex-wrap gap-1.5 mb-4">
@@ -931,11 +1193,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <div className={`pt-2.5 border-t flex items-center justify-between text-xs font-bold ${
                   roomCategory === 'vip' ? 'border-purple-500/30 text-purple-300' : 'border-slate-800 text-slate-500'
                 }`}>
-                  <span>{roomCategory === 'vip' ? '✓ Kategori Dipilih' : 'Ketuk untuk memilih'}</span>
+                  <span>{roomCategory === 'vip' ? 'Kategori Dipilih' : 'Ketuk untuk memilih'}</span>
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
                     roomCategory === 'vip' ? 'bg-purple-500 text-white shadow-sm' : 'border border-slate-700'
                   }`}>
-                    {roomCategory === 'vip' ? '✓' : ''}
+                    {roomCategory === 'vip' ? <Check className="w-3 h-3" /> : ''}
                   </div>
                 </div>
               </div>
@@ -953,7 +1215,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-xs">
                       <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
-                      Standard • Lt 2 & 3
+                      Standard • Dasar & Gedung Atas
                     </span>
                     <div className="text-right">
                       <span className="text-sm font-black text-white">Rp 100.000</span>
@@ -963,7 +1225,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
                   <h3 className="text-base font-extrabold text-white mb-1">Standard Room</h3>
                   <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                    Kamar nyaman dengan AC, Single Bed, Kamar Mandi Dalam, Lemari, dan Wifi High Speed.
+                    Kamar di Lantai Dasar dan Gedung Atas (Lt 2 & 3) dengan Single Bed, Kamar Mandi Dalam, Lemari, dan Wifi.
                   </p>
 
                   <div className="flex flex-wrap gap-1.5 mb-4">
@@ -978,11 +1240,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <div className={`pt-2.5 border-t flex items-center justify-between text-xs font-bold ${
                   roomCategory === 'non_vip' ? 'border-indigo-500/30 text-indigo-300' : 'border-slate-800 text-slate-500'
                 }`}>
-                  <span>{roomCategory === 'non_vip' ? '✓ Kategori Dipilih' : 'Ketuk untuk memilih'}</span>
+                  <span>{roomCategory === 'non_vip' ? 'Kategori Dipilih' : 'Ketuk untuk memilih'}</span>
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
                     roomCategory === 'non_vip' ? 'bg-indigo-500 text-white shadow-sm' : 'border border-slate-700'
                   }`}>
-                    {roomCategory === 'non_vip' ? '✓' : ''}
+                    {roomCategory === 'non_vip' ? <Check className="w-3 h-3" /> : ''}
                   </div>
                 </div>
               </div>
@@ -991,18 +1253,17 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
           {/* 2. Duration Selector */}
           <div className="space-y-3">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-              2. Pilih Pilihan Durasi Sewa:
+            <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
+              2. Pilih Durasi Sewa *
             </label>
-            
-            <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-900 rounded-2xl border border-slate-800">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setDurationType('daily')}
-                className={`py-2.5 px-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                   durationType === 'daily'
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
                 Harian
@@ -1010,10 +1271,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <button
                 type="button"
                 onClick={() => setDurationType('weekly')}
-                className={`py-2.5 px-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                   durationType === 'weekly'
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
                 Mingguan
@@ -1021,10 +1282,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <button
                 type="button"
                 onClick={() => setDurationType('monthly')}
-                className={`py-2.5 px-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                   durationType === 'monthly'
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
                 Bulanan
@@ -1101,7 +1362,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                             : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
                         }`}
                       >
-                        {w} Minggu ({w * 7} Hari)
+                        {w} Minggu
                       </button>
                     ))}
                   </div>
@@ -1161,13 +1422,17 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               {/* Deposit item */}
               <div className="flex justify-between text-slate-300">
                 <div>
-                  <span className="font-medium block">Uang Titipan Deposit</span>
+                  <span className="font-medium block">
+                    {guaranteeType === 'deposit' ? 'Uang Titipan Deposit' : 'Jaminan Menginap (KTP Asli)'}
+                  </span>
                   <span className="text-[10px] text-emerald-400 block font-normal">
-                    (100% Dikembalikan utuh saat checkout)
+                    {guaranteeType === 'deposit'
+                      ? '(100% Dikembalikan utuh saat checkout)'
+                      : '(Bebas Biaya Deposit • Jaminan KTP Asli)'}
                   </span>
                 </div>
-                <span className="font-bold text-emerald-400 font-mono">
-                  Rp 100.000
+                <span className={`font-bold font-mono ${guaranteeType === 'deposit' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {guaranteeType === 'deposit' ? 'Rp 100.000' : 'Rp 0'}
                 </span>
               </div>
             </div>
@@ -1176,7 +1441,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div className="pt-3 border-t border-slate-800 flex justify-between items-center bg-slate-900/60 p-3 rounded-2xl">
               <div>
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Dibayar:</span>
-                <span className="text-[10px] text-slate-500 font-medium">Termasuk Deposit Refundable</span>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {guaranteeType === 'deposit' ? 'Termasuk Deposit Rp 100k (Refundable)' : 'Hanya Sewa Kamar Saja (Rp 0 Deposit)'}
+                </span>
               </div>
               <div className="text-right">
                 <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 font-mono">
@@ -1207,39 +1474,53 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       )}
 
       {/* =========================================================================
-          STEP 5: SYARAT & KETENTUAN (TERMASUK DENDA TELAT CHECKOUT)
+          STEP 5: SYARAT & KETENTUAN KOST
       ========================================================================= */}
       {step === 5 && (
         <div className="space-y-5">
           <div className="border-b border-slate-800 pb-3">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-indigo-400" />
-              Kebijakan & Aturan Graha Aisyah Menteng
+              <FileText className="w-5 h-5 text-indigo-400" />
+              Syarat & Ketentuan Menginap
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Harap baca dan setujui ketentuan operasional sebelum melanjutkan
+              Kebijakan Graha Aisyah Menteng untuk kenyamanan bersama
             </p>
           </div>
 
-          <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/80 max-h-60 overflow-y-auto space-y-3 text-xs text-slate-300 leading-relaxed pr-2">
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1 text-amber-200">
-              <p className="font-bold flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-amber-400" />
-                Ketentuan Waktu & Denda Checkout:
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-4">
+            {/* Clock Highlight */}
+            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-1">
+              <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs">
+                <Clock className="w-4 h-4" />
+                <span>Waktu Check-In & Check-Out:</span>
+              </div>
+              <p className="text-xs text-slate-300 font-medium">
+                Check-in: Mulai pukul <strong>14:00 WIB</strong> • Check-out: Maksimal pukul <strong>12:00 WIB</strong>
               </p>
-              <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-300/90 pl-1">
-                <li>Waktu check-in mulai pukul <strong>14:00 WIB</strong>.</li>
-                <li>Waktu check-out maksimal pukul <strong>12:00 WIB</strong> siang.</li>
-                <li>Telat check-out sampai pukul <strong>15:00 WIB (3 sore)</strong> dikenakan denda charge <strong>Rp 50.000</strong>.</li>
-                <li>Telat check-out lewat pukul <strong>15:00 s/d 17:00 WIB (5 sore)</strong> dikenakan denda charge <strong>Rp 100.000</strong>.</li>
-                <li>Telat lewat pukul <strong>17:00 WIB</strong> dikenakan biaya 1 hari penuh (<strong>Rp 100.000</strong>).</li>
-              </ul>
+            </div>
+
+            {/* Guarantee Policy Highlight */}
+            <div className={`p-3 rounded-xl border space-y-1 ${
+              guaranteeType === 'deposit'
+                ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+            }`}>
+              <div className="flex items-center gap-2 font-bold text-xs">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Jaminan Menginap yang Anda Pilih:</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {guaranteeType === 'deposit'
+                  ? 'Anda memilih Opsi Deposit Rp 100.000 (Bebas tanpa foto/titip KTP). Uang titipan deposit Rp 100.000 akan dikembalikan utuh 100% saat checkout setelah kunci diserahkan.'
+                  : 'Anda memilih Opsi Jaminan KTP Asli (Bebas Biaya Deposit Rp 0). Identitas/KTP Anda digunakan sebagai jaminan selama masa menginap dan akan dikembalikan saat checkout.'}
+              </p>
             </div>
 
             <div className="space-y-1.5 text-slate-300 text-[11px]">
               <p className="font-bold text-slate-100">Aturan Umum Kost:</p>
               <ul className="list-disc list-inside space-y-1 pl-1">
-                <li>Uang deposit Rp 100.000 dikembalikan penuh saat checkout setelah kunci diserahkan dan kamar diperiksa.</li>
+                <li>{guaranteeType === 'deposit' ? 'Uang deposit Rp 100.000 dikembalikan penuh saat checkout setelah kunci diserahkan dan kamar diperiksa.' : 'KTP asli/identitas Anda diserahkan/dititipkan sebagai jaminan dan akan dikembalikan saat checkout.'}</li>
                 <li>Dilarang merokok di dalam kamar ber-AC.</li>
                 <li>Dilarang membawa tamu lawan jenis menginap di dalam kamar.</li>
                 <li>Wajib menjaga kebersihan dan ketenangan terutama setelah pukul 22:00 WIB.</li>
@@ -1272,14 +1553,14 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (!formData.terms_accepted) {
+                if (!devMode && !formData.terms_accepted) {
                   setError('Anda harus menyetujui aturan dan kebijakan kost untuk melanjutkan')
                   return
                 }
                 setError('')
                 setStep(6)
               }}
-              disabled={!formData.terms_accepted}
+              disabled={!devMode && !formData.terms_accepted}
               className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               Lanjut: Pembayaran
@@ -1316,8 +1597,8 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
                 <QrCode className="w-5 h-5" />
               </div>
-              <p className="text-xs font-bold text-white">QRIS GoPay Merchant</p>
-              <p className="text-[10px] text-slate-400">Scan & bayar online</p>
+              <p className="text-xs font-bold text-white">QRIS Pembayaran Digital</p>
+              <p className="text-[10px] text-slate-400">Scan Semua Bank & E-Wallet</p>
             </div>
 
             <div
@@ -1341,20 +1622,23 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div className="space-y-4 bg-slate-950 p-5 rounded-3xl border border-slate-800">
               <div className="text-center space-y-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-                  Scan QRIS GoPay Merchant
+                  Scan QRIS Standar Pembayaran Nasional (GPN)
                 </span>
-                <h3 className="text-sm font-bold text-white">Graha Aisyah Menteng</h3>
-                <p className="text-[11px] text-slate-400">
-                  Total Transfer: <strong className="text-indigo-400 text-sm">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong>
+                <h3 className="text-sm font-black text-white uppercase tracking-tight">GRAHA AISYAH KOST, MDN DNAI</h3>
+                <p className="text-[10px] font-mono text-slate-400">
+                  NMID: <strong className="text-slate-200">ID1026577450236</strong> • A01
+                </p>
+                <p className="text-[11px] text-slate-300 pt-1">
+                  Total Tagihan: <strong className="text-indigo-400 text-sm">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong>
                 </p>
               </div>
 
               {/* QR Image Box */}
-              <div className="max-w-[260px] mx-auto bg-white p-3 rounded-2xl shadow-xl border-4 border-slate-800">
+              <div className="max-w-[280px] mx-auto bg-white p-2 rounded-2xl shadow-2xl border-2 border-slate-800">
                 <img
-                  src="/qris-gopay.svg"
-                  alt="QRIS GoPay Merchant Graha Aisyah Menteng"
-                  className="w-full h-auto rounded-lg"
+                  src="/qris-graha-aisyah.png"
+                  alt="QRIS GRAHA AISYAH KOST, MDN DNAI"
+                  className="w-full h-auto rounded-xl object-contain"
                 />
               </div>
 
@@ -1366,7 +1650,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <input
                   type="file"
                   accept="image/*"
-                  required={paymentMethod === 'qris'}
+                  required={!devMode && paymentMethod === 'qris'}
                   onChange={(e) => handleFileUpload(e, 'payment_proof')}
                   className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
                 />
@@ -1381,17 +1665,60 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
           {/* Cash Resepsionis Section */}
           {paymentMethod === 'cash' && (
-            <div className="p-5 bg-emerald-950/30 border border-emerald-500/30 rounded-3xl space-y-2.5">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                <CheckCircle2 className="w-5 h-5" />
-                <span>Bayar Tunai di Resepsionis</span>
+            <div className="space-y-4 bg-slate-950 p-5 rounded-3xl border border-slate-800">
+              <div className="p-4 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                  <Banknote className="w-5 h-5" />
+                  <span>Pembayaran Tunai di Meja Resepsionis</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Total yang diserahkan: <strong className="text-white">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong> {guaranteeType === 'deposit' ? '(termasuk deposit Rp 100.000)' : '(bebas deposit)'}.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Untuk transparansi serah terima uang, silakan foto uang tunai saat diserahkan ke staf resepsionis.
+                </p>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Anda dapat langsung datang ke meja resepsionis <strong>Graha Aisyah Menteng</strong> untuk menyerahkan pembayaran tunai sebesar <strong>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}</strong> (termasuk deposit Rp 100.000).
-              </p>
-              <p className="text-[11px] text-slate-400 italic">
-                * Kunci kamar akan diserahkan setelah pembayaran tunai diterima oleh staf resepsionis.
-              </p>
+
+              {/* Upload Foto Serah Terima Uang */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1 uppercase tracking-wider flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-emerald-400" />
+                  <span>Foto Bukti Penyerahan Uang Tunai ke Petugas *</span>
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2.5">
+                  Tamu memfotokan uang tunai saat diserahkan ke staf resepsionis sebagai bukti pembayaran yang sah untuk pemilik kost.
+                </p>
+
+                <div className="space-y-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    required={!devMode && paymentMethod === 'cash'}
+                    onChange={(e) => handleFileUpload(e, 'payment_proof')}
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer"
+                  />
+
+                  {formData.payment_proof && (
+                    <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold text-emerald-300">Foto Serah Terima Terlampir</p>
+                          <p className="text-[10px] text-slate-400 font-mono truncate max-w-xs">{formData.payment_proof.name}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, payment_proof: null }))}
+                        className="text-[11px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 bg-rose-500/10 rounded-lg cursor-pointer"
+                      >
+                        Hapus Foto
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1405,7 +1732,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </button>
             <button
               type="submit"
-              disabled={loading || (paymentMethod === 'qris' && !formData.payment_proof)}
+              disabled={loading || (!devMode && !formData.payment_proof)}
               className="flex-1 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-98"
             >
               {loading ? (
@@ -1420,6 +1747,19 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           </div>
         </div>
       )}
+
+      {/* Discreet Developer Mode Activator in Footer */}
+      <div className="pt-6 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+        <span>Graha Aisyah Menteng • Guest Portal</span>
+        <button
+          type="button"
+          onClick={toggleDevMode}
+          className="font-bold text-slate-500 hover:text-amber-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
+          title="Toggle mode developer untuk preview & maintenance"
+        >
+          <span>{devMode ? 'Matikan Mode Dev' : 'Mode Developer'}</span>
+        </button>
+      </div>
     </form>
   )
 }

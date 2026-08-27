@@ -30,16 +30,18 @@ export default async function PembayaranPage() {
 
   let userRole: string | null = null
   let userBranchId: string | null = null
+  let userFullName: string | null = null
   
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, branch_id')
+    .select('role, branch_id, full_name')
     .eq('id', user.id)
     .single()
     
   if (profile) {
     userRole = profile.role || null
     userBranchId = profile.branch_id || null
+    userFullName = profile.full_name || null
   }
 
   // OPTIMIZATION: Get branch metadata once and reuse (floors, rooms, tenant IDs)
@@ -388,10 +390,23 @@ export default async function PembayaranPage() {
     }
   }
 
+  // Fetch all staff and owner profiles for shift filtering
+  const { data: allStaff } = await supabase
+    .from('profiles')
+    .select('id, full_name, role')
+    .in('role', ['staff', 'owner'])
+    .order('full_name', { ascending: true })
+
   return (
     <PaymentList 
       initialTenants={tenantsWithCheckIn} 
       initialPayments={paymentsData || []} 
+      allStaff={allStaff || []}
+      currentUser={{
+        id: user.id,
+        role: userRole || 'staff',
+        name: userFullName || 'Petugas'
+      }}
     />
   )
 }

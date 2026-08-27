@@ -43,18 +43,34 @@ export default function RoomList({ initialRooms, initialFloors }: { initialRooms
     setBranches(data || [])
   }
 
-  const filteredRooms = selectedBranch ? rooms.filter(r => r.floors?.branches?.name === selectedBranch) : rooms
+  const orderMap: Record<string, number> = {
+    'vip belakang warkop': 1,
+    'dasar': 2,
+    'gedung atas lt 2': 3,
+    'gedung atas lt 3': 4
+  }
 
-  const headers = ['No. Kamar', 'Lantai', 'Harga', 'Fasilitas', 'Status', 'Actions']
+  const sortedRooms = [...rooms].sort((a, b) => {
+    const floorA = orderMap[a.floors?.name?.toLowerCase().trim() || ''] || 99
+    const floorB = orderMap[b.floors?.name?.toLowerCase().trim() || ''] || 99
+    if (floorA !== floorB) return floorA - floorB
+    const numA = parseInt(a.room_number?.toString().replace(/\D/g, '')) || 0
+    const numB = parseInt(b.room_number?.toString().replace(/\D/g, '')) || 0
+    return numA - numB
+  })
+
+  const filteredRooms = selectedBranch ? sortedRooms.filter(r => r.floors?.branches?.name === selectedBranch) : sortedRooms
+
+  const headers = ['No. Kamar', 'Section / Lantai', 'Harga', 'Fasilitas', 'Status', 'Actions']
   const rows = filteredRooms.map(room => [
-    room.room_number,
+    `Kamar ${room.room_number}`,
     room.floors?.name || 'Unknown',
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(room.price),
-    room.facilities?.join(', ') || '',
+    room.facilities?.filter((f: string) => !f.toLowerCase().startsWith('id pln:')).join(', ') || '',
     room.is_occupied ? 'Terisi' : 'Kosong',
     <form action={deleteAction} key={room.id}>
       <input type="hidden" name="id" value={room.id} />
-      <button type="submit" className="text-red-500 hover:text-red-700">Delete</button>
+      <button type="submit" className="text-red-500 hover:text-red-700 font-bold cursor-pointer">Delete</button>
     </form>
   ])
 

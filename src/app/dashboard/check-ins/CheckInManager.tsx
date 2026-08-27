@@ -200,19 +200,41 @@ export default function CheckInManager({
     return { name: 'Kamar Non-VIP (Standard)', isVip: false }
   }
 
-  // Group available rooms into VIP and Non-VIP
-  const { vipRooms, nonVipRooms } = useMemo(() => {
-    const vip: any[] = []
-    const nonVip: any[] = []
+  // Helper to extract room condition
+  const getRoomCondition = (facilities: string[] = []): string | null => {
+    if (!Array.isArray(facilities)) return null
+    const match = facilities.find(f => 
+      f.toLowerCase().startsWith('kondisi:') || 
+      f.toLowerCase().includes('ac mati') || 
+      f.toLowerCase().includes('tv mati') || 
+      f.toLowerCase().includes('tv gk idup')
+    )
+    if (!match) return null
+    if (match.toLowerCase().includes('ac mati')) return 'AC Mati'
+    if (match.toLowerCase().includes('tv mati') || match.toLowerCase().includes('tv gk idup')) return 'TV Mati / Gak Idup'
+    return match.replace(/^kondisi:\s*/i, '')
+  }
+
+  // Group available rooms by the 4 Sections
+  const availableRoomsBySection = useMemo(() => {
+    const orderMap: Record<string, number> = {
+      'vip belakang warkop': 1,
+      'dasar': 2,
+      'gedung atas lt 2': 3,
+      'gedung atas lt 3': 4
+    }
+
+    const map: Record<string, any[]> = {
+      'VIP Belakang Warkop': [],
+      'Dasar': [],
+      'Gedung Atas Lt 2': [],
+      'Gedung Atas Lt 3': []
+    }
 
     availableRooms.forEach(room => {
-      const roomNum = parseInt(room.room_number?.toString().replace(/\D/g, '')) || 0
-      const isVip = room.room_type === 'vip' || (roomNum >= 1 && roomNum <= 13)
-      if (isVip) {
-        vip.push({ ...room, isVip: true })
-      } else {
-        nonVip.push({ ...room, isVip: false })
-      }
+      const floorName = room.floors?.name || (room.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Dasar')
+      if (!map[floorName]) map[floorName] = []
+      map[floorName].push(room)
     })
 
     const sortFn = (a: any, b: any) => {
@@ -221,23 +243,32 @@ export default function CheckInManager({
       return numA - numB
     }
 
-    return {
-      vipRooms: vip.sort(sortFn),
-      nonVipRooms: nonVip.sort(sortFn)
-    }
+    Object.keys(map).forEach(key => {
+      map[key].sort(sortFn)
+    })
+
+    return map
   }, [availableRooms])
+
+  // Backward compatibility alias
+  const vipRooms = availableRoomsBySection['VIP Belakang Warkop'] || []
+  const nonVipRooms = [
+    ...(availableRoomsBySection['Dasar'] || []),
+    ...(availableRoomsBySection['Gedung Atas Lt 2'] || []),
+    ...(availableRoomsBySection['Gedung Atas Lt 3'] || [])
+  ]
 
   // Smart Room Assignment Modal Opener
   const openAssignModal = (checkIn: any) => {
     setSelectedCheckIn(checkIn)
     const pref = getRoomPreference(checkIn)
-    const matching = pref.isVip ? vipRooms : nonVipRooms
-    const fallback = pref.isVip ? nonVipRooms : vipRooms
-
-    if (matching.length > 0) {
-      setSelectedRoomId(matching[0].id)
-    } else if (fallback.length > 0) {
-      setSelectedRoomId(fallback[0].id)
+    
+    if (pref.isVip && vipRooms.length > 0) {
+      setSelectedRoomId(vipRooms[0].id)
+    } else if (!pref.isVip && nonVipRooms.length > 0) {
+      setSelectedRoomId(nonVipRooms[0].id)
+    } else if (availableRooms.length > 0) {
+      setSelectedRoomId(availableRooms[0].id)
     } else {
       setSelectedRoomId('')
     }
@@ -300,7 +331,11 @@ export default function CheckInManager({
         <p className="text-xs font-bold text-indigo-600">
           {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(parseFloat(checkIn.total_amount))}
         </p>
-        <p className="text-[10px] text-emerald-600 font-semibold">(Deposit Rp 100k)</p>
+        {parseFloat(checkIn.deposit_amount || '0') > 0 ? (
+          <p className="text-[10px] text-amber-600 font-bold">Deposit Rp 100k (KTP Bebas)</p>
+        ) : (
+          <p className="text-[10px] text-rose-600 font-bold">Titip KTP Fisik</p>
+        )}
       </div>,
 
       <span key={`method-${checkIn.id}`} className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
@@ -700,8 +735,16 @@ export default function CheckInManager({
                 </div>
 
                 <div className="space-y-0.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Deposit Jaminan</p>
-                  <p className="text-xs font-black text-emerald-600">Rp 100.000 (Refundable)</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Jaminan & Deposit</p>
+                  {parseFloat(selectedCheckIn.deposit_amount || '0') > 0 ? (
+                    <p className="text-xs font-black text-amber-600">
+                      Deposit Rp 100k <span className="text-[10px] text-slate-500 font-normal">(KTP Fisik Bebas)</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs font-black text-rose-600">
+                      Titip KTP Fisik <span className="text-[10px] text-rose-500 font-bold">(Wajib Tahan KTP)</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-0.5">
@@ -804,15 +847,20 @@ export default function CheckInManager({
                   <div className="bg-slate-900 rounded-2xl p-3 text-white border border-slate-800 flex flex-col justify-between group">
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-emerald-300">3. Bukti Bayar / QRIS</span>
+                        <span className="text-xs font-bold text-emerald-300">
+                          {isCash ? '3. Foto Serah Terima Tunai' : '3. Bukti Transfer QRIS'}
+                        </span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-md ${isCash ? 'bg-amber-900/60 text-amber-300' : 'bg-emerald-900/60 text-emerald-300'}`}>
-                          {isCash ? 'Cash' : 'QRIS GoPay'}
+                          {isCash ? 'Foto Tunai di Meja' : 'QRIS GoPay'}
                         </span>
                       </div>
                       <div 
                         onClick={() => {
                           if (selectedCheckIn.payment_proof_url && !selectedCheckIn.payment_proof_url.includes('placehold')) {
-                            setZoomImage({ url: selectedCheckIn.payment_proof_url, title: `Bukti Transfer: ${selectedCheckIn.full_name}` })
+                            setZoomImage({ 
+                              url: selectedCheckIn.payment_proof_url, 
+                              title: isCash ? `Foto Serah Terima Tunai: ${selectedCheckIn.full_name}` : `Bukti Transfer: ${selectedCheckIn.full_name}` 
+                            })
                           }
                         }}
                         className="relative aspect-[1.58/1] bg-slate-950 rounded-xl overflow-hidden cursor-pointer border border-slate-700/60 flex items-center justify-center"
@@ -821,7 +869,7 @@ export default function CheckInManager({
                           <>
                             <img 
                               src={selectedCheckIn.payment_proof_url} 
-                              alt="Bukti Transfer" 
+                              alt={isCash ? 'Foto Serah Terima Tunai' : 'Bukti Transfer'} 
                               className="w-full h-full object-cover" 
                             />
                             <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -834,12 +882,14 @@ export default function CheckInManager({
                           <div className="text-center p-3 space-y-1">
                             <Banknote className="w-8 h-8 text-amber-400 mx-auto" />
                             <p className="text-xs font-bold text-amber-300">Bayar Cash di Resepsionis</p>
-                            <p className="text-[10px] text-slate-400">Terima uang tunai langsung</p>
+                            <p className="text-[10px] text-slate-400">Belum ada foto serah terima</p>
                           </div>
                         )}
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-2 text-center">Verifikasi nominal transfer / cash</p>
+                    <p className="text-[10px] text-slate-400 mt-2 text-center">
+                      {isCash ? 'Foto uang tunai saat diserahkan ke staf' : 'Cocokkan nominal transfer dengan tagihan'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -987,8 +1037,8 @@ export default function CheckInManager({
           const primaryRooms = pref.isVip ? vipRooms : nonVipRooms
           const secondaryRooms = pref.isVip ? nonVipRooms : vipRooms
           const primaryLabel = pref.isVip 
-            ? `⭐ KAMAR VIP (SESUAI PILIHAN TAMU - ${vipRooms.length} Kamar Tersedia)` 
-            : `⭐ KAMAR NON-VIP (SESUAI PILIHAN TAMU - ${nonVipRooms.length} Kamar Tersedia)`
+            ? `KAMAR VIP (SESUAI PILIHAN TAMU - ${vipRooms.length} Kamar Tersedia)` 
+            : `KAMAR NON-VIP (SESUAI PILIHAN TAMU - ${nonVipRooms.length} Kamar Tersedia)`
           const secondaryLabel = pref.isVip 
             ? `KAMAR NON-VIP / STANDARD (OPSI LAIN - ${nonVipRooms.length} Kamar Tersedia)` 
             : `KAMAR VIP (OPSI LAIN - ${vipRooms.length} Kamar Tersedia)`
@@ -1028,51 +1078,52 @@ export default function CheckInManager({
                 >
                   <option value="">-- Pilih Kamar Kosong --</option>
                   
-                  {/* Primary Matching Category */}
-                  {primaryRooms.length > 0 && (
-                    <optgroup label={primaryLabel}>
-                      {primaryRooms.map(r => (
-                        <option key={r.id} value={r.id}>
-                          Kamar {r.room_number} • {r.floors?.name || (pref.isVip ? 'Lantai 1' : 'Lantai 2/3')} ({pref.isVip ? 'VIP' : 'Standard'})
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-
-                  {/* Secondary Other Category */}
-                  {secondaryRooms.length > 0 && (
-                    <optgroup label={secondaryLabel}>
-                      {secondaryRooms.map(r => (
-                        <option key={r.id} value={r.id}>
-                          Kamar {r.room_number} • {r.floors?.name || (pref.isVip ? 'Lantai 2/3' : 'Lantai 1')} ({pref.isVip ? 'Standard' : 'VIP'})
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
+                  {/* All 4 Sections */}
+                  {Object.entries(availableRoomsBySection).map(([sectionName, rooms]) => {
+                    if (!rooms || rooms.length === 0) return null
+                    const isPreferred = (pref.isVip && sectionName === 'VIP Belakang Warkop') || (!pref.isVip && sectionName !== 'VIP Belakang Warkop')
+                    return (
+                      <optgroup 
+                        key={sectionName} 
+                        label={`${isPreferred ? '[Pilihan Tamu] ' : ''}${sectionName.toUpperCase()} (${rooms.length} Kamar Tersedia)`}
+                      >
+                        {rooms.map(r => {
+                          const cond = getRoomCondition(r.facilities)
+                          return (
+                            <option key={r.id} value={r.id}>
+                              Kamar {r.room_number} • {sectionName} {cond ? `(Catatan: ${cond})` : ''}
+                            </option>
+                          )
+                        })}
+                      </optgroup>
+                    )
+                  })}
                 </select>
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Kamar kosong yang sesuai dengan pilihan tamu otomatis ditempatkan di urutan teratas.
+                  * Kunci kamar akan diserahkan setelah staf menetapkan nomor kamar ini.
                 </p>
               </div>
 
               {assignState?.error && (
-                <p className="text-xs text-red-600 font-semibold">{assignState.error}</p>
+                <div className="p-3 bg-red-50 text-red-700 rounded-xl text-xs">
+                  {assignState.error}
+                </div>
               )}
 
-              <div className="flex gap-2.5 pt-2">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAssignModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <SubmitButton
-                  variant="primary"
-                  className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                  variant="success"
                   loadingText="Menyimpan..."
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
                 >
-                  Konfirmasi & Aktifkan Kamar
+                  Konfirmasi & Selesaikan Check-in
                 </SubmitButton>
               </div>
             </form>
@@ -1080,21 +1131,24 @@ export default function CheckInManager({
         })()}
       </Modal>
 
-      {/* Lightbox / Zoom Image Modal */}
+      {/* =========================================================================
+          FULL SCREEN IMAGE LIGHTBOX
+      ========================================================================= */}
       {zoomImage && (
         <div 
           onClick={() => setZoomImage(null)}
-          className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
         >
           <div 
-            onClick={(e) => e.stopPropagation()} 
-            className="relative max-w-4xl w-full bg-slate-900 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-4xl w-full bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl"
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/80">
-              <h3 className="text-sm font-extrabold text-white truncate max-w-[80%]">
-                {zoomImage.title}
-              </h3>
+            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/90">
+              <div className="flex items-center gap-2">
+                <ZoomIn className="w-4 h-4 text-indigo-400" />
+                <h3 className="text-sm font-bold text-white">{zoomImage.title}</h3>
+              </div>
               <div className="flex items-center gap-2">
                 <a
                   href={zoomImage.url}
@@ -1110,7 +1164,7 @@ export default function CheckInManager({
                   onClick={() => setZoomImage(null)}
                   className="w-8 h-8 rounded-full bg-slate-800 hover:bg-rose-500 hover:text-white text-slate-400 flex items-center justify-center text-sm font-bold transition-colors cursor-pointer"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>

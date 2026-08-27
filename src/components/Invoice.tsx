@@ -48,10 +48,10 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
   
   const paymentMethodMap: Record<string, string> = {
     'cash': 'Tunai di Resepsionis',
-    'qris': 'QRIS GoPay Merchant',
+    'qris': 'QRIS Pembayaran Digital (GPN)',
     'transfer': 'Transfer Bank / QRIS',
     'deposit_deduction': 'Pemotongan / Klaim Deposit',
-    'e-wallet': 'GoPay / E-Wallet',
+    'e-wallet': 'E-Wallet / GoPay / OVO',
     'other': 'Lainnya'
   }
   const isCash = (payment.payment_method || '').toLowerCase().includes('cash') || 
@@ -60,7 +60,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
     checkInRequest?.payment_destination?.toLowerCase().includes('resepsionis') ||
     (payment.notes?.toLowerCase().includes('tunai') && !isDepositClaim)
 
-  let paymentMethodDisplay = 'QRIS GoPay Merchant'
+  let paymentMethodDisplay = 'QRIS Pembayaran Digital (GPN)'
   if (isDepositClaim) {
     paymentMethodDisplay = 'Potongan / Klaim Deposit'
   } else if (isCheckoutSettlement) {
@@ -415,7 +415,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
                   <div class="brand-subtitle">Graha Aisyah Menteng Management • Jl. Menteng No. 1, Jakarta Pusat</div>
                 </td>
                 <td style="text-align: right;">
-                  <div class="status-badge">✓ LUNAS / TERVERIFIKASI</div>
+                  <div class="status-badge">LUNAS / TERVERIFIKASI</div>
                   <div class="invoice-id">${invoiceNumber}</div>
                 </td>
               </tr>
@@ -514,7 +514,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
             <table class="footer-table">
               <tr>
                 <td>
-                  <div class="seal-badge">✓ Transaksi Sah & Terkonfirmasi Sistem</div>
+                  <div class="seal-badge">Transaksi Sah & Terkonfirmasi Sistem</div>
                   ${confirmedBy?.full_name ? `<div>Petugas Verifikasi: <strong>${confirmedBy.full_name}</strong></div>` : ''}
                   ${payment.confirmed_at ? `<div>Waktu Verifikasi: ${new Date(payment.confirmed_at).toLocaleString('id-ID')}</div>` : ''}
                 </td>
@@ -556,24 +556,24 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
 Jl. Menteng No. 1, Jakarta Pusat
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-📄 *KODE INVOICE:* ${invoiceNumber}
-📅 *TANGGAL:* ${createdAtStr}
-🏷️ *STATUS:* *LUNAS (TERVERIFIKASI)*
+*KODE INVOICE:* ${invoiceNumber}
+*TANGGAL:* ${createdAtStr}
+*STATUS:* *LUNAS (TERVERIFIKASI)*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-👤 *DATA PENYEWA:*
+*DATA PENYEWA:*
 • *Nama:* ${tenantName}
 • *Kamar:* Kamar ${roomNumberStr} (${roomTypeStr})
 • *Durasi:* ${rentalDurationStr}
 ${nik !== '-' ? `• *NIK:* ${nik}\n` : ''}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 *RINCIAN PEMBAYARAN:*
+*RINCIAN PEMBAYARAN:*
 • *Keterangan:* Pembayaran Sewa Graha Aisyah Menteng
 • *Metode:* ${paymentMethodDisplay}
 • *Tanggal Bayar:* ${paymentDateStr}
 ${payment.notes ? `• *Catatan:* ${payment.notes}\n` : ''}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 *TOTAL TERBAYAR:*
+*TOTAL TERBAYAR:*
 *${formattedAmount}*
 _(${amountInWords})_
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
