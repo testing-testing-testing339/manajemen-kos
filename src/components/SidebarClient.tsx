@@ -52,7 +52,6 @@ function SidebarClient({
       icon: UserCheck, 
       badge: (userRole === 'owner' || userRole === 'staff') ? pendingCheckInsCount : undefined 
     },
-    { href: '/dashboard/riwayat-checkout', label: 'Riwayat Check-out', icon: LogOut },
   ]
 
   if (userRole === 'owner' || userRole === 'staff') {

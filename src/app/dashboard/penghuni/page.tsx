@@ -99,10 +99,26 @@ export default async function PenghuniPage() {
   }
   const { data: availableRoomsData } = await availableRoomsQuery.order('room_number', { ascending: true })
 
+  // Fetch checkout history from checkout_history table
+  let checkoutHistoryList: any[] = []
+  try {
+    const { data: historyData, error: historyError } = await supabase
+      .from('checkout_history')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (!historyError && historyData) {
+      checkoutHistoryList = historyData
+    }
+  } catch (err) {
+    console.warn('checkout_history fetch in penghuni page:', err)
+  }
+
   return (
     <TenantList 
       initialTenants={tenantsData || []} 
       initialAvailableRooms={availableRoomsData || []} 
+      initialCheckoutHistory={checkoutHistoryList || []}
       branches={branchesData || []}
       floors={floorsData || []}
       userRole={userRole}
