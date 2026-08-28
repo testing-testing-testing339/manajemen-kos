@@ -264,6 +264,52 @@ export default function DeveloperDashboard({
         </div>
       </div>
 
+      {/* Storage Optimization & Cloudinary Hybrid Card */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 rounded-3xl p-6 border border-indigo-800/60 text-white shadow-lg space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center justify-center">
+              <Zap className="w-5 h-5 fill-indigo-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-extrabold text-white">Hybrid Storage: Cloudinary + Supabase</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Cloudinary Aktif (lsyxij4z)
+                </span>
+              </div>
+              <p className="text-xs text-indigo-200 mt-0.5">
+                Foto KTP, selfie & bukti transfer tersimpan di Cloudinary dengan kompresi WebP & fallback otomatis ke Supabase
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="px-3 py-1.5 rounded-xl bg-white/10 text-slate-200 font-mono font-bold">
+              Kapasitas: 25 GB Free (~165.000 Foto)
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-indigo-800/40 text-xs">
+          <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1">
+            <span className="text-indigo-300 text-[11px] font-bold uppercase">Provider Utama</span>
+            <p className="text-sm font-black text-white">Cloudinary Cloud (lsyxij4z)</p>
+            <p className="text-[11px] text-slate-400">Gratis 25 GB • Bebas Kartu Kredit</p>
+          </div>
+          <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1">
+            <span className="text-emerald-300 text-[11px] font-bold uppercase">Kompresi WebP</span>
+            <p className="text-sm font-black text-emerald-400">~150 KB / Foto (Lossless)</p>
+            <p className="text-[11px] text-slate-400">Teks NIK & Nominal 100% Tajam</p>
+          </div>
+          <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1">
+            <span className="text-purple-300 text-[11px] font-bold uppercase">Daya Tampung Sistem</span>
+            <p className="text-sm font-black text-purple-300">Estimasi 7+ Tahun Operasional</p>
+            <p className="text-[11px] text-slate-400">Untuk 20 tamu/hari tanpa hapus foto</p>
+          </div>
+        </div>
+      </div>
+
       {/* Database Tables Detail Breakdown */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex items-center justify-between">

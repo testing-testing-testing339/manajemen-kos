@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { uploadImageToCloud } from '@/lib/cloudStorage'
 
 export async function createStaff(prevState: any, formData: FormData) {
   const full_name = (formData.get('full_name') as string)?.trim()
@@ -38,10 +39,20 @@ export async function createStaff(prevState: any, formData: FormData) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
+  // Use service role if available for reliable administrative actions
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const adminClient = serviceRoleKey 
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    : supabase
 
-  // Check if user is owner
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized - Silakan login terlebih dahulu' }
+  }
+
+  // Check if current user is owner
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -52,33 +63,19 @@ export async function createStaff(prevState: any, formData: FormData) {
     return { error: 'Hanya owner yang dapat membuat akun staff' }
   }
 
-  // Create auth user directly using service role
   try {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceRoleKey) {
-      return { error: 'Service role key not configured' }
-    }
-
-    // Create admin client with service role
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
-
-    // Create user using admin client
+    // Create auth user
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: {
         full_name,
-        role: 'staff'
+        role: 'staff',
+        branch_id: branch_id || null,
+        phone: phone || null,
+        address: address || null,
+        notes: notes || null
       }
     })
 
@@ -94,23 +91,11 @@ export async function createStaff(prevState: any, formData: FormData) {
     let photoUrl = null
     if (photo && photo.size > 0) {
       try {
-        const fileExt = photo.name.split('.').pop()
-        const fileName = `${authData.user.id}-${Date.now()}.${fileExt}`
-        const filePath = fileName
-
-        const { error: uploadError } = await supabase.storage
-          .from('staff-photos')
-          .upload(filePath, photo, {
-            cacheControl: '3600',
-            upsert: false
-          })
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from('staff-photos')
-            .getPublicUrl(filePath)
-          photoUrl = urlData.publicUrl
-        }
+        photoUrl = await uploadImageToCloud(photo, {
+          folder: 'graha-aisyah/staff',
+          filenamePrefix: `${authData.user.id}`,
+          fallbackBucket: 'staff-photos'
+        })
       } catch (error) {
         console.error('Photo upload error:', error)
       }
@@ -256,23 +241,11 @@ export async function updateStaff(prevState: any, formData: FormData) {
   let photoUrl = null
   if (photo && photo.size > 0) {
     try {
-      const fileExt = photo.name.split('.').pop()
-      const fileName = `${staff_id}-${Date.now()}.${fileExt}`
-      const filePath = fileName
-
-      const { error: uploadError } = await supabase.storage
-        .from('staff-photos')
-        .upload(filePath, photo, {
-          cacheControl: '3600',
-          upsert: false
-        })
-
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage
-          .from('staff-photos')
-          .getPublicUrl(filePath)
-        photoUrl = urlData.publicUrl
-      }
+      photoUrl = await uploadImageToCloud(photo, {
+        folder: 'graha-aisyah/staff',
+        filenamePrefix: `${staff_id}`,
+        fallbackBucket: 'staff-photos'
+      })
     } catch (error) {
       console.error('Photo upload error:', error)
     }

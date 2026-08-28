@@ -12,6 +12,7 @@ import {
   validateJSON,
   sanitizeString
 } from '@/lib/validation'
+import { uploadImageToCloud } from '@/lib/cloudStorage'
 
 export async function POST(request: Request) {
   const cookieStore = await cookies()
@@ -167,48 +168,40 @@ export async function POST(request: Request) {
     const sanitizedPaymentDest = sanitizeString(payment_destination || 'Graha Aisyah Menteng')
     const sanitizedAmount = validateAmount(total_amount).sanitized
 
-    // Upload photos to storage
+    // Upload photos to Cloudinary (with automatic Supabase Storage fallback)
     let id_card_photo_url = ''
     let selfie_photo_url = ''
     let payment_proof_url = ''
 
     // Upload ID card photo if provided
     if (id_card_photo && id_card_photo.size > 0) {
-      const idCardFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard || 'id'}-id-card.jpg`
-      const { error: idCardError } = await supabase.storage
-        .from('check-in-photos')
-        .upload(idCardFileName, id_card_photo, { cacheControl: '3600', upsert: false })
-      
-      if (!idCardError) {
-        const { data: idCardUrlData } = supabase.storage.from('check-in-photos').getPublicUrl(idCardFileName)
-        id_card_photo_url = idCardUrlData.publicUrl
-      }
+      id_card_photo_url = await uploadImageToCloud(id_card_photo, {
+        folder: `graha-aisyah/check-in/${branch_id}`,
+        filenamePrefix: `${sanitizedIdCard || 'id'}-id-card`,
+        fallbackBucket: 'check-in-photos'
+      })
     }
 
     // Upload selfie photo
-    const selfieFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard || 'selfie'}-selfie.jpg`
-    const { error: selfieError } = await supabase.storage
-      .from('check-in-photos')
-      .upload(selfieFileName, selfie_photo, { cacheControl: '3600', upsert: false })
-    
-    if (selfieError) {
-      return NextResponse.json({ error: 'Gagal mengupload foto selfie: ' + selfieError.message }, { status: 500 })
+    if (selfie_photo && selfie_photo.size > 0) {
+      selfie_photo_url = await uploadImageToCloud(selfie_photo, {
+        folder: `graha-aisyah/check-in/${branch_id}`,
+        filenamePrefix: `${sanitizedIdCard || 'selfie'}-selfie`,
+        fallbackBucket: 'check-in-photos'
+      })
     }
-    
-    const { data: selfieUrlData } = supabase.storage.from('check-in-photos').getPublicUrl(selfieFileName)
-    selfie_photo_url = selfieUrlData.publicUrl
+
+    if (!selfie_photo_url) {
+      return NextResponse.json({ error: 'Gagal memproses foto selfie ke penyimpanan cloud' }, { status: 500 })
+    }
 
     // Upload payment proof if provided
     if (payment_proof && payment_proof.size > 0) {
-      const proofFileName = `check-in/${branch_id}/${Date.now()}-${sanitizedIdCard || 'payment'}-payment-proof.jpg`
-      const { error: proofError } = await supabase.storage
-        .from('check-in-photos')
-        .upload(proofFileName, payment_proof, { cacheControl: '3600', upsert: false })
-      
-      if (!proofError) {
-        const { data: proofUrlData } = supabase.storage.from('check-in-photos').getPublicUrl(proofFileName)
-        payment_proof_url = proofUrlData.publicUrl
-      }
+      payment_proof_url = await uploadImageToCloud(payment_proof, {
+        folder: `graha-aisyah/check-in/${branch_id}`,
+        filenamePrefix: `${sanitizedIdCard || 'payment'}-payment-proof`,
+        fallbackBucket: 'check-in-photos'
+      })
     } else {
       payment_proof_url = 'https://placehold.co/600x400/png?text=Bayar+Cash+di+Resepsionis'
     }
