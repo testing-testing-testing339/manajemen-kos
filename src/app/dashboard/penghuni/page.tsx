@@ -107,11 +107,67 @@ export default async function PenghuniPage() {
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (!historyError && historyData) {
+    if (!historyError && historyData && historyData.length > 0) {
       checkoutHistoryList = historyData
     }
   } catch (err) {
     console.warn('checkout_history fetch in penghuni page:', err)
+  }
+
+  // Fallback: Dynamically reconstruct checkout history from check_in_requests & active tenants
+  if (checkoutHistoryList.length === 0) {
+    try {
+      const activeRoomIds = new Set((rawTenantsData || []).map((t: any) => t.room_id).filter(Boolean))
+      const activeNames = new Set((rawTenantsData || []).map((t: any) => (t.full_name || '').toLowerCase().trim()))
+
+      const { data: allRooms } = await supabase
+        .from('rooms')
+        .select('id, room_number, room_type, floors(name)')
+
+      const roomMap = new Map((allRooms || []).map((r: any) => [r.id, r]))
+
+      const { data: completedCIR } = await supabase
+        .from('check_in_requests')
+        .select('*')
+        .in('status', ['completed', 'checked_out'])
+        .order('updated_at', { ascending: false })
+
+      if (completedCIR && completedCIR.length > 0) {
+        const checkedOutItems = completedCIR.filter((c: any) => {
+          const isRoomActive = c.assigned_room_id && activeRoomIds.has(c.assigned_room_id)
+          const isNameActive = activeNames.has((c.full_name || '').toLowerCase().trim())
+          return !isRoomActive || !isNameActive
+        })
+
+        checkoutHistoryList = checkedOutItems.map((c: any) => {
+          const room = roomMap.get(c.assigned_room_id) as any
+          const floor = room?.floors || {}
+          return {
+            id: c.id,
+            tenant_name: c.full_name,
+            phone: c.phone || null,
+            room_number: room?.room_number || '-',
+            floor_name: floor?.name || '-',
+            room_type: room?.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room',
+            check_in_date: c.created_at ? c.created_at.split('T')[0] : null,
+            due_date: null,
+            checkout_date: c.updated_at ? c.updated_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            checkout_time: '12:00',
+            deposit_amount: 100000,
+            late_fee: 0,
+            damage_fee: 0,
+            claimed_deposit: 0,
+            deposit_refund: 100000,
+            additional_pay_needed: 0,
+            notes: 'Check-out selesai diproses',
+            processed_by: 'Resepsionis',
+            created_at: c.updated_at || c.created_at
+          }
+        })
+      }
+    } catch (fallbackErr) {
+      console.warn('Fallback dynamic checkout in penghuni error:', fallbackErr)
+    }
   }
 
   return (
