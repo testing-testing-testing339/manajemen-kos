@@ -1,11 +1,19 @@
-export default function Table({ headers, rows }: { headers: string[], rows: (string | React.ReactNode)[][] }) {
+export default function Table({ 
+  headers, 
+  rows,
+  minWidth = 'min-w-[680px]'
+}: { 
+  headers: string[]
+  rows: (string | React.ReactNode)[][]
+  minWidth?: string
+}) {
   return (
-    <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-      <table className="w-full text-left border-collapse">
+    <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-xs scrollbar-thin">
+      <table className={`w-full ${minWidth} text-left border-collapse`}>
         <thead>
           <tr className="bg-slate-50/80 border-b border-slate-200/80">
             {headers.map((header, i) => (
-              <th key={i} className="py-3.5 px-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <th key={i} className="py-3.5 px-4 text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
                 {header}
               </th>
             ))}
@@ -15,7 +23,7 @@ export default function Table({ headers, rows }: { headers: string[], rows: (str
           {rows.map((row, i) => (
             <tr key={i} className="hover:bg-slate-50/60 transition-colors">
               {row.map((cell, j) => (
-                <td key={j} className="py-3.5 px-4 text-sm font-medium text-slate-700">
+                <td key={j} className="py-3.5 px-4 text-sm font-medium text-slate-700 whitespace-nowrap">
                   {cell}
                 </td>
               ))}

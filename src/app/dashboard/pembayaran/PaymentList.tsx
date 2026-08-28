@@ -749,17 +749,17 @@ export default function PaymentList({
             </h3>
 
             {shiftPayments.length > 0 ? (
-              <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                <table className="w-full text-left border-collapse">
+              <div className="rounded-2xl border border-slate-200 overflow-x-auto w-full shadow-2xs">
+                <table className="w-full min-w-[720px] text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-900 text-white text-[11px] font-extrabold uppercase tracking-wider">
-                      <th className="py-3 px-4">Waktu</th>
-                      <th className="py-3 px-4">Nama Tamu</th>
-                      <th className="py-3 px-4">Kamar</th>
-                      <th className="py-3 px-4">Metode Bayar</th>
-                      <th className="py-3 px-4">Nominal</th>
-                      <th className="py-3 px-4">Petugas Penerima</th>
-                      <th className="py-3 px-4 text-center">Aksi</th>
+                      <th className="py-3 px-4 whitespace-nowrap">Waktu</th>
+                      <th className="py-3 px-4 whitespace-nowrap">Nama Tamu</th>
+                      <th className="py-3 px-4 whitespace-nowrap">Kamar</th>
+                      <th className="py-3 px-4 whitespace-nowrap">Metode Bayar</th>
+                      <th className="py-3 px-4 whitespace-nowrap">Nominal</th>
+                      <th className="py-3 px-4 whitespace-nowrap">Petugas Penerima</th>
+                      <th className="py-3 px-4 text-center whitespace-nowrap">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -886,18 +886,18 @@ export default function PaymentList({
 
           {/* Transactions Table */}
           {filteredPayments.length > 0 ? (
-            <div className="rounded-2xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-left border-collapse">
+            <div className="rounded-2xl border border-slate-200 overflow-x-auto w-full shadow-2xs">
+              <table className="w-full min-w-[800px] text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-900 text-white text-[11px] font-extrabold uppercase tracking-wider">
-                    <th className="py-3 px-4">Tanggal Transaksi</th>
-                    <th className="py-3 px-4">Nama Penghuni</th>
-                    <th className="py-3 px-4">Kamar</th>
-                    <th className="py-3 px-4">Nominal</th>
-                    <th className="py-3 px-4">Metode Bayar</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Dikonfirmasi Oleh</th>
-                    <th className="py-3 px-4 text-center">Aksi</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Tanggal Transaksi</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Nama Penghuni</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Kamar</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Nominal</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Metode Bayar</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Status</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Dikonfirmasi Oleh</th>
+                    <th className="py-3 px-4 text-center whitespace-nowrap">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-800">
@@ -1056,16 +1056,16 @@ export default function PaymentList({
           </div>
 
           {tenants.length > 0 ? (
-            <div className="rounded-2xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-left border-collapse">
+            <div className="rounded-2xl border border-slate-200 overflow-x-auto w-full shadow-2xs">
+              <table className="w-full min-w-[700px] text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-900 text-white text-[11px] font-bold tracking-wider uppercase">
-                    <th className="py-3.5 px-4">Nama Penghuni</th>
-                    <th className="py-3.5 px-4">Kamar</th>
-                    <th className="py-3.5 px-4">Tanggal Masuk</th>
-                    <th className="py-3.5 px-4">Jatuh Tempo</th>
-                    <th className="py-3.5 px-4">Status Tagihan</th>
-                    <th className="py-3.5 px-4 text-center">Aksi</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Nama Penghuni</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Kamar</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Tanggal Masuk</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Jatuh Tempo</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Status Tagihan</th>
+                    <th className="py-3.5 px-4 text-center whitespace-nowrap">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
