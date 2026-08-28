@@ -56,11 +56,20 @@ export async function updateProfileName(prevState: any, formData: FormData) {
   }
 
   try {
-    // 1. Update profiles table
+    const { data: branch } = await adminClient.from('branches').select('id').limit(1).single()
+    const branchId = branch?.id
+
+    // 1. Upsert into profiles table so missing rows are handled
     const { error: dbError } = await adminClient
       .from('profiles')
-      .update({ full_name })
-      .eq('id', user.id)
+      .upsert({
+        id: user.id,
+        email: user.email,
+        full_name,
+        role: user.user_metadata?.role || 'owner',
+        branch_id: branchId,
+        is_active: true
+      }, { onConflict: 'id' })
 
     if (dbError) {
       return { error: 'Gagal memperbarui nama di database: ' + dbError.message }
@@ -69,7 +78,10 @@ export async function updateProfileName(prevState: any, formData: FormData) {
     // 2. Update auth user metadata
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
       await adminClient.auth.admin.updateUserById(user.id, {
-        user_metadata: { full_name }
+        user_metadata: { 
+          ...user.user_metadata,
+          full_name 
+        }
       })
     } else {
       await supabase.auth.updateUser({
@@ -78,7 +90,7 @@ export async function updateProfileName(prevState: any, formData: FormData) {
     }
 
     revalidatePath('/dashboard', 'layout')
-    return { success: true, message: 'Nama profil berhasil diperbarui!' }
+    return { success: true, newName: full_name, message: 'Nama profil berhasil diperbarui!' }
   } catch (err: any) {
     return { error: err?.message || 'Terjadi kesalahan saat memperbarui nama' }
   }
@@ -117,11 +129,20 @@ export async function updateProfilePhoto(prevState: any, formData: FormData) {
       return { error: 'Gagal mengunggah foto ke penyimpanan cloud' }
     }
 
-    // 2. Update profiles table
+    const { data: branch } = await adminClient.from('branches').select('id').limit(1).single()
+    const branchId = branch?.id
+
+    // 2. Upsert into profiles table
     const { error: dbError } = await adminClient
       .from('profiles')
-      .update({ photo_url: photoUrl })
-      .eq('id', user.id)
+      .upsert({
+        id: user.id,
+        email: user.email,
+        photo_url: photoUrl,
+        role: user.user_metadata?.role || 'owner',
+        branch_id: branchId,
+        is_active: true
+      }, { onConflict: 'id' })
 
     if (dbError) {
       return { error: 'Gagal menyimpan URL foto: ' + dbError.message }
@@ -130,7 +151,10 @@ export async function updateProfilePhoto(prevState: any, formData: FormData) {
     // 3. Update auth user metadata
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
       await adminClient.auth.admin.updateUserById(user.id, {
-        user_metadata: { avatar_url: photoUrl }
+        user_metadata: { 
+          ...user.user_metadata,
+          avatar_url: photoUrl 
+        }
       })
     } else {
       await supabase.auth.updateUser({

@@ -57,6 +57,8 @@ export default function UserProfileMenu({ user, profile, logoutAction }: UserPro
   const [photoState, photoAction, isPhotoPending] = useActionState(updateProfilePhoto, null)
   const [passState, passAction, isPassPending] = useActionState(changePassword, null)
 
+  const [inputName, setInputName] = useState(currentName)
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -68,13 +70,15 @@ export default function UserProfileMenu({ user, profile, logoutAction }: UserPro
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Sync state on success
+  // Sync state on name success
   useEffect(() => {
-    if (nameState?.success) {
-      // Name updated
+    if (nameState?.success && nameState.newName) {
+      setCurrentName(nameState.newName)
+      setInputName(nameState.newName)
     }
   }, [nameState])
 
+  // Sync state on photo success
   useEffect(() => {
     if (photoState?.success && photoState.photoUrl) {
       setCurrentPhoto(photoState.photoUrl)
@@ -327,7 +331,8 @@ export default function UserProfileMenu({ user, profile, logoutAction }: UserPro
                     type="text"
                     name="full_name"
                     required
-                    defaultValue={currentName}
+                    value={inputName}
+                    onChange={(e) => setInputName(e.target.value)}
                     placeholder="Masukkan nama lengkap Anda..."
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
