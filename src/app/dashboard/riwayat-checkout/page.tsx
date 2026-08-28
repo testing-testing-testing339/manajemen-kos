@@ -63,26 +63,49 @@ export default async function RiwayatCheckoutPage() {
     console.warn('checkout_history table fetch:', err)
   }
 
-  // Fallback: If checkout_history is empty, also load from checked_out check_in_requests
+  // Fallback: Dynamically reconstruct checkout history from check_in_requests & active tenants
   if (checkoutHistoryList.length === 0) {
     try {
-      const { data: checkedOutCIR } = await supabase
+      // 1. Get all active tenants
+      const { data: activeTenants } = await supabase
+        .from('tenants')
+        .select('id, full_name, room_id')
+
+      const activeRoomIds = new Set((activeTenants || []).map((t: any) => t.room_id).filter(Boolean))
+      const activeNames = new Set((activeTenants || []).map((t: any) => (t.full_name || '').toLowerCase().trim()))
+
+      // 2. Get rooms with floors
+      const { data: allRooms } = await supabase
+        .from('rooms')
+        .select('id, room_number, room_type, floors(name)')
+
+      const roomMap = new Map((allRooms || []).map((r: any) => [r.id, r]))
+
+      // 3. Get completed & checked_out check-ins
+      const { data: completedCIR } = await supabase
         .from('check_in_requests')
-        .select('id, full_name, phone, created_at, updated_at, duration_months, total_amount, assigned_room_id, rooms(room_number, room_type, floors(name))')
-        .eq('status', 'checked_out')
+        .select('*')
+        .in('status', ['completed', 'checked_out'])
         .order('updated_at', { ascending: false })
 
-      if (checkedOutCIR && checkedOutCIR.length > 0) {
-        checkoutHistoryList = checkedOutCIR.map((c: any) => {
-          const room = c.rooms || {}
-          const floor = room.floors || {}
+      if (completedCIR && completedCIR.length > 0) {
+        // Filter those who are no longer active tenants
+        const checkedOutItems = completedCIR.filter((c: any) => {
+          const isRoomActive = c.assigned_room_id && activeRoomIds.has(c.assigned_room_id)
+          const isNameActive = activeNames.has((c.full_name || '').toLowerCase().trim())
+          return !isRoomActive || !isNameActive
+        })
+
+        checkoutHistoryList = checkedOutItems.map((c: any) => {
+          const room = roomMap.get(c.assigned_room_id) as any
+          const floor = room?.floors || {}
           return {
             id: c.id,
             tenant_name: c.full_name,
             phone: c.phone || null,
-            room_number: room.room_number || '-',
-            floor_name: floor.name || '-',
-            room_type: room.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room',
+            room_number: room?.room_number || '-',
+            floor_name: floor?.name || '-',
+            room_type: room?.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room',
             check_in_date: c.created_at ? c.created_at.split('T')[0] : null,
             due_date: null,
             checkout_date: c.updated_at ? c.updated_at.split('T')[0] : new Date().toISOString().split('T')[0],
@@ -93,14 +116,14 @@ export default async function RiwayatCheckoutPage() {
             claimed_deposit: 0,
             deposit_refund: 100000,
             additional_pay_needed: 0,
-            notes: 'Check-out berhasil diproses',
+            notes: 'Check-out selesai diproses',
             processed_by: 'Resepsionis',
             created_at: c.updated_at || c.created_at
           }
         })
       }
     } catch (fallbackErr) {
-      console.warn('Fallback checked_out check_in_requests fetch error:', fallbackErr)
+      console.warn('Fallback dynamic checkout reconstruction error:', fallbackErr)
     }
   }
 
