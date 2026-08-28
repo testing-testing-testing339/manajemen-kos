@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { LogOut, User, Sparkles, Calendar } from 'lucide-react'
+import LiveClock from './LiveClock'
 
 async function logout() {
   'use server'
@@ -62,21 +63,11 @@ export default async function Header() {
   const displayName = profile?.full_name || user.email?.split('@')[0] || 'User'
   const initials = displayName.substring(0, 2).toUpperCase()
 
-  const today = new Intl.DateTimeFormat('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  }).format(new Date())
-
   return (
     <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 px-6 py-3.5 flex items-center justify-between border-b border-slate-200/80 shadow-xs">
-      {/* Left side: Date & Status */}
+      {/* Left side: Live Date & Time */}
       <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 text-slate-600 text-xs font-medium border border-slate-200/50">
-          <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-          <span>{today}</span>
-        </div>
+        <LiveClock />
       </div>
 
       {/* Right side: Profile & Logout */}
