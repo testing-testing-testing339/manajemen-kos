@@ -90,13 +90,24 @@ export default async function DashboardPage() {
   // Fetch recent check-ins for the table
   let recentCheckInsQuery = supabase
     .from('check_in_requests')
-    .select('id, full_name, phone, created_at, status, branch_id, total_amount')
+    .select('id, full_name, phone, created_at, status, branch_id, total_amount, assigned_by, profiles:assigned_by(full_name)')
   if (profile?.branch_id && !isOwner) {
     recentCheckInsQuery = recentCheckInsQuery.eq('branch_id', profile.branch_id)
   }
-  const { data: recentCheckIns } = await recentCheckInsQuery
+  const { data: recentCheckInsData, error: recentCheckInsError } = await recentCheckInsQuery
     .order('created_at', { ascending: false })
     .limit(5)
+
+  let recentCheckIns: any[] = recentCheckInsData || []
+
+  if (recentCheckInsError) {
+    const { data: fallbackRecent } = await supabase
+      .from('check_in_requests')
+      .select('id, full_name, phone, created_at, status, branch_id, total_amount, assigned_by')
+      .order('created_at', { ascending: false })
+      .limit(5)
+    recentCheckIns = fallbackRecent || []
+  }
 
   // Fetch payments summary
   let paymentsQuery = supabase
@@ -365,15 +376,22 @@ export default async function DashboardPage() {
                       <p className="text-xs text-slate-400">{ci.phone || 'Tanpa no. hp'}</p>
                     </div>
                   </div>
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full capitalize ${
-                    ci.status === 'approved' || ci.status === 'completed'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : ci.status === 'rejected'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {ci.status === 'completed' ? 'Selesai' : ci.status === 'approved' ? 'Disetujui' : ci.status === 'rejected' ? 'Ditolak' : 'Pending'}
-                  </span>
+                  <div className="text-right space-y-0.5">
+                    <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full capitalize ${
+                      ci.status === 'approved' || ci.status === 'completed'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : ci.status === 'rejected'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {ci.status === 'completed' ? 'Selesai' : ci.status === 'approved' ? 'Disetujui' : ci.status === 'rejected' ? 'Ditolak' : 'Pending'}
+                    </span>
+                    {(ci.profiles?.full_name || (Array.isArray(ci.profiles) && ci.profiles[0]?.full_name)) && (
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        Petugas: {Array.isArray(ci.profiles) ? ci.profiles[0]?.full_name : ci.profiles?.full_name}
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (

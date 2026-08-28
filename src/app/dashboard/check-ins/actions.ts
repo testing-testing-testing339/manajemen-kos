@@ -126,7 +126,7 @@ export async function rejectCheckIn(prevState: any, formData: FormData) {
     return { error: 'Only owner or staff can reject check-ins' }
   }
 
-  const rejection_reason = (formData.get('rejection_reason') as string)?.trim() || 'Data formulir tidak sesuai atau berkas kurang jelas'
+  const rejection_reason = (formData.get('rejection_reason') as string)?.trim() || (formData.get('reason') as string)?.trim() || 'Data formulir tidak sesuai atau berkas kurang jelas'
 
   // Update check-in status to rejected with reason
   let updateData: any = {

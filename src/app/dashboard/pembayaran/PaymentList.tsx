@@ -126,9 +126,17 @@ export default function PaymentList({
   }, [payments, currentMonth, currentYear])
   
   const getPaymentStatus = (tenant: any) => {
+    if (!tenant.payment_due_date && !tenant.check_in_date) {
+      return { hasPaid: true, isOverdue: false, dueDate: today }
+    }
     const dueDate = new Date(tenant.payment_due_date || tenant.check_in_date)
-    const hasPaid = paidTenantIds.has(tenant.id)
-    const isOverdue = dueDate < today && !hasPaid
+    dueDate.setHours(23, 59, 59, 999)
+    const todayStart = new Date(today)
+    todayStart.setHours(0, 0, 0, 0)
+
+    // A tenant is Lunas if recorded in payments or if their active rental period is ongoing (due date >= today)
+    const hasPaid = paidTenantIds.has(tenant.id) || (dueDate >= todayStart)
+    const isOverdue = dueDate < todayStart && !paidTenantIds.has(tenant.id)
     return { hasPaid, isOverdue, dueDate }
   }
 

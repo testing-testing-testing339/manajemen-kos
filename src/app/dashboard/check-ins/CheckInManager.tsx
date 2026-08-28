@@ -275,6 +275,18 @@ export default function CheckInManager({
     setIsAssignModalOpen(true)
   }
 
+  // Helper to extract staff name
+  const getStaffName = (checkIn: any) => {
+    if (!checkIn) return null
+    if (Array.isArray(checkIn.profiles) && checkIn.profiles.length > 0) {
+      return checkIn.profiles[0]?.full_name || null
+    }
+    if (checkIn.profiles && typeof checkIn.profiles === 'object') {
+      return checkIn.profiles.full_name || null
+    }
+    return null
+  }
+
   // SEPARATION: Active / Latest Requests vs. Historical Requests
   const activeRequests = useMemo(() => {
     return checkIns.filter(c => c.status === 'pending' || (c.status === 'approved' && !c.assigned_room_id))
@@ -292,12 +304,14 @@ export default function CheckInManager({
     if (historySearch.trim()) {
       const q = historySearch.toLowerCase().trim()
       list = list.filter(c => {
+        const staff = getStaffName(c)
         const nameMatch = c.full_name?.toLowerCase().includes(q)
         const phoneMatch = c.phone?.toLowerCase().includes(q)
         const roomMatch = c.rooms?.room_number?.toString().toLowerCase().includes(q)
         const nikMatch = c.id_card_number?.toLowerCase().includes(q)
         const reasonMatch = c.rejection_reason?.toLowerCase().includes(q)
-        return nameMatch || phoneMatch || roomMatch || nikMatch || reasonMatch
+        const staffMatch = staff?.toLowerCase().includes(q)
+        return nameMatch || phoneMatch || roomMatch || nikMatch || reasonMatch || staffMatch
       })
     }
 
@@ -305,7 +319,7 @@ export default function CheckInManager({
   }, [checkIns, historyStatusFilter, historySearch])
 
   // Table headers for Active Tab
-  const activeHeaders = ['Nama Tamu', 'Kategori Kamar', 'Durasi Sewa', 'Total + Deposit', 'Metode Bayar', 'Status', 'Waktu Masuk', 'Aksi']
+  const activeHeaders = ['Nama Tamu', 'Kategori Kamar', 'Durasi Sewa', 'Total + Deposit', 'Metode Bayar', 'Status & Petugas', 'Waktu Masuk', 'Aksi']
   
   const activeRows = activeRequests.map(checkIn => {
     const roomPref = getRoomPreference(checkIn)
@@ -344,7 +358,14 @@ export default function CheckInManager({
         {isCash ? 'Cash' : 'QRIS'}
       </span>,
 
-      getStatusBadge(checkIn.status),
+      <div key={`status-${checkIn.id}`} className="space-y-0.5">
+        {getStatusBadge(checkIn.status)}
+        {checkIn.status === 'approved' && (
+          <p className="text-[10px] text-blue-600 font-bold">
+            Disetujui: {getStaffName(checkIn) || 'Petugas'}
+          </p>
+        )}
+      </div>,
 
       <span key={`date-${checkIn.id}`} className="text-xs text-slate-500">
         {new Date(checkIn.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -386,11 +407,13 @@ export default function CheckInManager({
   })
 
   // Table headers for History Tab
-  const historyHeaders = ['Nama Tamu', 'Kamar', 'Kategori', 'Durasi', 'Total Tagihan', 'Status & Info', 'Tanggal', 'Aksi']
+  const historyHeaders = ['Nama Tamu', 'Kamar', 'Kategori', 'Durasi', 'Total Tagihan', 'Status & Info', 'Petugas', 'Tanggal', 'Aksi']
 
   const historyRows = historyRequests.map(checkIn => {
     const roomPref = getRoomPreference(checkIn)
-    
+    const rawStaff = getStaffName(checkIn)
+    const staffName = rawStaff || (checkIn.status === 'completed' || checkIn.status === 'rejected' ? 'Resepsionis' : '-')
+
     // Resolve room display
     let roomDisplay = '-'
     if (checkIn.rooms?.room_number) {
@@ -434,6 +457,15 @@ export default function CheckInManager({
         {checkIn.status === 'rejected' && checkIn.rejection_reason && (
           <p className="text-[10px] text-rose-600 font-medium truncate max-w-[140px]" title={checkIn.rejection_reason}>
             {checkIn.rejection_reason}
+          </p>
+        )}
+      </div>,
+
+      <div key={`hist-staff-${checkIn.id}`} className="space-y-0.5">
+        <p className="text-xs font-bold text-slate-800">{staffName}</p>
+        {staffName !== '-' && (
+          <p className="text-[10px] text-slate-400 font-medium">
+            {checkIn.status === 'rejected' ? 'Petugas Penolak' : checkIn.status === 'completed' ? 'Petugas Penerima' : 'Petugas'}
           </p>
         )}
       </div>,
@@ -659,6 +691,8 @@ export default function CheckInManager({
       <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} size="2xl">
         {selectedCheckIn && (() => {
           const roomPref = getRoomPreference(selectedCheckIn)
+          const rawStaff = getStaffName(selectedCheckIn)
+          const staffName = rawStaff || (selectedCheckIn.status === 'completed' || selectedCheckIn.status === 'rejected' ? 'Resepsionis' : null)
           const isCash = selectedCheckIn.payment_destination?.toLowerCase().includes('cash') || selectedCheckIn.payment_destination?.toLowerCase().includes('resepsionis') || selectedCheckIn.payment_proof_url?.includes('placehold')
           const formattedPhone = selectedCheckIn.phone?.replace(/[^0-9]/g, '') || ''
           
@@ -706,17 +740,46 @@ export default function CheckInManager({
               {selectedCheckIn.status === 'rejected' && (
                 <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-rose-800">Alasan Penolakan Check-in:</h4>
-                    <p className="text-xs text-rose-700 font-semibold mt-0.5">
+                  <div className="space-y-1 w-full">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-rose-800">Alasan Penolakan Check-in:</h4>
+                      {staffName && (
+                        <span className="text-[11px] font-bold text-rose-800 bg-rose-200/80 px-2 py-0.5 rounded-md">
+                          Petugas: {staffName}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-rose-700 font-semibold">
                       {selectedCheckIn.rejection_reason || 'Data formulir tidak sesuai atau berkas identitas/bukti transfer tidak valid.'}
                     </p>
                   </div>
                 </div>
               )}
 
+              {/* APPROVED / COMPLETED BANNER WITH RESPONSIBLE STAFF */}
+              {selectedCheckIn.status === 'completed' && staffName && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">
+                        Petugas yang Bertanggung Jawab
+                      </span>
+                      <span className="text-xs font-black text-emerald-950">
+                        Disetujui & Ditetapkan Kamar oleh: <strong>{staffName}</strong>
+                      </span>
+                    </div>
+                  </div>
+                  {selectedCheckIn.assigned_at && (
+                    <span className="text-[11px] text-emerald-700 font-medium whitespace-nowrap">
+                      {new Date(selectedCheckIn.assigned_at).toLocaleString('id-ID')}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Data Summary Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
                 <div className="space-y-0.5">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">NIK KTP (16 Digit)</p>
                   <p className="text-xs font-black text-slate-900 font-mono">{selectedCheckIn.id_card_number || '-'}</p>
@@ -738,11 +801,11 @@ export default function CheckInManager({
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Jaminan & Deposit</p>
                   {parseFloat(selectedCheckIn.deposit_amount || '0') > 0 ? (
                     <p className="text-xs font-black text-amber-600">
-                      Deposit Rp 100k <span className="text-[10px] text-slate-500 font-normal">(KTP Fisik Bebas)</span>
+                      Deposit Rp 100k <span className="text-[10px] text-slate-500 font-normal">(KTP Bebas)</span>
                     </p>
                   ) : (
                     <p className="text-xs font-black text-rose-600">
-                      Titip KTP Fisik <span className="text-[10px] text-rose-500 font-bold">(Wajib Tahan KTP)</span>
+                      Titip KTP Fisik <span className="text-[10px] text-rose-500 font-bold">(Wajib Tahan)</span>
                     </p>
                   )}
                 </div>
@@ -759,7 +822,7 @@ export default function CheckInManager({
                   <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${
                     isCash ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                   }`}>
-                    {isCash ? 'Cash di Resepsionis' : 'QRIS GoPay Merchant'}
+                    {isCash ? 'Cash Resepsionis' : 'QRIS GoPay'}
                   </span>
                 </div>
 
@@ -773,6 +836,18 @@ export default function CheckInManager({
                   <p className="text-xs font-black text-slate-900 font-mono">
                     {selectedCheckIn.rooms?.room_number ? `Kamar ${selectedCheckIn.rooms.room_number}` : (selectedCheckIn.status === 'rejected' ? 'Ditolak' : 'Belum Ditentukan')}
                   </p>
+                </div>
+
+                <div className="space-y-0.5 sm:col-span-2 md:col-span-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Petugas Bertanggung Jawab</p>
+                  <p className="text-xs font-black text-indigo-950">
+                    {staffName || (selectedCheckIn.status === 'pending' ? 'Belum Diproses (Menunggu)' : '-')}
+                  </p>
+                  {staffName && (
+                    <p className="text-[10px] text-slate-500 font-semibold">
+                      {selectedCheckIn.status === 'rejected' ? 'Petugas yang menolak' : selectedCheckIn.status === 'completed' ? 'Petugas yang menyetujui & verifikasi' : 'Petugas penanggung jawab'}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -960,6 +1035,7 @@ export default function CheckInManager({
           <form action={rejectAction} className="space-y-4 py-1">
             <input type="hidden" name="check_in_id" value={selectedCheckIn.id} />
             <input type="hidden" name="reason" value={rejectionReason} />
+            <input type="hidden" name="rejection_reason" value={rejectionReason} />
 
             <div className="border-b border-slate-100 pb-3">
               <h2 className="text-lg font-extrabold text-slate-900">Tolak Permintaan Check-In</h2>
