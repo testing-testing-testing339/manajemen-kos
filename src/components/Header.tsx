@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { LogOut, User, Sparkles, Calendar } from 'lucide-react'
 import LiveClock from './LiveClock'
+import MobileMenuButton from './MobileMenuButton'
 
 async function logout() {
   'use server'
@@ -64,16 +65,17 @@ export default async function Header() {
   const initials = displayName.substring(0, 2).toUpperCase()
 
   return (
-    <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 px-6 py-3.5 flex items-center justify-between border-b border-slate-200/80 shadow-xs">
-      {/* Left side: Live Date & Time */}
-      <div className="flex items-center gap-3">
+    <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 px-3.5 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between border-b border-slate-200/80 shadow-xs">
+      {/* Left side: Hamburger button on mobile + Live Date & Time */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        <MobileMenuButton />
         <LiveClock />
       </div>
 
       {/* Right side: Profile & Logout */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3 pl-3 border-l border-slate-200/80">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shadow-sm shadow-indigo-500/20">
+      <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-slate-200/80">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shadow-sm shadow-indigo-500/20">
             {initials}
           </div>
           <div className="hidden md:block text-left">
@@ -90,7 +92,7 @@ export default async function Header() {
           <button
             type="submit"
             title="Keluar"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-150 cursor-pointer border border-transparent hover:border-red-100"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-150 cursor-pointer border border-transparent hover:border-red-100"
           >
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline">Keluar</span>

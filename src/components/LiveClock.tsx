@@ -17,9 +17,9 @@ export default function LiveClock() {
 
   if (!time) {
     return (
-      <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 text-slate-600 text-xs font-medium border border-slate-200/50">
-        <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-        <span>Memuat waktu...</span>
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100/80 text-slate-500 text-[11px] sm:text-xs font-medium border border-slate-200/50">
+        <Clock className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+        <span>Memuat...</span>
       </div>
     )
   }
@@ -39,12 +39,12 @@ export default function LiveClock() {
   }).format(time)
 
   return (
-    <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-100/80 text-slate-700 text-xs font-medium border border-slate-200/60 shadow-2xs">
-      <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100/80 text-slate-700 text-[11px] sm:text-xs font-medium border border-slate-200/60 shadow-2xs">
+      <div className="hidden md:flex items-center gap-1.5">
         <Calendar className="w-3.5 h-3.5 text-indigo-600" />
         <span>{dateStr}</span>
       </div>
-      <span className="text-slate-300">•</span>
+      <span className="hidden md:inline text-slate-300">•</span>
       <div className="flex items-center gap-1.5 font-mono text-slate-800 font-semibold tracking-tight">
         <Clock className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
         <span>{timeStr} WIB</span>

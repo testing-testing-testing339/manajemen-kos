@@ -601,11 +601,11 @@ export default function TenantList({
       </div>
 
       {/* Tabs Switcher */}
-      <div className="flex items-center p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/80 shadow-2xs">
+      <div className="flex items-center p-1.5 bg-slate-100/90 rounded-2xl w-full sm:w-fit border border-slate-200/80 shadow-2xs overflow-x-auto gap-1">
         <button
           type="button"
           onClick={() => setActiveTab('active')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'active'
               ? 'bg-white text-indigo-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
@@ -623,7 +623,7 @@ export default function TenantList({
         <button
           type="button"
           onClick={() => setActiveTab('history')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'history'
               ? 'bg-white text-purple-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'

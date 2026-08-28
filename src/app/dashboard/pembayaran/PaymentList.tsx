@@ -494,10 +494,10 @@ export default function PaymentList({
       </div>
 
       {/* Tabs Navigation */}
-      <div className="bg-slate-100 p-1.5 rounded-2xl flex flex-wrap max-w-2xl border border-slate-200/80 gap-1">
+      <div className="bg-slate-100 p-1.5 rounded-2xl flex overflow-x-auto max-w-full sm:max-w-3xl border border-slate-200/80 gap-1 shadow-2xs">
         <button
           onClick={() => setActiveTab('shift_report')}
-          className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 min-w-[130px] sm:min-w-[140px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'shift_report'
               ? 'bg-white text-indigo-950 shadow-sm'
               : 'text-slate-600 hover:text-slate-900'
