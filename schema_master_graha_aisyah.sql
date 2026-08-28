@@ -86,11 +86,11 @@ BEGIN
   
   IF v_branch_id IS NULL THEN
     INSERT INTO branches (name, address)
-    VALUES ('Graha Aisyah Menteng', 'Jl. Menteng No. 1, Jakarta Pusat')
+    VALUES ('Graha Aisyah Menteng', 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226')
     RETURNING id INTO v_branch_id;
   ELSE
     UPDATE branches 
-    SET name = 'Graha Aisyah Menteng', address = 'Jl. Menteng No. 1, Jakarta Pusat'
+    SET name = 'Graha Aisyah Menteng', address = 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
     WHERE id = v_branch_id;
   END IF;
 

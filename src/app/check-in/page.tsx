@@ -26,14 +26,14 @@ export default function CheckInRootPage() {
           setBranchData({
             id: '00000000-0000-0000-0000-000000000001',
             name: 'Graha Aisyah Menteng',
-            address: 'Jl. Menteng No. 1, Jakarta Pusat'
+            address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
           })
         }
       } catch {
         setBranchData({
           id: '00000000-0000-0000-0000-000000000001',
           name: 'Graha Aisyah Menteng',
-          address: 'Jl. Menteng No. 1, Jakarta Pusat'
+          address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
         })
       }
     }
@@ -44,7 +44,7 @@ export default function CheckInRootPage() {
   const branch = branchData || {
     id: '00000000-0000-0000-0000-000000000001',
     name: 'Graha Aisyah Menteng',
-    address: 'Jl. Menteng No. 1, Jakarta Pusat',
+    address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226',
   }
 
   return (

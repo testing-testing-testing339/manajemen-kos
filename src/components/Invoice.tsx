@@ -412,7 +412,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
               <tr>
                 <td>
                   <div class="brand-title">INVOICE PEMBAYARAN</div>
-                  <div class="brand-subtitle">Graha Aisyah Menteng Management • Jl. Menteng No. 1, Jakarta Pusat</div>
+                  <div class="brand-subtitle">Graha Aisyah Menteng Management • Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226</div>
                 </td>
                 <td style="text-align: right;">
                   <div class="status-badge">LUNAS / TERVERIFIKASI</div>
@@ -553,7 +553,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
 
     const invoiceText = `*INVOICE RESMI PEMBAYARAN KOST*
 *Graha Aisyah Menteng Management*
-Jl. Menteng No. 1, Jakarta Pusat
+Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 *KODE INVOICE:* ${invoiceNumber}
@@ -634,7 +634,7 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
                 INVOICE PEMBAYARAN
               </h1>
               <p className="text-xs font-semibold text-slate-500">
-                Graha Aisyah Menteng Management • Jl. Menteng No. 1, Jakarta Pusat
+                Graha Aisyah Menteng Management • Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226
               </p>
             </div>
           </div>

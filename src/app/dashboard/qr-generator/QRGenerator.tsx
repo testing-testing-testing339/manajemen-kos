@@ -61,7 +61,7 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
   const selectedBranchData = branches.find(b => b.name?.toLowerCase().includes('menteng')) || {
     id: '00000000-0000-0000-0000-000000000001',
     name: 'Graha Aisyah Menteng',
-    address: 'Jl. Menteng No. 1, Jakarta Pusat'
+    address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
   }
 
   return (
@@ -84,7 +84,7 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
             </div>
             <div>
               <h2 className="text-base font-extrabold text-slate-900">{selectedBranchData.name || 'Graha Aisyah Menteng'}</h2>
-              <p className="text-xs text-slate-400">{selectedBranchData.address || 'Jl. Menteng No. 1, Jakarta Pusat'}</p>
+              <p className="text-xs text-slate-400">{selectedBranchData.address || 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'}</p>
             </div>
           </div>
 
