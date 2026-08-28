@@ -338,27 +338,32 @@ export async function deleteStaff(prevState: any, formData: FormData) {
     return { error: 'Hanya owner yang dapat menghapus staff' }
   }
 
-  // Delete profile first
-  const { error: deleteError } = await supabase
+  // 1. Unlink historical transactions so foreign key constraints don't block deletion
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const adminClient = serviceRoleKey
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    : supabase
+
+  try {
+    await adminClient.from('check_in_requests').update({ assigned_by: null }).eq('assigned_by', staff_id)
+    await adminClient.from('payments').update({ confirmed_by: null }).eq('confirmed_by', staff_id)
+  } catch (unlinkErr) {
+    console.error('Error unlinking staff references:', unlinkErr)
+  }
+
+  // 2. Delete profile
+  const { error: deleteError } = await adminClient
     .from('profiles')
     .delete()
     .eq('id', staff_id)
 
   if (deleteError) return { error: deleteError.message }
 
-  // Delete auth user using service role directly
+  // 3. Delete auth user
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
-      const adminClient = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      )
       await adminClient.auth.admin.deleteUser(staff_id)
     } catch (error) {
       console.error('Error deleting auth user:', error)
