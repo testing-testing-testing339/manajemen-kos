@@ -58,10 +58,12 @@ export default function CheckInList({
 
   // Helper function to format rental duration
   const formatRentalDuration = (checkIn: any) => {
-    if (checkIn.rental_duration === 'daily' && checkIn.rental_days) {
-      return `${checkIn.rental_days} hari`
-    } else if (checkIn.rental_duration === '6months') {
-      return '6 bulan'
+    if (checkIn.rental_duration === 'daily') {
+      return `${checkIn.rental_days || 1} hari`
+    } else if (checkIn.rental_duration === 'weekly') {
+      return `${checkIn.rental_weeks || Math.ceil((checkIn.rental_days || 7) / 7)} minggu`
+    } else if (checkIn.rental_duration === 'monthly' || checkIn.rental_duration === '6months') {
+      return `${checkIn.rental_months || (checkIn.rental_duration === '6months' ? 6 : Math.ceil((checkIn.rental_days || 30) / 30))} bulan`
     }
     return '-'
   }

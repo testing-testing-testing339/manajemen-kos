@@ -218,7 +218,7 @@ export async function POST(request: Request) {
       selected_room_type,
       room_category: room_category || 'vip',
       rental_duration: rental_duration,
-      rental_days: rental_days ? parseInt(rental_days) : (rental_duration === 'weekly' ? (rental_weeks ? parseInt(rental_weeks) * 7 : 7) : 1),
+      rental_days: rental_days ? parseInt(rental_days) : (rental_duration === 'weekly' ? (rental_weeks ? parseInt(rental_weeks) * 7 : 7) : (rental_duration === 'monthly' ? (rental_months ? parseInt(rental_months) * 30 : 30) : 1)),
       rental_weeks: rental_weeks ? parseInt(rental_weeks) : 1,
       rental_months: rental_months ? parseInt(rental_months) : 1,
       deposit_amount: parseFloat(deposit_amount),
@@ -242,7 +242,7 @@ export async function POST(request: Request) {
         const fallbackPayload = {
           ...basePayload,
           rental_duration: 'daily', // fallback so older PostgreSQL check constraint accepts it
-          rental_days: rental_duration === 'weekly' ? (rental_weeks ? parseInt(rental_weeks) * 7 : 7) : (rental_days ? parseInt(rental_days) : 1)
+          rental_days: rental_duration === 'weekly' ? (rental_weeks ? parseInt(rental_weeks) * 7 : 7) : (rental_duration === 'monthly' ? (rental_months ? parseInt(rental_months) * 30 : 30) : (rental_days ? parseInt(rental_days) : 1))
         }
         const { error: retryError } = await supabase
           .from('check_in_requests')

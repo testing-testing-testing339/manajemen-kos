@@ -132,7 +132,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
     processedByName = userProfile?.full_name || user.email || 'Resepsionis'
   }
 
-  const tenantDeposit = tenant.deposit_amount ? parseFloat(tenant.deposit_amount) : 100000
+  const tenantDeposit = tenant.deposit_amount !== undefined && tenant.deposit_amount !== null ? parseFloat(tenant.deposit_amount) : 0
   const totalCharge = late_fee + damage_fee
   const actualClaimedDeposit = claimed_deposit_input > 0 ? claimed_deposit_input : Math.min(tenantDeposit, totalCharge)
   const actualExtraToPay = additional_pay_needed > 0 ? additional_pay_needed : Math.max(0, totalCharge - tenantDeposit)

@@ -1284,28 +1284,45 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-4">
               {durationType === 'daily' && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <p className="text-xs font-extrabold text-white">Jumlah Malam Menginap</p>
                       <p className="text-[11px] text-slate-400">Rp 100.000 / malam (Flat Seluruh Kamar)</p>
                     </div>
 
-                    {/* Stepper +/- */}
-                    <div className="flex items-center gap-2 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                    {/* Stepper +/- & editable input */}
+                    <div className="flex items-center gap-1.5 bg-slate-800 p-1.5 rounded-xl border border-slate-700">
                       <button
                         type="button"
                         onClick={() => setDailyDays(Math.max(1, dailyDays - 1))}
                         className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                        title="Kurangi 1 malam"
                       >
                         -
                       </button>
-                      <span className="w-12 text-center text-xs font-black text-white font-mono">
-                        {dailyDays} Malam
-                      </span>
+                      <div className="flex items-center justify-center px-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max="90"
+                          value={dailyDays || ''}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value)
+                            if (!isNaN(val) && val >= 1) {
+                              setDailyDays(Math.min(90, val))
+                            } else if (e.target.value === '') {
+                              setDailyDays(1)
+                            }
+                          }}
+                          className="w-10 text-center text-xs font-black text-white font-mono bg-transparent focus:outline-none focus:bg-slate-700/50 rounded py-0.5"
+                        />
+                        <span className="text-xs font-black text-indigo-400 select-none">Malam</span>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => setDailyDays(Math.min(30, dailyDays + 1))}
+                        onClick={() => setDailyDays(Math.min(90, dailyDays + 1))}
                         className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                        title="Tambah 1 malam"
                       >
                         +
                       </button>
@@ -1313,39 +1330,89 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   </div>
 
                   {/* Quick Select Buttons */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-none">
-                    {[1, 2, 3, 4, 5, 6, 7].map(d => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setDailyDays(d)}
-                        className={`flex-1 min-w-[42px] py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          dailyDays === d
-                            ? 'bg-indigo-600 text-white shadow-md'
-                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                        }`}
-                      >
-                        {d}
-                      </button>
-                    ))}
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase tracking-wider">
+                      Pilihan Cepat:
+                    </span>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                      {[1, 2, 3, 4, 5, 6, 7, 10, 14].map(d => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setDailyDays(d)}
+                          className={`flex-1 min-w-[42px] py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            dailyDays === d
+                              ? 'bg-indigo-600 text-white shadow-md'
+                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                          }`}
+                        >
+                          {d} Harian
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
 
               {durationType === 'weekly' && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
-                      <p className="text-xs font-extrabold text-white">Jumlah Minggu</p>
+                      <p className="text-xs font-extrabold text-white">Jumlah Durasi Minggu</p>
                       <p className="text-[11px] text-indigo-400 font-bold">Tarif Rp 500.000 / minggu</p>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      {[1, 2, 3].map(w => (
+
+                    {/* Stepper +/- & editable input */}
+                    <div className="flex items-center gap-1.5 bg-slate-800 p-1.5 rounded-xl border border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setWeeklyWeeks(Math.max(1, weeklyWeeks - 1))}
+                        className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                        title="Kurangi 1 minggu"
+                      >
+                        -
+                      </button>
+                      <div className="flex items-center justify-center px-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max="24"
+                          value={weeklyWeeks || ''}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value)
+                            if (!isNaN(val) && val >= 1) {
+                              setWeeklyWeeks(Math.min(24, val))
+                            } else if (e.target.value === '') {
+                              setWeeklyWeeks(1)
+                            }
+                          }}
+                          className="w-10 text-center text-xs font-black text-white font-mono bg-transparent focus:outline-none focus:bg-slate-700/50 rounded py-0.5"
+                        />
+                        <span className="text-xs font-black text-indigo-400 select-none">Mgg</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setWeeklyWeeks(Math.min(24, weeklyWeeks + 1))}
+                        className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                        title="Tambah 1 minggu"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick Select Chips */}
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase tracking-wider">
+                      Pilihan Cepat:
+                    </span>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                      {[1, 2, 3, 4, 6, 8].map(w => (
                         <button
                           key={w}
                           type="button"
                           onClick={() => setWeeklyWeeks(w)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          className={`flex-1 min-w-[48px] py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                             weeklyWeeks === w
                               ? 'bg-indigo-600 text-white shadow-md'
                               : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
@@ -1360,7 +1427,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               )}
 
               {durationType === 'monthly' && (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
                       Pilihan Paket Fasilitas Bulanan:
@@ -1404,28 +1471,76 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-extrabold text-white">Durasi Periode Bulan</p>
-                      <p className="text-[11px] text-slate-400">
-                        {monthlyPackage === 'non_ac' ? 'Rp 650.000 / bulan' : 'Rp 1.350.000 / bulan'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {[1, 3, 6, 12].map(m => (
+                  {/* Bebas tentukan berapa bulan */}
+                  <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <p className="text-xs font-extrabold text-white">Jumlah Durasi Bulan</p>
+                        <p className="text-[11px] text-slate-400">
+                          {monthlyPackage === 'non_ac' ? 'Rp 650.000' : 'Rp 1.350.000'} / bulan
+                        </p>
+                      </div>
+
+                      {/* Stepper +/- & editable input */}
+                      <div className="flex items-center gap-1.5 bg-slate-800 p-1.5 rounded-xl border border-slate-700">
                         <button
-                          key={m}
                           type="button"
-                          onClick={() => setMonthlyMonths(m)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            monthlyMonths === m
-                              ? 'bg-indigo-600 text-white shadow-md'
-                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                          }`}
+                          onClick={() => setMonthlyMonths(Math.max(1, monthlyMonths - 1))}
+                          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                          title="Kurangi 1 bulan"
                         >
-                          {m} Bln
+                          -
                         </button>
-                      ))}
+                        <div className="flex items-center justify-center px-1">
+                          <input
+                            type="number"
+                            min="1"
+                            max="36"
+                            value={monthlyMonths || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value)
+                              if (!isNaN(val) && val >= 1) {
+                                setMonthlyMonths(Math.min(36, val))
+                              } else if (e.target.value === '') {
+                                setMonthlyMonths(1)
+                              }
+                            }}
+                            className="w-10 text-center text-xs font-black text-white font-mono bg-transparent focus:outline-none focus:bg-slate-700/50 rounded py-0.5"
+                          />
+                          <span className="text-xs font-black text-indigo-400 select-none">Bln</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMonthlyMonths(Math.min(36, monthlyMonths + 1))}
+                          className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                          title="Tambah 1 bulan"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Select Chips */}
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase tracking-wider">
+                        Pilihan Cepat:
+                      </span>
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                        {[1, 2, 3, 4, 5, 6, 9, 12].map(m => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setMonthlyMonths(m)}
+                            className={`flex-1 min-w-[48px] py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              monthlyMonths === m
+                                ? 'bg-indigo-600 text-white shadow-md'
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                            }`}
+                          >
+                            {m} Bln
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

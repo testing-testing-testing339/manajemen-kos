@@ -205,7 +205,7 @@ export default function TenantList({
     }
   }, [checkoutTenant, checkoutDate, checkoutTime])
 
-  const initialDeposit = checkoutTenant?.deposit_amount ? parseFloat(checkoutTenant.deposit_amount) : 100000
+  const initialDeposit = checkoutTenant?.deposit_amount !== undefined && checkoutTenant?.deposit_amount !== null ? parseFloat(checkoutTenant.deposit_amount) : 0
   const totalCharge = calculatedLateFee + damageFee
   const claimedDeposit = Math.min(initialDeposit, totalCharge)
   const netRefund = Math.max(0, initialDeposit - totalCharge)

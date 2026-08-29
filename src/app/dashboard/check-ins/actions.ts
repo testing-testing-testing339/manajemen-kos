@@ -256,7 +256,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
     // Create tenant record
     const { data: checkInData } = await supabase
       .from('check_in_requests')
-      .select('full_name, phone, email, id_card_number, id_card_photo_url, total_amount, deposit_amount, payment_method, payment_destination, payment_proof_url, rental_duration, rental_days')
+      .select('full_name, phone, email, id_card_number, id_card_photo_url, total_amount, deposit_amount, payment_method, payment_destination, payment_proof_url, rental_duration, rental_days, rental_weeks, rental_months')
       .eq('id', check_in_id)
       .single()
 
@@ -272,17 +272,17 @@ export async function assignRoom(prevState: any, formData: FormData) {
         ? new Date(checkInRequest.created_at)
         : new Date()
       
-      // Calculate payment due date based on rental_duration and rental_days
+      // Calculate payment due date based on rental_duration, rental_months, rental_weeks, and rental_days
       const paymentDueDate = new Date(checkInDate)
       
       if (checkInData.rental_duration === 'daily' && checkInData.rental_days) {
         paymentDueDate.setDate(paymentDueDate.getDate() + checkInData.rental_days)
       } else if (checkInData.rental_duration === 'weekly') {
-        const days = checkInData.rental_days || 7
-        paymentDueDate.setDate(paymentDueDate.getDate() + days)
+        const weeks = checkInData.rental_weeks || (checkInData.rental_days ? Math.round(checkInData.rental_days / 7) : 1)
+        paymentDueDate.setDate(paymentDueDate.getDate() + (weeks * 7))
       } else if (checkInData.rental_duration === 'monthly') {
-        const days = checkInData.rental_days || 30
-        paymentDueDate.setDate(paymentDueDate.getDate() + days)
+        const months = checkInData.rental_months || (checkInData.rental_days ? Math.round(checkInData.rental_days / 30) : 1)
+        paymentDueDate.setMonth(paymentDueDate.getMonth() + months)
       } else {
         paymentDueDate.setDate(paymentDueDate.getDate() + (checkInData.rental_days || 1))
       }
@@ -296,6 +296,12 @@ export async function assignRoom(prevState: any, formData: FormData) {
       const actualPaymentMethod = isCash ? 'cash' : 'transfer'
 
       // Create tenant record
+      const rentalCount = checkInData.rental_duration === 'monthly'
+        ? (checkInData.rental_months || (checkInData.rental_days ? Math.round(checkInData.rental_days / 30) : 1))
+        : (checkInData.rental_duration === 'weekly'
+          ? (checkInData.rental_weeks || (checkInData.rental_days ? Math.round(checkInData.rental_days / 7) : 1))
+          : (checkInData.rental_days || 1))
+
       const tenantInsertPayload: any = {
         room_id: room_id,
         full_name: checkInData.full_name,
@@ -304,7 +310,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
         payment_due_date: paymentDueDate.toISOString().split('T')[0],
         deposit_amount: checkInData.deposit_amount ? parseFloat(checkInData.deposit_amount) : 100000,
         rental_duration: checkInData.rental_duration || 'daily',
-        rental_count: checkInData.rental_days || 1,
+        rental_count: rentalCount,
         electricity_meter_start: 0
       }
 

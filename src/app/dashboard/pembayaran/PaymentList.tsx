@@ -151,10 +151,11 @@ export default function PaymentList({
     })
 
     // 1. Titipan Uang Deposit: ONLY count active deposit from currently ACTIVE tenants
-    // If tenant checked out, deposit is refunded or claimed, so active liability becomes Rp 0!
+    // If tenant checked out or has 0 deposit, active liability becomes Rp 0!
     let totalActiveDeposit = 0
     tenants.forEach((t: any) => {
-      totalActiveDeposit += parseFloat(t.deposit_amount || 100000)
+      const dep = t.deposit_amount !== undefined && t.deposit_amount !== null ? parseFloat(t.deposit_amount) : 0
+      totalActiveDeposit += isNaN(dep) ? 0 : dep
     })
 
     let totalRentRevenue = 0

@@ -121,7 +121,7 @@ export default async function PropertiPage() {
       payment_due_date: paymentDueDate,
       rental_duration: t.rental_duration || cir?.rental_duration || 'daily',
       rental_count: t.rental_count || cir?.rental_days || 1,
-      deposit_amount: t.deposit_amount || 100000
+      deposit_amount: t.deposit_amount !== undefined && t.deposit_amount !== null ? t.deposit_amount : 0
     }
   })
 

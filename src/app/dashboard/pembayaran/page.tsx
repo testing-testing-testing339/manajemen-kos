@@ -350,7 +350,7 @@ export default async function PembayaranPage() {
           ...payment,
           tenants: tenant,
           check_in_request: matchedCheckIn || null,
-          deposit_amount: isCheckoutPenaltyOrClaim ? 0 : (matchedCheckIn?.deposit_amount || 100000)
+          deposit_amount: isCheckoutPenaltyOrClaim ? 0 : (matchedCheckIn?.deposit_amount !== undefined && matchedCheckIn?.deposit_amount !== null ? matchedCheckIn.deposit_amount : (tenant?.deposit_amount !== undefined ? tenant.deposit_amount : 0))
         })
       })
       

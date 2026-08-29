@@ -744,7 +744,7 @@ export default function PropertiList({
                     <p><strong className="text-slate-800">Kontak:</strong> {tenant.phone || '-'}</p>
                     <p><strong className="text-slate-800">Check-in:</strong> {tenant.check_in_date ? new Date(tenant.check_in_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</p>
                     <p><strong className="text-slate-800">Checkout / Tempo:</strong> {tenant.payment_due_date ? new Date(tenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</p>
-                    <p><strong className="text-slate-800">Titipan Deposit:</strong> Rp {Number(tenant.deposit_amount || 100000).toLocaleString('id-ID')}</p>
+                    <p><strong className="text-slate-800">Titipan Deposit:</strong> Rp {Number(tenant.deposit_amount !== undefined && tenant.deposit_amount !== null ? tenant.deposit_amount : 0).toLocaleString('id-ID')}</p>
                   </div>
                 </div>
               )}
