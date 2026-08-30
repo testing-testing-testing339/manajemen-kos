@@ -353,19 +353,28 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const validateStep1 = () => {
     if (devMode) return true // Bypass in Dev Mode untuk kemudahan inspeksi admin
     const errs: { [key: string]: string } = {}
+    
     const nameV = validateFullName(formData.full_name)
-    if (!nameV.valid) errs.full_name = 'Nama lengkap minimal 2 karakter (hanya huruf dan spasi)'
+    if (!nameV.valid) {
+      errs.full_name = 'Nama lengkap minimal 2 karakter (sesuai KTP)'
+    }
     
     const phoneV = validatePhone(formData.phone)
-    if (!phoneV.valid) errs.phone = 'Nomor telepon tidak valid (contoh: 08123456789)'
+    if (!phoneV.valid) {
+      errs.phone = 'Nomor WhatsApp / telepon tidak valid (contoh: 081234567890)'
+    }
 
-    if (formData.email) {
+    if (formData.email && formData.email.trim()) {
       const emailV = validateEmail(formData.email)
-      if (!emailV.valid) errs.email = 'Format email tidak valid'
+      if (!emailV.valid) {
+        errs.email = 'Format email tidak valid (contoh: nama@email.com)'
+      }
     }
 
     const idCardV = validateIdCardNumber(formData.id_card_number)
-    if (!idCardV.valid) errs.id_card_number = 'Nomor KTP (NIK) harus 16 digit angka'
+    if (!idCardV.valid) {
+      errs.id_card_number = 'Nomor KTP (NIK) harus 16 digit angka'
+    }
 
     setValidationErrors(errs)
     return Object.keys(errs).length === 0
@@ -708,6 +717,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <input
                 type="text"
                 required
+                autoComplete="name"
+                autoCapitalize="words"
+                autoCorrect="off"
+                spellCheck={false}
                 value={formData.full_name}
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                 placeholder="Masukkan nama lengkap Anda"
@@ -728,6 +741,8 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div className="relative">
               <input
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 required
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -743,16 +758,26 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Alamat Email (Opsional)
+            <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider flex items-center justify-between">
+              <span>Alamat Email</span>
+              <span className="text-[10px] text-slate-400 font-normal lowercase">(opsional)</span>
             </label>
             <input
-              type="email"
+              type="text"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value.trim() })}
               placeholder="nama@email.com"
-              className="w-full px-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+              className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                validationErrors.email ? 'border-red-500' : 'border-slate-700'
+              }`}
             />
+            {validationErrors.email && (
+              <p className="text-[11px] text-red-400 mt-1">{validationErrors.email}</p>
+            )}
           </div>
 
           <div>
@@ -761,6 +786,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </label>
             <input
               type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
               required
               maxLength={16}
               value={formData.id_card_number}
