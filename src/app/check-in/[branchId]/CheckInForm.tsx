@@ -23,7 +23,6 @@ import {
   Phone, 
   Mail, 
   ShieldCheck, 
-  Sparkles, 
   CheckCircle2, 
   Clock, 
   AlertCircle, 
@@ -208,7 +207,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
       let stream: MediaStream | null = null
 
-      // Try with facing mode
+      // Try with facing mode (Selfie strictly uses front/user camera)
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -249,9 +248,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       console.error('Camera access error:', err)
       let msg = 'Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan di browser.'
       if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        msg = 'Izin kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda atau gunakan tombol Upload.'
+        msg = 'Izin kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda atau gunakan tombol Kamera HP.'
       } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-        msg = 'Kamera tidak terdeteksi pada perangkat Anda. Silakan gunakan tombol Upload Foto.'
+        msg = 'Kamera depan tidak terdeteksi pada perangkat Anda. Silakan gunakan tombol Kamera HP.'
       } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
         msg = 'Kamera sedang digunakan oleh aplikasi lain. Silakan tutup aplikasi lain dan coba lagi.'
       } else if (err?.message) {
@@ -283,7 +282,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
     setCompressingField(type === 'id_card' ? 'id_card_photo' : 'selfie_photo')
     try {
-      const file = await captureVideoFrameToWebP(video, type, 1400, 0.85)
+      const file = await captureVideoFrameToWebP(video, type, 1400, 0.85, type === 'selfie')
       if (file) {
         if (type === 'id_card') {
           setFormData(prev => ({ ...prev, id_card_photo: file }))
@@ -301,6 +300,13 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     }
   }
 
+  // Auto-start front camera when navigating to selfie step
+  useEffect(() => {
+    if (step === 3 && !formData.selfie_photo && !cameraActive) {
+      startCamera('selfie')
+    }
+  }, [step])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -310,11 +316,13 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   }, [])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'id_card_photo' | 'selfie_photo' | 'payment_proof') => {
-    if (e.target.files && e.target.files[0]) {
-      const rawFile = e.target.files[0]
+    const inputElement = e.target
+    if (inputElement.files && inputElement.files[0]) {
+      const rawFile = inputElement.files[0]
       const validation = validateFile(rawFile, ['image/'], 20) // Accept up to 20MB raw, since we compress it down to ~150KB
       if (!validation.valid) {
         setError(validation.error || 'File tidak valid')
+        inputElement.value = ''
         return
       }
 
@@ -336,6 +344,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         setValidationErrors(prev => ({ ...prev, [field]: '' }))
       } finally {
         setCompressingField(null)
+        inputElement.value = ''
       }
     }
   }
@@ -535,7 +544,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} noValidate className="space-y-6">
       {/* Tombol Ringkas Auto-Fill Data Dummy (Hanya muncul jika URL mengandung ?dev=true) */}
       {devMode && (
         <div className="flex items-center justify-between p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-in fade-in">
@@ -890,7 +899,6 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       <input
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         className="hidden"
                         onChange={(e) => handleFileUpload(e, 'id_card_photo')}
                       />
@@ -955,36 +963,41 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       )}
 
       {/* =========================================================================
-          STEP 3: FOTO SELFIE DENGAN FRAME WAJAH PROPORSIONAL
+          STEP 3: FOTO SELFIE DENGAN KAMERA DEPAN LANGSUNG
       ========================================================================= */}
       {step === 3 && (
         <div className="space-y-4">
           <div className="border-b border-slate-800 pb-3 mb-2">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Camera className="w-5 h-5 text-indigo-400" />
-              Foto Selfie Tamu
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Posisikan wajah Anda di tengah lingkaran panduan untuk verifikasi wajah
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Camera className="w-5 h-5 text-indigo-400" />
+                Foto Wajah Tamu (Kamera Depan)
+              </h2>
+              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Wajib Kamera Depan
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Foto wajah wajib diambil langsung dari kamera depan perangkat untuk verifikasi identitas check-in (tidak dapat menggunakan foto galeri).
             </p>
           </div>
 
           {compressingField === 'selfie_photo' ? (
             <div className="max-w-xs mx-auto p-8 rounded-2xl bg-slate-900/80 border border-slate-800 text-center space-y-2.5">
               <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin mx-auto" />
-              <p className="text-sm font-bold text-white">Mengompres Foto Selfie...</p>
+              <p className="text-sm font-bold text-white">Memproses Foto Wajah...</p>
               <p className="text-xs text-slate-400">Mengoptimalkan kualitas dan ukuran foto secara otomatis ke WebP</p>
             </div>
           ) : !formData.selfie_photo ? (
             <div className="space-y-4">
               <div className="relative w-full max-w-xs mx-auto aspect-square bg-slate-950 rounded-3xl overflow-hidden border-2 border-dashed border-indigo-500/40 flex items-center justify-center shadow-2xl">
-                {/* Permanent video element */}
+                {/* Permanent mirrored video element */}
                 <video
                   ref={selfieVideoRef}
                   autoPlay
                   playsInline
                   muted
-                  className={`w-full h-full object-cover ${cameraActive === 'selfie' ? 'block' : 'hidden'}`}
+                  className={`w-full h-full object-cover -scale-x-100 ${cameraActive === 'selfie' ? 'block' : 'hidden'}`}
                 />
 
                 {cameraActive === 'selfie' ? (
@@ -1007,8 +1020,8 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       <User className="w-7 h-7" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-200">Foto Selfie Belum Diambil</p>
-                      <p className="text-[11px] text-slate-400">Ambil selfie langsung dari kamera depan</p>
+                      <p className="text-xs font-bold text-slate-200">Kamera Depan Belum Aktif</p>
+                      <p className="text-[11px] text-slate-400">Klik tombol di bawah untuk membuka kamera depan</p>
                     </div>
                   </div>
                 )}
@@ -1023,7 +1036,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer"
                     >
                       <Camera className="w-4 h-4" />
-                      Ambil Foto Selfie
+                      Ambil Foto Wajah
                     </button>
                     <button
                       type="button"
@@ -1042,12 +1055,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg cursor-pointer"
                     >
                       <Camera className="w-4 h-4" />
-                      {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera'}
+                      {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera Depan'}
                     </button>
 
-                    <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center">
-                      <Upload className="w-4 h-4 text-indigo-400" />
-                      <span>Ambil / Upload File</span>
+                    <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center" title="Buka kamera depan bawaan HP jika live stream tidak aktif">
+                      <Camera className="w-4 h-4 text-indigo-400" />
+                      <span>Kamera Depan HP</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1073,7 +1086,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               {/* Compression Badge */}
               <div className="flex items-center justify-between text-xs text-slate-300 bg-slate-900/90 px-3.5 py-2 rounded-xl border border-slate-800">
                 <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                  <Sparkles className="w-3.5 h-3.5" /> Terkompresi Otomatis (WebP)
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Terkompresi Otomatis (WebP)
                 </span>
                 <span className="font-mono text-[11px] text-slate-400">
                   Ukuran: {formatFileSize(formData.selfie_photo.size)}
@@ -1813,34 +1826,77 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               </div>
 
               {/* Upload Proof */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Upload Bukti Pembayaran QRIS *
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                  <span>Upload Bukti Pembayaran QRIS *</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Maks. 20MB</span>
                 </label>
+
                 {compressingField === 'payment_proof' ? (
-                  <div className="p-4 bg-slate-900 border border-slate-700 rounded-xl text-center flex items-center justify-center gap-2 text-xs text-indigo-300">
-                    <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
-                    <span>Mengompres bukti pembayaran ke WebP...</span>
+                  <div className="p-5 bg-slate-900/90 border border-indigo-500/30 rounded-2xl text-center flex flex-col items-center justify-center gap-2 text-xs text-indigo-300 animate-pulse">
+                    <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
+                    <span className="font-semibold">Mengompres bukti pembayaran...</span>
+                  </div>
+                ) : formData.payment_proof ? (
+                  <div className="p-3 bg-slate-900 border border-emerald-500/40 rounded-2xl flex items-center justify-between gap-3 shadow-md">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-950 border border-slate-700 shrink-0">
+                        <img
+                          src={URL.createObjectURL(formData.payment_proof)}
+                          alt="Bukti Transfer"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 text-emerald-400 text-xs font-bold truncate">
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">Bukti Pembayaran Siap</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono truncate max-w-[170px] sm:max-w-xs">
+                          {formData.payment_proof.name}
+                        </p>
+                        <p className="text-[10px] text-indigo-300 font-medium">
+                          {formatFileSize(formData.payment_proof.size)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <label className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-xl border border-slate-700 cursor-pointer transition-colors" title="Ganti File">
+                        <span>Ganti</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, 'payment_proof')}
+                          className="hidden"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, payment_proof: null }))}
+                        className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-[11px] font-bold rounded-xl border border-rose-500/30 cursor-pointer transition-colors"
+                        title="Hapus File"
+                      >
+                        Hapus
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <input
-                    type="file"
-                    accept="image/*"
-                    required={paymentMethod === 'qris'}
-                    onChange={(e) => handleFileUpload(e, 'payment_proof')}
-                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
-                  />
-                )}
-                {formData.payment_proof && (
-                  <div className="mt-2 text-[11px] text-emerald-400 flex items-center justify-between font-semibold bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-800">
-                    <span className="flex items-center gap-1.5 truncate mr-2">
-                      <Check className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{formData.payment_proof.name}</span>
-                    </span>
-                    <span className="font-mono text-[10px] text-slate-400 flex-shrink-0">
-                      {formatFileSize(formData.payment_proof.size)}
-                    </span>
-                  </div>
+                  <label className="border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-slate-900/60 hover:bg-slate-900 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/10 group-hover:bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-slate-200 group-hover:text-indigo-300">Pilih / Upload Bukti Transfer</p>
+                      <p className="text-[10px] text-slate-400">Screenshot m-Banking / e-Wallet (JPG, PNG, WebP)</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e, 'payment_proof')}
+                      className="hidden"
+                    />
+                  </label>
                 )}
               </div>
             </div>
@@ -1863,51 +1919,84 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               </div>
 
               {/* Upload Foto Serah Terima Uang */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1 uppercase tracking-wider flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-emerald-400" />
-                  <span>Foto Bukti Penyerahan Uang Tunai ke Petugas *</span>
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-emerald-400" />
+                    <span>Foto Bukti Penyerahan Uang Tunai ke Petugas *</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">Maks. 20MB</span>
                 </label>
-                <p className="text-[11px] text-slate-400 mb-2.5">
+                <p className="text-[11px] text-slate-400 mb-1">
                   Tamu memfotokan uang tunai saat diserahkan ke staf resepsionis sebagai bukti pembayaran yang sah untuk pemilik kost.
                 </p>
 
-                <div className="space-y-3">
-                  {compressingField === 'payment_proof' ? (
-                    <div className="p-4 bg-slate-900 border border-slate-700 rounded-xl text-center flex items-center justify-center gap-2 text-xs text-emerald-300">
-                      <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                      <span>Mengompres foto serah terima ke WebP...</span>
-                    </div>
-                  ) : (
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      required={paymentMethod === 'cash'}
-                      onChange={(e) => handleFileUpload(e, 'payment_proof')}
-                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer"
-                    />
-                  )}
-
-                  {formData.payment_proof && (
-                    <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-bold text-emerald-300">Foto Serah Terima Terlampir</p>
-                          <p className="text-[10px] text-slate-400 font-mono truncate max-w-xs">{formData.payment_proof.name} ({formatFileSize(formData.payment_proof.size)})</p>
-                        </div>
+                {compressingField === 'payment_proof' ? (
+                  <div className="p-5 bg-slate-900/90 border border-emerald-500/30 rounded-2xl text-center flex flex-col items-center justify-center gap-2 text-xs text-emerald-300 animate-pulse">
+                    <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
+                    <span className="font-semibold">Mengompres foto serah terima...</span>
+                  </div>
+                ) : formData.payment_proof ? (
+                  <div className="p-3 bg-slate-900 border border-emerald-500/40 rounded-2xl flex items-center justify-between gap-3 shadow-md">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-950 border border-slate-700 shrink-0">
+                        <img
+                          src={URL.createObjectURL(formData.payment_proof)}
+                          alt="Foto Serah Terima"
+                          className="w-full h-full object-cover"
+                        />
                       </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 text-emerald-400 text-xs font-bold truncate">
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">Foto Serah Terima Terlampir</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono truncate max-w-[170px] sm:max-w-xs">
+                          {formData.payment_proof.name}
+                        </p>
+                        <p className="text-[10px] text-emerald-300 font-medium">
+                          {formatFileSize(formData.payment_proof.size)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <label className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-xl border border-slate-700 cursor-pointer transition-colors" title="Ganti Foto">
+                        <span>Ganti</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, 'payment_proof')}
+                          className="hidden"
+                        />
+                      </label>
                       <button
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, payment_proof: null }))}
-                        className="text-[11px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 bg-rose-500/10 rounded-lg cursor-pointer"
+                        className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-[11px] font-bold rounded-xl border border-rose-500/30 cursor-pointer transition-colors"
+                        title="Hapus Foto"
                       >
-                        Hapus Foto
+                        Hapus
                       </button>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-900/60 hover:bg-slate-900 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 group-hover:bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Camera className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-slate-200 group-hover:text-emerald-300">Ambil / Upload Foto Uang Tunai</p>
+                      <p className="text-[10px] text-slate-400">Foto uang tunai di meja resepsionis (JPG, PNG, WebP)</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e, 'payment_proof')}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
             </div>
           )}

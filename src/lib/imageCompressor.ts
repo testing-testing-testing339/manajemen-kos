@@ -182,7 +182,8 @@ export function captureVideoFrameToWebP(
   video: HTMLVideoElement,
   filenamePrefix: string,
   maxDimension = 1400,
-  quality = 0.85
+  quality = 0.85,
+  mirror = false
 ): Promise<File | null> {
   return new Promise((resolve) => {
     try {
@@ -214,6 +215,12 @@ export function captureVideoFrameToWebP(
 
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
+
+      if (mirror) {
+        ctx.translate(width, 0)
+        ctx.scale(-1, 1)
+      }
+
       ctx.drawImage(video, 0, 0, width, height)
 
       canvas.toBlob(

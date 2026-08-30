@@ -108,9 +108,13 @@ export function validateFile(file: File, allowedTypes: string[], maxSizeMB: numb
     return { valid: false, error: 'File tidak ditemukan' }
   }
   
-  // Check file type
-  const fileType = file.type
-  const isValidType = allowedTypes.some(type => fileType.startsWith(type))
+  // Check file type (MIME type or file extension fallback for mobile browsers)
+  const fileType = file.type || ''
+  const fileName = (file.name || '').toLowerCase()
+  const isImageAllowed = allowedTypes.some(type => type.startsWith('image/'))
+  const hasImageExt = /\.(jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(fileName)
+  
+  const isValidType = allowedTypes.some(type => fileType.startsWith(type)) || (isImageAllowed && hasImageExt)
   
   if (!isValidType) {
     return { valid: false, error: `Tipe file tidak valid. Hanya ${allowedTypes.join(', ')} yang diizinkan` }

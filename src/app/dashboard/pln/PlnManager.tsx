@@ -18,7 +18,6 @@ import {
   AlertCircle,
   ExternalLink,
   Layers,
-  Sparkles,
   RotateCcw
 } from 'lucide-react'
 

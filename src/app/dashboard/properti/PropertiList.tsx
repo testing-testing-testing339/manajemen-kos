@@ -10,7 +10,6 @@ import SubmitButton from '@/components/ui/SubmitButton'
 import { 
   Building2, 
   DoorClosed, 
-  Sparkles, 
   Plus, 
   Search, 
   Filter, 

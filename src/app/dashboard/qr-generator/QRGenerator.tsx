@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import QRCode from 'qrcode'
-import { QrCode, Download, Building2, Sparkles, CheckCircle2 } from 'lucide-react'
+import { QrCode, Download, Building2, CheckCircle2 } from 'lucide-react'
 
 export default function QRGenerator({ branches, userRole }: { branches: any[], userRole: string | null }) {
   const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || 'default')
@@ -90,7 +90,7 @@ export default function QRGenerator({ branches, userRole }: { branches: any[], u
 
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2 text-xs text-slate-600">
             <div className="flex items-center gap-2 font-bold text-slate-900">
-              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <CheckCircle2 className="w-4 h-4 text-indigo-600" />
               <span>Kemudahan Registrasi Mandiri Tamu:</span>
             </div>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-500 pl-1">

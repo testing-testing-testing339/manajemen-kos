@@ -13,7 +13,6 @@ import {
   ShieldCheck, 
   Edit3,
   X,
-  Sparkles,
   Eye,
   EyeOff
 } from 'lucide-react'
