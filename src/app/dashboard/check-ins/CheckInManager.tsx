@@ -6,6 +6,7 @@ import { useActionState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { approveCheckIn, rejectCheckIn, assignRoom } from './actions'
 import Modal from '@/components/ui/Modal'
+import ImageLightbox from '@/components/ui/ImageLightbox'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
 import QRCode from 'qrcode'
@@ -1208,54 +1209,14 @@ export default function CheckInManager({
       </Modal>
 
       {/* =========================================================================
-          FULL SCREEN IMAGE LIGHTBOX
+          PORTALED HIGH-Z FULL SCREEN IMAGE LIGHTBOX
       ========================================================================= */}
-      {zoomImage && (
-        <div 
-          onClick={() => setZoomImage(null)}
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
-        >
-          <div 
-            onClick={(e) => e.stopPropagation()}
-            className="relative max-w-4xl w-full bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl"
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/90">
-              <div className="flex items-center gap-2">
-                <ZoomIn className="w-4 h-4 text-indigo-400" />
-                <h3 className="text-sm font-bold text-white">{zoomImage.title}</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <a
-                  href={zoomImage.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Buka Tab Baru</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setZoomImage(null)}
-                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-rose-500 hover:text-white text-slate-400 flex items-center justify-center text-sm font-bold transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body / Image View */}
-            <div className="p-4 flex items-center justify-center bg-slate-950/40 overflow-auto max-h-[calc(90vh-80px)]">
-              <img
-                src={zoomImage.url}
-                alt={zoomImage.title}
-                className="max-h-[75vh] w-auto object-contain rounded-2xl shadow-lg border border-slate-800"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <ImageLightbox
+        isOpen={!!zoomImage}
+        url={zoomImage?.url}
+        title={zoomImage?.title}
+        onClose={() => setZoomImage(null)}
+      />
     </div>
   )
 }
