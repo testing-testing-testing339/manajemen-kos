@@ -61,18 +61,25 @@ export default function RoomList({ initialRooms, initialFloors }: { initialRooms
 
   const filteredRooms = selectedBranch ? sortedRooms.filter(r => r.floors?.branches?.name === selectedBranch) : sortedRooms
 
-  const headers = ['No. Kamar', 'Section / Lantai', 'Harga', 'Fasilitas', 'Status', 'Actions']
-  const rows = filteredRooms.map(room => [
-    `Kamar ${room.room_number}`,
-    room.floors?.name || 'Unknown',
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(room.price),
-    room.facilities?.filter((f: string) => !f.toLowerCase().startsWith('id pln:')).join(', ') || '',
-    room.is_occupied ? 'Terisi' : 'Kosong',
-    <form action={deleteAction} key={room.id}>
-      <input type="hidden" name="id" value={room.id} />
-      <button type="submit" className="text-red-500 hover:text-red-700 font-bold cursor-pointer">Delete</button>
-    </form>
-  ])
+  const headers = ['No. Kamar', 'Section / Lantai', 'Harga', 'Fasilitas', 'Catatan Kerusakan', 'Status', 'Actions']
+  const rows = filteredRooms.map(room => {
+    // Extract old style kondisi tag if no damage_notes exists yet
+    const oldKondisi = room.facilities?.filter((f: string) => f.toLowerCase().startsWith('kondisi:')).map((f: string) => f.replace(/^kondisi:\s*/i, '')).join(', ') || ''
+    const damageNotesDisplay = room.damage_notes || oldKondisi || '-'
+
+    return [
+      `Kamar ${room.room_number}`,
+      room.floors?.name || 'Unknown',
+      new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(room.price),
+      room.facilities?.filter((f: string) => !f.toLowerCase().startsWith('id pln:') && !f.toLowerCase().startsWith('kondisi:')).join(', ') || '',
+      damageNotesDisplay,
+      room.is_occupied ? 'Terisi' : 'Kosong',
+      <form action={deleteAction} key={room.id}>
+        <input type="hidden" name="id" value={room.id} />
+        <button type="submit" className="text-red-500 hover:text-red-700 font-bold cursor-pointer">Delete</button>
+      </form>
+    ]
+  })
 
   // Group floors by branch
   const floorsByBranch = branches.map(branch => ({
@@ -123,6 +130,10 @@ export default function RoomList({ initialRooms, initialFloors }: { initialRooms
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700">Fasilitas</label>
             <textarea name="facilities" placeholder="Pisahkan dengan koma, misal: AC, Kasur" required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Catatan Kerusakan / Kendala (Opsional)</label>
+            <input name="damage_notes" type="text" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Contoh: AC Mati, TV Rusak" />
           </div>
           {createState?.error && <p className="text-red-500 mb-4">{createState.error}</p>}
           <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">Tambah</button>

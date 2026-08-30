@@ -12,7 +12,8 @@ ALTER TABLE rooms
 ADD COLUMN IF NOT EXISTS room_type text DEFAULT 'non_vip',
 ADD COLUMN IF NOT EXISTS price_per_day numeric DEFAULT 100000,
 ADD COLUMN IF NOT EXISTS price_per_week numeric DEFAULT 500000,
-ADD COLUMN IF NOT EXISTS price_per_month numeric DEFAULT 1350000;
+ADD COLUMN IF NOT EXISTS price_per_month numeric DEFAULT 1350000,
+ADD COLUMN IF NOT EXISTS damage_notes text;
 
 -- 2. Pastikan kolom-kolom baru tersedia pada tabel check_in_requests
 ALTER TABLE check_in_requests

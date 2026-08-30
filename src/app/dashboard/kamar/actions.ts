@@ -9,6 +9,7 @@ export async function createRoom(prevState: any, formData: FormData) {
   const price = parseFloat(formData.get('price') as string)
   const facilitiesStr = formData.get('facilities') as string
   const facilities = facilitiesStr.split(',').map(f => f.trim()).filter(f => f)
+  const damage_notes = (formData.get('damage_notes') as string)?.trim() || null
 
   const cookieStore = await cookies()
 
@@ -29,7 +30,7 @@ export async function createRoom(prevState: any, formData: FormData) {
     }
   )
 
-  const { error } = await supabase.from('rooms').insert({ floor_id, room_number, price, facilities })
+  const { error } = await supabase.from('rooms').insert({ floor_id, room_number, price, facilities, damage_notes })
 
   if (error) return { error: error.message }
 

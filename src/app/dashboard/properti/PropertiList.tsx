@@ -125,7 +125,8 @@ export default function PropertiList({
   }, [tenants])
 
   // Helper to extract room condition (e.g. AC Mati, TV Mati)
-  const getRoomCondition = (facilities: string[] = []): string | null => {
+  const getRoomCondition = (facilities: string[] = [], damageNotes?: string | null): string | null => {
+    if (damageNotes && damageNotes.trim()) return damageNotes.trim()
     if (!Array.isArray(facilities)) return null
     const match = facilities.find(f => 
       f.toLowerCase().startsWith('kondisi:') || 
@@ -167,7 +168,7 @@ export default function PropertiList({
     const lt3 = rooms.filter(r => r.floors?.name?.toLowerCase().includes('lt 3') || r.floors?.name?.toLowerCase().includes('lantai 3')).length
     const occupied = rooms.filter(r => r.is_occupied).length
     const available = total - occupied
-    const issues = rooms.filter(r => Boolean(getRoomCondition(r.facilities))).length
+    const issues = rooms.filter(r => Boolean(getRoomCondition(r.facilities, r.damage_notes))).length
 
     return { total, vip, dasar, lt2, lt3, occupied, available, issues }
   }, [rooms])
@@ -190,7 +191,7 @@ export default function PropertiList({
     } else if (categoryFilter === 'occupied') {
       filtered = filtered.filter(r => r.is_occupied)
     } else if (categoryFilter === 'issues') {
-      filtered = filtered.filter(r => Boolean(getRoomCondition(r.facilities)))
+      filtered = filtered.filter(r => Boolean(getRoomCondition(r.facilities, r.damage_notes)))
     }
 
     // Floor filter
@@ -266,7 +267,7 @@ export default function PropertiList({
   const rows = filteredRooms.map(room => {
     const isVip = room.floors?.name?.toLowerCase().includes('vip') || room.room_type === 'vip'
     const tenant = tenantMap.get(room.id)
-    const condition = getRoomCondition(room.facilities)
+    const condition = getRoomCondition(room.facilities, room.damage_notes)
     const tier = getFacilityTier(room.facilities)
 
     const row = [
@@ -601,7 +602,7 @@ export default function PropertiList({
                     const isVip = room.floors?.name?.toLowerCase().includes('vip') || room.room_type === 'vip'
                     const tenant = tenantMap.get(room.id)
                     const isOccupied = room.is_occupied
-                    const condition = getRoomCondition(room.facilities)
+                    const condition = getRoomCondition(room.facilities, room.damage_notes)
                     const tier = getFacilityTier(room.facilities)
 
                     return (
@@ -694,7 +695,7 @@ export default function PropertiList({
           const isVip = selectedRoom.floors?.name?.toLowerCase().includes('vip') || selectedRoom.room_type === 'vip'
           const tenant = tenantMap.get(selectedRoom.id)
           const isOccupied = selectedRoom.is_occupied
-          const condition = getRoomCondition(selectedRoom.facilities)
+          const condition = getRoomCondition(selectedRoom.facilities, selectedRoom.damage_notes)
           const tier = getFacilityTier(selectedRoom.facilities)
 
           return (
@@ -928,6 +929,16 @@ export default function PropertiList({
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Catatan Kerusakan / Kendala (Opsional - Hanya untuk Owner/Staf)</label>
+            <input
+              type="text"
+              name="damage_notes"
+              placeholder="Contoh: AC Bocor, TV Tidak Menyala (kosongkan jika normal)"
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            />
+          </div>
+
           {createRoomState?.error && (
             <p className="text-xs text-red-600 font-semibold">{createRoomState.error}</p>
           )}
@@ -1009,7 +1020,7 @@ export default function PropertiList({
                 ? selectedRoom.facilities.find((f: string) => f.toLowerCase().startsWith('id pln:') || f.toLowerCase().startsWith('pln:'))?.replace(/^(id pln:|pln:)\s*/i, '') || ''
                 : ''
               const regularFacilities = Array.isArray(selectedRoom.facilities)
-                ? selectedRoom.facilities.filter((f: string) => !f.toLowerCase().startsWith('id pln:') && !f.toLowerCase().startsWith('pln:')).join(', ')
+                ? selectedRoom.facilities.filter((f: string) => !f.toLowerCase().startsWith('id pln:') && !f.toLowerCase().startsWith('pln:') && !f.toLowerCase().startsWith('kondisi:')).join(', ')
                 : ''
 
               return (
@@ -1021,6 +1032,17 @@ export default function PropertiList({
                       name="facilities"
                       defaultValue={regularFacilities}
                       placeholder="AC, Kamar Mandi Dalam, Single Bed, Lemari Pakaian, Meja"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Catatan Kerusakan / Kendala (Opsional - Hanya untuk Owner/Staf)</label>
+                    <input
+                      type="text"
+                      name="damage_notes"
+                      defaultValue={selectedRoom.damage_notes || ''}
+                      placeholder="Contoh: AC Bocor, TV Tidak Menyala (kosongkan jika normal)"
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                     />
                   </div>

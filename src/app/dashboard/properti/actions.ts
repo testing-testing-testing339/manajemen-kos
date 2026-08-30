@@ -181,6 +181,7 @@ export async function createRoom(prevState: any, formData: FormData) {
   const price_per_6months = formData.get('price_per_6months') ? parseFloat(formData.get('price_per_6months') as string) : null
   const facilitiesStr = formData.get('facilities') as string
   const facilities = facilitiesStr ? facilitiesStr.split(',').map(f => f.trim()).filter(f => f) : []
+  const damage_notes = (formData.get('damage_notes') as string)?.trim() || null
   
   // For backward compatibility, use price_per_day * 30 as default monthly price, or use price_per_month if provided
   const price = price_per_month || (price_per_day * 30)
@@ -223,7 +224,8 @@ export async function createRoom(prevState: any, formData: FormData) {
     price_per_day,
     price_per_month,
     price_per_6months,
-    facilities 
+    facilities,
+    damage_notes
   })
   if (error) return { error: error.message }
 
@@ -248,6 +250,8 @@ export async function updateRoom(prevState: any, formData: FormData) {
       facilities.push(`ID PLN: ${pln_id}`)
     }
   }
+  
+  const damage_notes = (formData.get('damage_notes') as string)?.trim() || null
   
   // For backward compatibility
   const price = price_per_month || (price_per_day * 30)
@@ -292,7 +296,8 @@ export async function updateRoom(prevState: any, formData: FormData) {
       price_per_day,
       price_per_month,
       price_per_6months,
-      facilities 
+      facilities,
+      damage_notes
     })
     .eq('id', id)
 
