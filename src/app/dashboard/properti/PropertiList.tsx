@@ -1022,6 +1022,10 @@ export default function PropertiList({
               const regularFacilities = Array.isArray(selectedRoom.facilities)
                 ? selectedRoom.facilities.filter((f: string) => !f.toLowerCase().startsWith('id pln:') && !f.toLowerCase().startsWith('pln:') && !f.toLowerCase().startsWith('kondisi:')).join(', ')
                 : ''
+              const oldKondisi = Array.isArray(selectedRoom.facilities)
+                ? selectedRoom.facilities.find((f: string) => f.toLowerCase().startsWith('kondisi:'))?.replace(/^kondisi:\s*/i, '') || ''
+                : ''
+              const damageNotesDefault = selectedRoom.damage_notes || oldKondisi
 
               return (
                 <>
@@ -1041,7 +1045,7 @@ export default function PropertiList({
                     <input
                       type="text"
                       name="damage_notes"
-                      defaultValue={selectedRoom.damage_notes || ''}
+                      defaultValue={damageNotesDefault}
                       placeholder="Contoh: AC Bocor, TV Tidak Menyala (kosongkan jika normal)"
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                     />
