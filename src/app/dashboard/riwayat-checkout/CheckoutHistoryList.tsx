@@ -232,9 +232,16 @@ export default function CheckoutHistoryList({
 
       // 5. Financials (Deposit & Refund)
       <div key={`fin-${item.id}`} className="text-xs space-y-0.5">
-        <p className="text-emerald-700 font-bold">
-          Kembali: {formatCurrency(item.deposit_refund)}
-        </p>
+        {(item.deposit_amount || 0) > 0 ? (
+          <p className="text-emerald-700 font-bold">
+            Kembali: {formatCurrency(item.deposit_refund)}
+          </p>
+        ) : (
+          <p className="text-blue-700 font-bold flex items-center gap-1">
+            <CreditCard className="w-3 h-3 text-blue-600" />
+            <span>KTP Dikembalikan</span>
+          </p>
+        )}
         {(item.late_fee || 0) > 0 && (
           <p className="text-[11px] text-red-600 font-medium">
             Denda Telat: - {formatCurrency(item.late_fee)}
@@ -500,32 +507,61 @@ export default function CheckoutHistoryList({
             {/* Financial Breakdown */}
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1">
-                Rincian Rekonsiliasi Deposit
+                Rincian Rekonsiliasi Jaminan & Deposit
               </p>
 
-              <div className="flex justify-between text-slate-700">
-                <span>Uang Deposit Awal:</span>
-                <span className="font-bold text-slate-900">{formatCurrency(selectedReceipt.deposit_amount)}</span>
-              </div>
+              {(selectedReceipt.deposit_amount || 0) > 0 ? (
+                <>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Uang Deposit Awal:</span>
+                    <span className="font-bold text-slate-900">{formatCurrency(selectedReceipt.deposit_amount)}</span>
+                  </div>
 
-              {(selectedReceipt.late_fee || 0) > 0 && (
-                <div className="flex justify-between text-red-600">
-                  <span>Denda Keterlambatan Check-Out:</span>
-                  <span className="font-bold">- {formatCurrency(selectedReceipt.late_fee)}</span>
-                </div>
+                  {(selectedReceipt.late_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Denda Keterlambatan Check-Out:</span>
+                      <span className="font-bold">- {formatCurrency(selectedReceipt.late_fee)}</span>
+                    </div>
+                  )}
+
+                  {(selectedReceipt.damage_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Biaya Kerusakan / Kebersihan:</span>
+                      <span className="font-bold">- {formatCurrency(selectedReceipt.damage_fee)}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-black">
+                    <span className="text-emerald-900">Sisa Deposit Dikembalikan:</span>
+                    <span className="text-emerald-700 text-base">{formatCurrency(selectedReceipt.deposit_refund)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Jenis Jaminan Check-In:</span>
+                    <span className="font-bold text-blue-700">Titip KTP Fisik Asli</span>
+                  </div>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Serah Terima Jaminan:</span>
+                    <span className="font-bold text-emerald-700">KTP Fisik Diserahkan Kembali</span>
+                  </div>
+
+                  {(selectedReceipt.late_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Denda Keterlambatan Check-Out:</span>
+                      <span className="font-bold">{formatCurrency(selectedReceipt.late_fee)}</span>
+                    </div>
+                  )}
+
+                  {(selectedReceipt.damage_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Biaya Kerusakan / Kebersihan:</span>
+                      <span className="font-bold">{formatCurrency(selectedReceipt.damage_fee)}</span>
+                    </div>
+                  )}
+                </>
               )}
-
-              {(selectedReceipt.damage_fee || 0) > 0 && (
-                <div className="flex justify-between text-red-600">
-                  <span>Biaya Kerusakan / Kebersihan:</span>
-                  <span className="font-bold">- {formatCurrency(selectedReceipt.damage_fee)}</span>
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-black">
-                <span className="text-emerald-900">Sisa Deposit Dikembalikan:</span>
-                <span className="text-emerald-700 text-base">{formatCurrency(selectedReceipt.deposit_refund)}</span>
-              </div>
 
               {(selectedReceipt.additional_pay_needed || 0) > 0 && (
                 <div className="pt-1.5 text-xs text-red-600 font-bold flex justify-between">

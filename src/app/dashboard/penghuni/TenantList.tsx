@@ -33,7 +33,8 @@ import {
   Receipt,
   Printer,
   Building,
-  Phone
+  Phone,
+  CreditCard
 } from 'lucide-react'
 
 interface TenantListProps {
@@ -359,7 +360,7 @@ export default function TenantList({
     'KAMAR',
     'TGL MASUK',
     'JATUH TEMPO / SELESAI',
-    'UANG DEPOSIT',
+    'JAMINAN / DEPOSIT',
     'AKSI'
   ]
 
@@ -436,9 +437,18 @@ export default function TenantList({
         )}
       </div>,
 
-      <div key={`deposit-${tenant.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60">
-        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-        <span>Rp 100.000</span>
+      <div key={`deposit-${tenant.id}`}>
+        {(tenant.deposit_amount || 0) > 0 ? (
+          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/70">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Rp {Number(tenant.deposit_amount).toLocaleString('id-ID')}</span>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/70">
+            <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+            <span>Titip KTP Fisik</span>
+          </span>
+        )}
       </div>,
 
       <button
@@ -1024,39 +1034,86 @@ export default function TenantList({
               </div>
             </div>
 
-            {/* Rincian Pengembalian & Klaim Deposit */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
-              <div className="flex justify-between text-slate-700">
-                <span>Uang Deposit Terdaftar:</span>
-                <span className="font-bold text-slate-900">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(initialDeposit)}
-                </span>
-              </div>
-              {calculatedLateFee > 0 && (
-                <div className="flex justify-between text-red-600">
-                  <span>Denda Keterlambatan:</span>
-                  <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}</span>
-                </div>
+            {/* Rincian Pengembalian & Klaim Deposit / Jaminan KTP */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5 text-xs">
+              {initialDeposit > 0 ? (
+                <>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Uang Deposit Terdaftar:</span>
+                    <span className="font-bold text-slate-900">
+                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(initialDeposit)}
+                    </span>
+                  </div>
+                  {calculatedLateFee > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Denda Keterlambatan:</span>
+                      <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}</span>
+                    </div>
+                  )}
+                  {damageFee > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Biaya Kerusakan:</span>
+                      <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(damageFee)}</span>
+                    </div>
+                  )}
+                  {claimedDeposit > 0 && (
+                    <div className="flex justify-between text-purple-700 bg-purple-50 p-2 rounded-lg border border-purple-100 font-medium">
+                      <span>Deposit Diklaim (Ganti Rugi):</span>
+                      <span className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(claimedDeposit)}</span>
+                    </div>
+                  )}
+                  
+                  <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-extrabold">
+                    <span className="text-emerald-900">Sisa Deposit Kembali ke Tamu:</span>
+                    <span className="text-emerald-700 text-base">
+                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(netRefund)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200/80 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-blue-900 font-bold flex items-center gap-1.5">
+                        <CreditCard className="w-4 h-4 text-blue-600" />
+                        Jaminan Check-In:
+                      </span>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-extrabold rounded-md">
+                        Titip KTP Fisik Asli
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-blue-800 leading-relaxed">
+                      Tamu <strong>tidak membayar deposit uang</strong> saat check-in, melainkan menitipkan <strong>KTP fisik asli</strong> di resepsionis.
+                    </p>
+                  </div>
+
+                  {calculatedLateFee > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Denda Keterlambatan:</span>
+                      <span className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}</span>
+                    </div>
+                  )}
+                  {damageFee > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Biaya Kerusakan:</span>
+                      <span className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(damageFee)}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs font-bold">
+                    <span className="text-slate-600">Tindakan Serah Terima:</span>
+                    <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-black flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Kembalikan KTP Fisik ke Tamu
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
+                    <span>Pengembalian Uang Deposit:</span>
+                    <span className="font-bold text-slate-700">Rp 0 (Tanpa Deposit Uang)</span>
+                  </div>
+                </>
               )}
-              {damageFee > 0 && (
-                <div className="flex justify-between text-red-600">
-                  <span>Biaya Kerusakan:</span>
-                  <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(damageFee)}</span>
-                </div>
-              )}
-              {claimedDeposit > 0 && (
-                <div className="flex justify-between text-purple-700 bg-purple-50 p-2 rounded-lg border border-purple-100 font-medium">
-                  <span>Deposit Diklaim (Ganti Rugi):</span>
-                  <span className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(claimedDeposit)}</span>
-                </div>
-              )}
-              
-              <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-extrabold">
-                <span className="text-emerald-900">Sisa Deposit Kembali ke Tamu:</span>
-                <span className="text-emerald-700 text-base">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(netRefund)}
-                </span>
-              </div>
 
               {additionalPayNeeded > 0 && (
                 <div className="mt-2 space-y-2 pt-2 border-t border-red-200">
@@ -1193,32 +1250,61 @@ export default function TenantList({
             {/* Financial Breakdown */}
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1">
-                Rincian Rekonsiliasi Deposit
+                Rincian Rekonsiliasi Jaminan & Deposit
               </p>
 
-              <div className="flex justify-between text-slate-700">
-                <span>Uang Deposit Awal:</span>
-                <span className="font-bold text-slate-900">{formatCurrency(selectedReceipt.deposit_amount)}</span>
-              </div>
+              {(selectedReceipt.deposit_amount || 0) > 0 ? (
+                <>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Uang Deposit Awal:</span>
+                    <span className="font-bold text-slate-900">{formatCurrency(selectedReceipt.deposit_amount)}</span>
+                  </div>
 
-              {(selectedReceipt.late_fee || 0) > 0 && (
-                <div className="flex justify-between text-red-600">
-                  <span>Denda Keterlambatan Check-Out:</span>
-                  <span className="font-bold">- {formatCurrency(selectedReceipt.late_fee)}</span>
-                </div>
+                  {(selectedReceipt.late_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Denda Keterlambatan Check-Out:</span>
+                      <span className="font-bold">- {formatCurrency(selectedReceipt.late_fee)}</span>
+                    </div>
+                  )}
+
+                  {(selectedReceipt.damage_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Biaya Kerusakan / Kebersihan:</span>
+                      <span className="font-bold">- {formatCurrency(selectedReceipt.damage_fee)}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-black">
+                    <span className="text-emerald-900">Sisa Deposit Dikembalikan:</span>
+                    <span className="text-emerald-700 text-base">{formatCurrency(selectedReceipt.deposit_refund)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Jenis Jaminan Check-In:</span>
+                    <span className="font-bold text-blue-700">Titip KTP Fisik Asli</span>
+                  </div>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Serah Terima Jaminan:</span>
+                    <span className="font-bold text-emerald-700">KTP Fisik Diserahkan Kembali</span>
+                  </div>
+
+                  {(selectedReceipt.late_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Denda Keterlambatan Check-Out:</span>
+                      <span className="font-bold">{formatCurrency(selectedReceipt.late_fee)}</span>
+                    </div>
+                  )}
+
+                  {(selectedReceipt.damage_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Biaya Kerusakan / Kebersihan:</span>
+                      <span className="font-bold">{formatCurrency(selectedReceipt.damage_fee)}</span>
+                    </div>
+                  )}
+                </>
               )}
-
-              {(selectedReceipt.damage_fee || 0) > 0 && (
-                <div className="flex justify-between text-red-600">
-                  <span>Biaya Kerusakan / Kebersihan:</span>
-                  <span className="font-bold">- {formatCurrency(selectedReceipt.damage_fee)}</span>
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-black">
-                <span className="text-emerald-900">Sisa Deposit Dikembalikan:</span>
-                <span className="text-emerald-700 text-base">{formatCurrency(selectedReceipt.deposit_refund)}</span>
-              </div>
 
               {(selectedReceipt.additional_pay_needed || 0) > 0 && (
                 <div className="pt-1.5 text-xs text-red-600 font-bold flex justify-between">

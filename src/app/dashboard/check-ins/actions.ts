@@ -308,7 +308,9 @@ export async function assignRoom(prevState: any, formData: FormData) {
         id_card_url: checkInData.id_card_photo_url,
         check_in_date: checkInDate.toISOString().split('T')[0],
         payment_due_date: paymentDueDate.toISOString().split('T')[0],
-        deposit_amount: checkInData.deposit_amount ? parseFloat(checkInData.deposit_amount) : 100000,
+        deposit_amount: checkInData.deposit_amount !== undefined && checkInData.deposit_amount !== null
+          ? parseFloat(checkInData.deposit_amount)
+          : 0,
         rental_duration: checkInData.rental_duration || 'daily',
         rental_count: rentalCount,
         electricity_meter_start: 0
