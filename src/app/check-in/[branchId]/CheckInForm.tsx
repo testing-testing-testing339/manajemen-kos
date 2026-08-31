@@ -921,13 +921,17 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera'}
                     </button>
 
-                    <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center">
+                    <label 
+                      htmlFor="id_card_photo_input"
+                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center"
+                    >
                       <Upload className="w-4 h-4 text-indigo-400" />
                       <span>Ambil / Upload File</span>
                       <input
+                        id="id_card_photo_input"
                         type="file"
                         accept="image/*"
-                        className="hidden"
+                        className="sr-only"
                         onChange={(e) => handleFileUpload(e, 'id_card_photo')}
                       />
                     </label>
@@ -1086,14 +1090,19 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera Depan'}
                     </button>
 
-                    <label className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center" title="Buka kamera depan bawaan HP jika live stream tidak aktif">
+                    <label 
+                      htmlFor="selfie_photo_input"
+                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center" 
+                      title="Buka kamera depan bawaan HP jika live stream tidak aktif"
+                    >
                       <Camera className="w-4 h-4 text-indigo-400" />
                       <span>Kamera Depan HP</span>
                       <input
+                        id="selfie_photo_input"
                         type="file"
                         accept="image/*"
                         capture="user"
-                        className="hidden"
+                        className="sr-only"
                         onChange={(e) => handleFileUpload(e, 'selfie_photo')}
                       />
                     </label>
@@ -1890,13 +1899,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <label className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-xl border border-slate-700 cursor-pointer transition-colors" title="Ganti File">
+                      <label 
+                        htmlFor="qris_payment_proof_change"
+                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-xl border border-slate-700 cursor-pointer transition-colors" 
+                        title="Ganti File"
+                      >
                         <span>Ganti</span>
                         <input
+                          id="qris_payment_proof_change"
                           type="file"
                           accept="image/*"
                           onChange={(e) => handleFileUpload(e, 'payment_proof')}
-                          className="hidden"
+                          className="sr-only"
                         />
                       </label>
                       <button
@@ -1910,7 +1924,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                   </div>
                 ) : (
-                  <label className="border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-slate-900/60 hover:bg-slate-900 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group">
+                  <label 
+                    htmlFor="qris_payment_proof"
+                    className="border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-slate-900/60 hover:bg-slate-900 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group"
+                  >
                     <div className="w-9 h-9 rounded-xl bg-indigo-500/10 group-hover:bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
                       <Upload className="w-4 h-4" />
                     </div>
@@ -1919,10 +1936,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       <p className="text-[10px] text-slate-400">Screenshot m-Banking / e-Wallet (JPG, PNG, WebP)</p>
                     </div>
                     <input
+                      id="qris_payment_proof"
                       type="file"
                       accept="image/*"
                       onChange={(e) => handleFileUpload(e, 'payment_proof')}
-                      className="hidden"
+                      className="sr-only"
                     />
                   </label>
                 )}
@@ -1989,13 +2007,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <label className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-xl border border-slate-700 cursor-pointer transition-colors" title="Ganti Foto">
+                      <label 
+                        htmlFor="cash_payment_proof_change"
+                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-xl border border-slate-700 cursor-pointer transition-colors" 
+                        title="Ganti Foto"
+                      >
                         <span>Ganti</span>
                         <input
+                          id="cash_payment_proof_change"
                           type="file"
                           accept="image/*"
                           onChange={(e) => handleFileUpload(e, 'payment_proof')}
-                          className="hidden"
+                          className="sr-only"
                         />
                       </label>
                       <button
@@ -2009,7 +2032,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                   </div>
                 ) : (
-                  <label className="border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-900/60 hover:bg-slate-900 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group">
+                  <label 
+                    htmlFor="cash_payment_proof"
+                    className="border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-900/60 hover:bg-slate-900 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group"
+                  >
                     <div className="w-9 h-9 rounded-xl bg-emerald-500/10 group-hover:bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                       <Camera className="w-4 h-4" />
                     </div>
@@ -2018,10 +2044,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       <p className="text-[10px] text-slate-400">Foto uang tunai di meja resepsionis (JPG, PNG, WebP)</p>
                     </div>
                     <input
+                      id="cash_payment_proof"
                       type="file"
                       accept="image/*"
                       onChange={(e) => handleFileUpload(e, 'payment_proof')}
-                      className="hidden"
+                      className="sr-only"
                     />
                   </label>
                 )}
