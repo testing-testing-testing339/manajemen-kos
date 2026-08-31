@@ -3,6 +3,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { getWIBDateString } from '@/lib/dateUtils'
 
 export async function approveCheckIn(prevState: any, formData: FormData) {
   const check_in_id = formData.get('check_in_id') as string
@@ -306,8 +307,8 @@ export async function assignRoom(prevState: any, formData: FormData) {
         room_id: room_id,
         full_name: checkInData.full_name,
         id_card_url: checkInData.id_card_photo_url,
-        check_in_date: checkInDate.toISOString().split('T')[0],
-        payment_due_date: paymentDueDate.toISOString().split('T')[0],
+        check_in_date: getWIBDateString(checkInDate),
+        payment_due_date: getWIBDateString(paymentDueDate),
         deposit_amount: checkInData.deposit_amount !== undefined && checkInData.deposit_amount !== null
           ? parseFloat(checkInData.deposit_amount)
           : 0,
@@ -342,7 +343,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
           .insert({
             tenant_id: newTenant.id,
             amount: checkInData.total_amount,
-            payment_date: new Date().toISOString().split('T')[0],
+            payment_date: getWIBDateString(checkInDate),
             payment_method: actualPaymentMethod,
             status: 'confirmed',
             confirmed_by: user.id,

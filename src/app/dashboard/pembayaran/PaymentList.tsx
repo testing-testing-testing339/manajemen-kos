@@ -9,6 +9,7 @@ import ImageLightbox from '@/components/ui/ImageLightbox'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
 import Invoice from '@/components/Invoice'
+import { getWIBDateString, formatWIBDate } from '@/lib/dateUtils'
 import { 
   CreditCard, 
   Banknote, 
@@ -74,11 +75,7 @@ export default function PaymentList({
 
   // Filters for Shift Report Tab
   const getTodayStr = () => {
-    const d = new Date()
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    return getWIBDateString()
   }
 
   const [shiftDate, setShiftDate] = useState(getTodayStr())
@@ -217,7 +214,7 @@ export default function PaymentList({
 
       let matchesDate = true
       if (dateFilter) {
-        const pDate = new Date(payment.payment_date || payment.created_at).toISOString().split('T')[0]
+        const pDate = payment.payment_date || (payment.created_at ? getWIBDateString(payment.created_at) : '')
         matchesDate = pDate === dateFilter
       }
 
@@ -283,7 +280,7 @@ export default function PaymentList({
       if (payment.status === 'rejected') return false
 
       // Match date
-      const pDateStr = new Date(payment.payment_date || payment.created_at).toISOString().split('T')[0]
+      const pDateStr = payment.payment_date || (payment.created_at ? getWIBDateString(payment.created_at) : '')
       if (shiftDate && pDateStr !== shiftDate) {
         return false
       }
@@ -922,11 +919,7 @@ export default function PaymentList({
                     return (
                       <tr key={payment.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4 font-medium text-slate-500">
-                          {new Date(payment.payment_date || payment.created_at).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric'
-                          })}
+                          {formatWIBDate(payment.payment_date || payment.created_at)}
                         </td>
 
                         <td className="py-3.5 px-4">

@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { getWIBDateString } from '@/lib/dateUtils'
 
 export async function createTenant(prevState: any, formData: FormData) {
   const room_id = formData.get('room_id') as string
@@ -67,7 +68,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
   const additional_payment_method = (formData.get('additional_payment_method') as string) || 'cash'
   const checkout_notes = (formData.get('notes') as string) || ''
 
-  const checkout_date_input = (formData.get('checkout_date') as string) || new Date().toISOString().split('T')[0]
+  const checkout_date_input = (formData.get('checkout_date') as string) || getWIBDateString()
   const checkout_time_input = (formData.get('checkout_time') as string) || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 
   const cookieStore = await cookies()
@@ -138,7 +139,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
   const actualExtraToPay = additional_pay_needed > 0 ? additional_pay_needed : Math.max(0, totalCharge - tenantDeposit)
   const actualRefund = Math.max(0, tenantDeposit - totalCharge)
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getWIBDateString()
   const timestampStr = new Date().toISOString()
 
   // 1. Catat ke tabel checkout_history

@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import PropertiList from './PropertiList'
+import { getWIBDateString } from '@/lib/dateUtils'
 
 export default async function PropertiPage() {
   const cookieStore = await cookies()
@@ -105,12 +106,12 @@ export default async function PropertiPage() {
       c.full_name?.toLowerCase().trim() === t.full_name?.toLowerCase().trim()
     )
 
-    const checkInDate = t.check_in_date || (cir?.created_at ? new Date(cir.created_at).toISOString().split('T')[0] : null)
+    const checkInDate = t.check_in_date || (cir?.created_at ? getWIBDateString(cir.created_at) : null)
     let paymentDueDate = t.payment_due_date
     if (!paymentDueDate && checkInDate) {
       const d = new Date(checkInDate)
       d.setDate(d.getDate() + (cir?.rental_days || 1))
-      paymentDueDate = d.toISOString().split('T')[0]
+      paymentDueDate = getWIBDateString(d)
     }
 
     return {

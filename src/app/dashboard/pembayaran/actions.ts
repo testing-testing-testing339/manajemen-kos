@@ -3,6 +3,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { getWIBDateString } from '@/lib/dateUtils'
 
 export async function recordPayment(prevState: any, formData: FormData) {
   const tenant_id = formData.get('tenant_id') as string
@@ -96,7 +97,7 @@ export async function recordPayment(prevState: any, formData: FormData) {
     
     await supabase
       .from('tenants')
-      .update({ payment_due_date: nextDueDate.toISOString().split('T')[0] })
+      .update({ payment_due_date: getWIBDateString(nextDueDate) })
       .eq('id', tenant_id)
   }
 
@@ -161,7 +162,7 @@ export async function confirmPayment(prevState: any, formData: FormData) {
   
   await supabase
     .from('tenants')
-    .update({ payment_due_date: nextDueDate.toISOString().split('T')[0] })
+    .update({ payment_due_date: getWIBDateString(nextDueDate) })
     .eq('id', payment.tenant_id)
 
   revalidatePath('/dashboard/pembayaran')

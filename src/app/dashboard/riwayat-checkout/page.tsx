@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CheckoutHistoryList from './CheckoutHistoryList'
+import { getWIBDateString } from '@/lib/dateUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,9 +107,9 @@ export default async function RiwayatCheckoutPage() {
             room_number: room?.room_number || '-',
             floor_name: floor?.name || '-',
             room_type: room?.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room',
-            check_in_date: c.created_at ? c.created_at.split('T')[0] : null,
+            check_in_date: c.created_at ? getWIBDateString(c.created_at) : null,
             due_date: null,
-            checkout_date: c.updated_at ? c.updated_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            checkout_date: c.updated_at ? getWIBDateString(c.updated_at) : getWIBDateString(),
             checkout_time: '12:00',
             deposit_amount: c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0,
             late_fee: 0,
