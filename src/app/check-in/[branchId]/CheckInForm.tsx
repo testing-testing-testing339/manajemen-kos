@@ -2017,6 +2017,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                           id="cash_payment_proof_change"
                           type="file"
                           accept="image/*"
+                          capture="environment"
                           onChange={(e) => handleFileUpload(e, 'payment_proof')}
                           className="sr-only"
                         />
@@ -2040,13 +2041,14 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       <Camera className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="text-xs font-bold text-slate-200 group-hover:text-emerald-300">Ambil / Upload Foto Uang Tunai</p>
-                      <p className="text-[10px] text-slate-400">Foto uang tunai di meja resepsionis (JPG, PNG, WebP)</p>
+                      <p className="text-xs font-bold text-slate-200 group-hover:text-emerald-300">Ambil Foto Uang Tunai (Kamera)</p>
+                      <p className="text-[10px] text-slate-400">Foto uang tunai langsung di meja resepsionis (kamera HP)</p>
                     </div>
                     <input
                       id="cash_payment_proof"
                       type="file"
                       accept="image/*"
+                      capture="environment"
                       onChange={(e) => handleFileUpload(e, 'payment_proof')}
                       className="sr-only"
                     />
