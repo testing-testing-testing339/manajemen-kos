@@ -1229,19 +1229,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 }`}
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-xs">
                       <Crown className="w-3.5 h-3.5 text-purple-300" />
                       VIP Belakang Warkop
                     </span>
-                    <div className="text-right">
-                      <span className="text-sm font-black text-white">
-                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block font-normal">
-                        / malam {dailyRateInfo.isMorningTransit ? '(Pagi)' : ''}
-                      </span>
-                    </div>
                   </div>
 
                   <h3 className="text-base font-extrabold text-white mb-1">VIP Belakang Warkop</h3>
@@ -1280,18 +1272,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 }`}
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-xs">
                       Standard • Dasar & Gedung Atas
                     </span>
-                    <div className="text-right">
-                      <span className="text-sm font-black text-white">
-                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block font-normal">
-                        / malam {dailyRateInfo.isMorningTransit ? '(Pagi)' : ''}
-                      </span>
-                    </div>
                   </div>
 
                   <h3 className="text-base font-extrabold text-white mb-1">Standard Room</h3>
