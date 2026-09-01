@@ -68,6 +68,10 @@ export default function PaymentList({
   const [invoicePayment, setInvoicePayment] = useState<any>(null)
   const [zoomImage, setZoomImage] = useState<{ url: string; title: string } | null>(null)
   
+  // KPI Detail Modals
+  const [kpiModal, setKpiModal] = useState<'rent_revenue' | 'monthly_revenue' | 'deposits' | 'tenants_status' | null>(null)
+  const [depositFilterTab, setDepositFilterTab] = useState<'all' | 'with_deposit' | 'id_card'>('all')
+  
   // Filters for General History Tab
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
@@ -186,6 +190,83 @@ export default function PaymentList({
 
     return { totalTenants, paidTenants, overdueTenants, totalRentRevenue, totalDeposit: totalActiveDeposit, monthlyRentRevenue, pendingCount }
   }, [tenants, payments, paidTenantIds, currentMonth, currentYear, today])
+
+  // Revenue Breakdown for KPI Modals (Clean Net Rent calculation)
+  const revenueBreakdown = useMemo(() => {
+    return payments
+      .filter((p: any) => p.status === undefined || p.status === null || p.status === 'confirmed')
+      .map((p: any) => {
+        const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
+        const checkInRequest = p.check_in_request
+        const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu Checkout'
+        const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
+        const roomType = (tenant?.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip')) ? 'VIP' : 'Standard'
+        
+        const isClaimOrPenalty = p.payment_method === 'deposit_deduction' || 
+          p.notes?.includes('[Klaim Deposit]') || 
+          p.notes?.includes('[Pelunasan Check-Out]')
+        
+        const grossAmount = parseFloat(p.amount) || 0
+        let deposit = 0
+        let netRent = 0
+        
+        if (isClaimOrPenalty) {
+          deposit = 0
+          netRent = grossAmount
+        } else {
+          const rawDeposit = parseFloat(checkInRequest?.deposit_amount || p.deposit_amount || 0)
+          if (rawDeposit > 0 && grossAmount > rawDeposit) {
+            deposit = rawDeposit
+            netRent = grossAmount - rawDeposit
+          } else {
+            deposit = 0
+            netRent = grossAmount
+          }
+        }
+
+        const isCash = (p.payment_method || '').toLowerCase().includes('cash') || 
+          (p.payment_method || '').toLowerCase().includes('tunai') ||
+          p.check_in_request?.payment_destination?.toLowerCase().includes('cash') ||
+          p.check_in_request?.payment_destination?.toLowerCase().includes('resepsionis') ||
+          p.notes?.toLowerCase().includes('tunai')
+
+        return {
+          id: p.id,
+          paymentDate: p.payment_date || p.created_at,
+          tenantName,
+          roomNumber,
+          roomType,
+          grossAmount,
+          deposit,
+          netRent,
+          isCash,
+          isClaimOrPenalty,
+          notes: p.notes,
+          confirmedBy: p.profiles?.full_name || 'Resepsionis'
+        }
+      })
+  }, [payments, tenants])
+
+  // Active Deposits List from Active Tenants
+  const activeDepositsList = useMemo(() => {
+    return tenants.map((t: any) => {
+      const dep = t.deposit_amount !== undefined && t.deposit_amount !== null ? parseFloat(t.deposit_amount) : 0
+      const roomNumber = t.rooms?.room_number || '-'
+      const roomType = (t.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip')) ? 'VIP' : 'Standard'
+      const depositAmount = isNaN(dep) ? 0 : dep
+      return {
+        id: t.id,
+        tenantName: t.full_name,
+        phone: t.phone || '-',
+        roomNumber,
+        roomType,
+        checkInDate: t.check_in_date,
+        paymentDueDate: t.payment_due_date,
+        depositAmount,
+        hasCashDeposit: depositAmount > 0
+      }
+    })
+  }, [tenants])
 
   // Filtered Payments History
   const filteredPayments = useMemo(() => {
@@ -419,13 +500,16 @@ export default function PaymentList({
         </div>
       </div>
 
-      {/* Modern Luxury Stats Cards */}
+      {/* Modern Luxury Stats Cards (Interactive Clickable) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Pendapatan Sewa Murni */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-3xl p-5 text-white shadow-sm border border-slate-800 flex flex-col justify-between">
+        <div 
+          onClick={() => setKpiModal('rent_revenue')}
+          className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-3xl p-5 text-white shadow-sm border border-slate-800 flex flex-col justify-between cursor-pointer hover:shadow-lg hover:border-indigo-500/50 hover:scale-[1.01] transition-all group"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Pendapatan Sewa Murni</span>
-            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-indigo-300 transition-colors">Pendapatan Sewa Murni</span>
+            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300 group-hover:bg-indigo-600 group-hover:text-white transition-all">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
@@ -433,18 +517,26 @@ export default function PaymentList({
             <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
               {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.totalRentRevenue)}
             </p>
-            <p className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Eksklusif Uang Deposit</span>
-            </p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Eksklusif Uang Deposit</span>
+              </p>
+              <span className="text-[10px] text-indigo-300 font-bold opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
+                Rincian <ChevronRight className="w-3 h-3" />
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Pendapatan Bulan Ini */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+        <div 
+          onClick={() => setKpiModal('monthly_revenue')}
+          className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:shadow-lg hover:border-indigo-300 hover:scale-[1.01] transition-all group"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Pendapatan Bulan Ini</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-indigo-600 transition-colors">Pendapatan Bulan Ini</span>
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
               <Calendar className="w-4 h-4" />
             </div>
           </div>
@@ -452,17 +544,25 @@ export default function PaymentList({
             <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-indigo-600">
               {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.monthlyRentRevenue)}
             </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Periode {today.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
-            </p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[11px] text-slate-400">
+                Periode {today.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+              </p>
+              <span className="text-[10px] text-indigo-600 font-bold opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
+                Rincian <ChevronRight className="w-3 h-3" />
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Titipan Deposit (Refundable) */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+        <div 
+          onClick={() => setKpiModal('deposits')}
+          className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:shadow-lg hover:border-amber-300 hover:scale-[1.01] transition-all group"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Titipan Uang Deposit</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-amber-600 transition-colors">Titipan Uang Deposit</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all">
               <Banknote className="w-4 h-4" />
             </div>
           </div>
@@ -470,26 +570,39 @@ export default function PaymentList({
             <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-600">
               {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.totalDeposit)}
             </p>
-            <p className="text-[11px] text-slate-400 mt-1">Dikembalikan saat checkout</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[11px] text-slate-400">Dikembalikan saat checkout</p>
+              <span className="text-[10px] text-amber-600 font-bold opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
+                Lihat Penghuni <ChevronRight className="w-3 h-3" />
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Kepatuhan Bayar Penghuni */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+        <div 
+          onClick={() => setKpiModal('tenants_status')}
+          className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:shadow-lg hover:border-emerald-300 hover:scale-[1.01] transition-all group"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Penghuni Aktif</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-emerald-600 transition-colors">Penghuni Aktif</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl sm:text-3xl font-black text-slate-900">
-                {stats.paidTenants}
-                <span className="text-sm font-bold text-slate-400"> / {stats.totalTenants}</span>
-              </p>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                {stats.totalTenants > 0 ? Math.round((stats.paidTenants / stats.totalTenants) * 100) : 100}%
+            <div className="flex items-baseline justify-between">
+              <div className="flex items-baseline gap-2">
+                <p className="text-2xl sm:text-3xl font-black text-slate-900">
+                  {stats.paidTenants}
+                  <span className="text-sm font-bold text-slate-400"> / {stats.totalTenants}</span>
+                </p>
+                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  {stats.totalTenants > 0 ? Math.round((stats.paidTenants / stats.totalTenants) * 100) : 100}%
+                </span>
+              </div>
+              <span className="text-[10px] text-emerald-600 font-bold opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
+                Daftar <ChevronRight className="w-3 h-3" />
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1">Status tagihan sewa lunas</p>
@@ -1480,6 +1593,321 @@ export default function PaymentList({
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* =========================================================================
+          KPI MODAL 1 & 2: RINCIAN PENDAPATAN SEWA MURNI / BULAN INI
+      ========================================================================= */}
+      <Modal isOpen={kpiModal === 'rent_revenue' || kpiModal === 'monthly_revenue'} onClose={() => setKpiModal(null)} size="2xl">
+        <div className="space-y-4 py-1">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900">
+                {kpiModal === 'rent_revenue' ? 'Rincian Sumber Pendapatan Sewa Murni' : `Rincian Pendapatan Bulan ${today.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`}
+              </h2>
+              <p className="text-xs text-slate-500">
+                Daftar arus penerimaan kas yang telah dipisahkan dari uang titipan deposit tamu
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-indigo-50 text-indigo-700 font-extrabold text-xs rounded-full border border-indigo-200">
+              {revenueBreakdown.length} Transaksi
+            </span>
+          </div>
+
+          {/* Mini KPI Highlights inside modal */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase">Total Uang Masuk (Bruto)</span>
+              <p className="text-base font-black font-mono text-slate-900 mt-0.5">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
+                  revenueBreakdown.reduce((sum, item) => sum + item.grossAmount, 0)
+                )}
+              </p>
+            </div>
+            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
+              <span className="text-[10px] font-extrabold text-amber-700 uppercase">Deposit Dipisahkan</span>
+              <p className="text-base font-black font-mono text-amber-800 mt-0.5">
+                - {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
+                  revenueBreakdown.reduce((sum, item) => sum + item.deposit, 0)
+                )}
+              </p>
+            </div>
+            <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-200">
+              <span className="text-[10px] font-extrabold text-indigo-700 uppercase">Pendapatan Sewa Bersih</span>
+              <p className="text-base font-black font-mono text-indigo-900 mt-0.5">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
+                  revenueBreakdown.reduce((sum, item) => sum + item.netRent, 0)
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* List Table */}
+          <div className="rounded-2xl border border-slate-200 overflow-x-auto max-h-[380px] scrollbar-thin">
+            <table className="w-full min-w-[620px] text-left border-collapse">
+              <thead className="sticky top-0 bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider z-10">
+                <tr>
+                  <th className="py-2.5 px-3">Tamu & Kamar</th>
+                  <th className="py-2.5 px-3">Waktu Bayar</th>
+                  <th className="py-2.5 px-3 text-right">Uang Masuk</th>
+                  <th className="py-2.5 px-3 text-right">Potongan Deposit</th>
+                  <th className="py-2.5 px-3 text-right">Sewa Bersih</th>
+                  <th className="py-2.5 px-3 text-center">Metode</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs bg-white">
+                {revenueBreakdown.map((item, idx) => (
+                  <tr key={item.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-2.5 px-3">
+                      <p className="font-bold text-slate-900">{item.tenantName}</p>
+                      <span className="text-[10px] text-indigo-600 font-mono">Kamar {item.roomNumber} ({item.roomType})</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600 text-[11px] whitespace-nowrap">
+                      {new Date(item.paymentDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • {new Date(item.paymentDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(item.grossAmount)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-600">
+                      {item.deposit > 0 ? `- ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(item.deposit)}` : 'Rp 0'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-black text-indigo-600">
+                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(item.netRent)}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${item.isCash ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
+                        {item.isCash ? 'Tunai' : 'QRIS'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setKpiModal(null)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* =========================================================================
+          KPI MODAL 3: DAFTAR TITIPAN DEPOSIT PENGHUNI AKTIF
+      ========================================================================= */}
+      <Modal isOpen={kpiModal === 'deposits'} onClose={() => setKpiModal(null)} size="2xl">
+        <div className="space-y-4 py-1">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900">Daftar Titipan Deposit Penghuni Aktif</h2>
+              <p className="text-xs text-slate-500">
+                Uang jaminan yang saat ini masih dipegang kas dan wajib dikembalikan saat tamu check-out
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Deposit Aktif</span>
+              <span className="font-mono font-black text-amber-600 text-base">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.totalDeposit)}
+              </span>
+            </div>
+          </div>
+
+          {/* Info Alert Box */}
+          <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-200/80 flex items-start gap-2.5 text-xs text-amber-900">
+            <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="leading-relaxed text-[11px]">
+              <strong>Perhatian Kasir & Resepsionis:</strong> Uang deposit di bawah ini adalah milik tamu yang saat ini sedang aktif menempati kamar. Dana ini tidak boleh dianggap laba/omset dan wajib dikembalikan penuh saat pemeriksaan kamar check-out selesai (kecuali ada potongan denda/kerusakan).
+            </p>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex gap-1.5 border-b border-slate-100 pb-2">
+            <button
+              type="button"
+              onClick={() => setDepositFilterTab('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                depositFilterTab === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Semua Penghuni ({activeDepositsList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDepositFilterTab('with_deposit')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                depositFilterTab === 'with_deposit'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+              }`}
+            >
+              Titipan Uang Deposit ({activeDepositsList.filter(t => t.hasCashDeposit).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDepositFilterTab('id_card')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                depositFilterTab === 'id_card'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
+              }`}
+            >
+              Jaminan KTP Fisik ({activeDepositsList.filter(t => !t.hasCashDeposit).length})
+            </button>
+          </div>
+
+          {/* Table List */}
+          <div className="rounded-2xl border border-slate-200 overflow-x-auto max-h-[360px] scrollbar-thin">
+            <table className="w-full min-w-[560px] text-left border-collapse">
+              <thead className="sticky top-0 bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider z-10">
+                <tr>
+                  <th className="py-2.5 px-3">Nama Penghuni</th>
+                  <th className="py-2.5 px-3">Kamar</th>
+                  <th className="py-2.5 px-3">Tanggal Check-In</th>
+                  <th className="py-2.5 px-3">Jenis Jaminan</th>
+                  <th className="py-2.5 px-3 text-right">Nominal Deposit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs bg-white">
+                {activeDepositsList
+                  .filter(t => {
+                    if (depositFilterTab === 'with_deposit') return t.hasCashDeposit
+                    if (depositFilterTab === 'id_card') return !t.hasCashDeposit
+                    return true
+                  })
+                  .map((t, idx) => (
+                    <tr key={t.id || idx} className={`hover:bg-slate-50/80 transition-colors ${t.hasCashDeposit ? 'bg-amber-50/30' : ''}`}>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">
+                        {t.tenantName}
+                        <span className="text-[10px] text-slate-400 block font-normal">{t.phone}</span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-xs">
+                          Kamar {t.roomNumber} ({t.roomType})
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600 text-[11px]">
+                        {t.checkInDate ? new Date(t.checkInDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {t.hasCashDeposit ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px] border border-amber-300">
+                            <Banknote className="w-3 h-3 text-amber-700" />
+                            <span>Titipan Uang Tunai / Transfer</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 font-bold text-[10px] border border-blue-200">
+                            <ShieldCheck className="w-3 h-3 text-blue-600" />
+                            <span>Titip KTP Fisik Asli</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-black text-sm">
+                        {t.hasCashDeposit ? (
+                          <span className="text-amber-700">
+                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(t.depositAmount)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-sans font-normal text-xs">Rp 0 (KTP)</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setKpiModal(null)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* =========================================================================
+          KPI MODAL 4: STATUS PEMBAYARAN SELURUH PENGHUNI AKTIF
+      ========================================================================= */}
+      <Modal isOpen={kpiModal === 'tenants_status'} onClose={() => setKpiModal(null)} size="2xl">
+        <div className="space-y-4 py-1">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900">Status Pembayaran Penghuni Aktif</h2>
+              <p className="text-xs text-slate-500">
+                Total {stats.paidTenants} dari {stats.totalTenants} penghuni berstatus lunas
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-full border border-emerald-200">
+              {stats.totalTenants > 0 ? Math.round((stats.paidTenants / stats.totalTenants) * 100) : 100}% Lunas
+            </span>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 overflow-x-auto max-h-[380px] scrollbar-thin">
+            <table className="w-full min-w-[560px] text-left border-collapse">
+              <thead className="sticky top-0 bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider z-10">
+                <tr>
+                  <th className="py-2.5 px-3">Nama Penghuni</th>
+                  <th className="py-2.5 px-3">Kamar</th>
+                  <th className="py-2.5 px-3">Tanggal Masuk</th>
+                  <th className="py-2.5 px-3">Jatuh Tempo</th>
+                  <th className="py-2.5 px-3 text-center">Status Tagihan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs bg-white">
+                {tenants.map(tenant => {
+                  const status = getPaymentStatus(tenant)
+                  return (
+                    <tr key={tenant.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-2.5 px-3 font-bold text-slate-900">{tenant.full_name}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-xs">
+                          Kamar {tenant.rooms?.room_number || '-'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600">
+                        {tenant.check_in_date ? new Date(tenant.check_in_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 font-medium text-slate-800">
+                        {tenant.payment_due_date ? new Date(tenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                          status.hasPaid 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : status.isOverdue 
+                              ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {status.hasPaid ? 'Lunas' : status.isOverdue ? 'Jatuh Tempo' : 'Menunggu Bayar'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setKpiModal(null)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* =========================================================================
