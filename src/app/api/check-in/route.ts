@@ -1,5 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import {
   validateFullName,
@@ -15,18 +14,14 @@ import {
 import { uploadImageToCloud } from '@/lib/cloudStorage'
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies()
-
-  const supabase = createServerClient(
+  // Use service role client if available to bypass RLS and guarantee branch verification & request submission
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
+      auth: {
+        persistSession: false
+      }
     }
   )
 
@@ -56,20 +51,51 @@ export async function POST(request: Request) {
 
     const errors: string[] = []
 
-    // Ensure branch_id is valid, or fallback to first available branch
-    if (!branch_id || !validateUUID(branch_id)) {
+    // Ensure branch_id is verified against real branches table to prevent foreign key violations
+    let resolvedBranchId: string | null = null
+    const isDummyUuid = branch_id === '00000000-0000-0000-0000-000000000001'
+
+    if (branch_id && validateUUID(branch_id) && !isDummyUuid) {
+      const { data: existingBranch } = await supabase
+        .from('branches')
+        .select('id')
+        .eq('id', branch_id)
+        .maybeSingle()
+      if (existingBranch?.id) {
+        resolvedBranchId = existingBranch.id
+      }
+    }
+
+    if (!resolvedBranchId) {
       const { data: firstBranch } = await supabase
         .from('branches')
         .select('id')
         .order('created_at', { ascending: true })
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (firstBranch) {
-        branch_id = firstBranch.id
+      if (firstBranch?.id) {
+        resolvedBranchId = firstBranch.id
       } else {
-        errors.push('Cabang Graha Aisyah Menteng tidak ditemukan di database')
+        // Auto-create default branch if branches table is empty
+        const { data: createdBranch } = await supabase
+          .from('branches')
+          .insert({
+            name: 'Graha Aisyah Menteng',
+            address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
+          })
+          .select('id')
+          .maybeSingle()
+        if (createdBranch?.id) {
+          resolvedBranchId = createdBranch.id
+        }
       }
+    }
+
+    if (!resolvedBranchId) {
+      errors.push('Cabang Graha Aisyah Menteng tidak ditemukan di database')
+    } else {
+      branch_id = resolvedBranchId
     }
 
     // Validate full_name

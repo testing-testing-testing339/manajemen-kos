@@ -16,25 +16,16 @@ export default function CheckInRootPage() {
     const fetchBranch = async () => {
       try {
         const response = await fetch('/api/branch/default', {
-          cache: 'force-cache',
-          next: { revalidate: 3600 }
+          cache: 'no-store'
         })
         if (response.ok) {
           const data = await response.json()
-          setBranchData(data)
-        } else {
-          setBranchData({
-            id: '00000000-0000-0000-0000-000000000001',
-            name: 'Graha Aisyah Menteng',
-            address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
-          })
+          if (data && data.id && data.id !== '00000000-0000-0000-0000-000000000001') {
+            setBranchData(data)
+          }
         }
-      } catch {
-        setBranchData({
-          id: '00000000-0000-0000-0000-000000000001',
-          name: 'Graha Aisyah Menteng',
-          address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
-        })
+      } catch (err) {
+        console.warn('Error fetching branch:', err)
       }
     }
 

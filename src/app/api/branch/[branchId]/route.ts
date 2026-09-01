@@ -1,5 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function GET(
@@ -9,39 +8,43 @@ export async function GET(
   const resolvedParams = params instanceof Promise ? await params : params
   const branchId = resolvedParams.branchId
 
-  const cookieStore = await cookies()
-
-  const supabase = createServerClient(
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false } }
   )
 
-  // If 'default' or not UUID, fetch the main single branch
+  // If 'default' or not valid UUID, fetch the main single branch
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const isDummyUuid = branchId === '00000000-0000-0000-0000-000000000001'
   
   let query = supabase.from('branches').select('id, name, address')
   
-  if (branchId && branchId !== 'default' && uuidRegex.test(branchId)) {
+  if (branchId && branchId !== 'default' && !isDummyUuid && uuidRegex.test(branchId)) {
     query = query.eq('id', branchId)
   }
 
-  const { data, error } = await query.order('created_at', { ascending: true }).limit(1).single()
+  let { data } = await query.order('created_at', { ascending: true }).limit(1).maybeSingle()
 
-  if (error || !data) {
-    return NextResponse.json({
-      id: '00000000-0000-0000-0000-000000000001',
-      name: 'Graha Aisyah Menteng',
-      address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
-    })
+  if (!data) {
+    // If branches table is empty, auto-create the main branch
+    const { data: createdBranch } = await supabase
+      .from('branches')
+      .insert({
+        name: 'Graha Aisyah Menteng',
+        address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
+      })
+      .select('id, name, address')
+      .maybeSingle()
+    
+    if (createdBranch) {
+      data = createdBranch
+    }
   }
 
-  return NextResponse.json(data)
+  return NextResponse.json(data || {
+    id: '00000000-0000-0000-0000-000000000001',
+    name: 'Graha Aisyah Menteng',
+    address: 'Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226'
+  })
 }
