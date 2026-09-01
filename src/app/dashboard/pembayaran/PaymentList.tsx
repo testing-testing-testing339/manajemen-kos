@@ -451,10 +451,20 @@ export default function PaymentList({
     return shiftPayments.map((p: any) => {
       const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
       const checkInRequest = p.check_in_request
-      const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu'
+
+      let extractedNameFromNotes = null
+      let extractedRoomFromNotes = null
+      if (p.notes) {
+        const nameMatch = p.notes.match(/Tamu:\s*([^|]+)/i)
+        if (nameMatch) extractedNameFromNotes = nameMatch[1].trim()
+        const roomMatch = p.notes.match(/Kamar:\s*([^|]+)/i)
+        if (roomMatch) extractedRoomFromNotes = roomMatch[1].trim()
+      }
+
+      const tenantName = tenant?.full_name || extractedNameFromNotes || checkInRequest?.full_name || 'Tamu'
       const tenantPhone = tenant?.phone || checkInRequest?.phone || '-'
-      const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
-      const roomType = (tenant?.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip')) ? 'VIP Belakang Warkop' : 'Standard Room'
+      const roomNumber = tenant?.rooms?.room_number || extractedRoomFromNotes || checkInRequest?.rooms?.room_number || '-'
+      const roomType = (tenant?.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip') || roomNumber.toString() === '1') ? 'VIP Belakang Warkop' : 'Standard Room'
       const confirmedByStaff = p.profiles?.full_name || 'Staf Resepsionis'
       const paymentTime = new Date(p.created_at || p.payment_date).toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -479,7 +489,11 @@ export default function PaymentList({
         deposit = 0
         netRent = grossAmount
       } else {
-        const rawDeposit = parseFloat(checkInRequest?.deposit_amount || p.deposit_amount || 0)
+        const rawDeposit = parseFloat(
+          tenant?.deposit_amount !== undefined && tenant?.deposit_amount !== null
+            ? tenant.deposit_amount
+            : (checkInRequest?.deposit_amount || p.deposit_amount || 0)
+        )
         if (rawDeposit > 0 && grossAmount > rawDeposit) {
           deposit = rawDeposit
           netRent = grossAmount - rawDeposit
@@ -1324,7 +1338,11 @@ export default function PaymentList({
                               )
                             }
 
-                            const depositAmount = parseFloat(payment.check_in_request?.deposit_amount || payment.deposit_amount || 0)
+                            const depositAmount = parseFloat(
+                              tenant?.deposit_amount !== undefined && tenant?.deposit_amount !== null
+                                ? tenant.deposit_amount
+                                : (payment.check_in_request?.deposit_amount || payment.deposit_amount || 0)
+                            )
                             const rentAmount = (depositAmount > 0 && totalAmount > depositAmount) ? (totalAmount - depositAmount) : totalAmount
                             
                             return (
