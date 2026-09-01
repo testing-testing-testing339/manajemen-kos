@@ -154,9 +154,436 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
   const amountInWords = `${numberToWords(amount)} rupiah`
   const formattedAmount = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount)
 
-  // Direct native print handler that works smoothly across all Mobile and Desktop browsers
+  // Isolated high-quality print & PDF handler (No modal clipping, no white space gap)
   const handlePrint = () => {
-    window.print()
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="id">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta name="color-scheme" content="light">
+          <title>Invoice - ${invoiceNumber}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
+            
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            @page {
+              size: A4 portrait;
+              margin: 12mm 12mm 12mm 12mm;
+            }
+
+            html, body {
+              background-color: #ffffff !important;
+              color: #0f172a !important;
+              font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              font-size: 12px;
+              line-height: 1.4;
+              margin: 0;
+              padding: 0;
+            }
+
+            .invoice-wrapper {
+              max-width: 100%;
+              margin: 0 auto;
+              background: #ffffff;
+              padding: 6px;
+            }
+
+            .header-table {
+              width: 100%;
+              border-collapse: collapse;
+              border-bottom: 2.5px solid #0f172a;
+              padding-bottom: 14px;
+              margin-bottom: 18px;
+            }
+
+            .header-table td {
+              vertical-align: top;
+            }
+
+            .brand-title {
+              font-size: 22px;
+              font-weight: 900;
+              color: #0f172a;
+              letter-spacing: -0.5px;
+              text-transform: uppercase;
+            }
+
+            .brand-subtitle {
+              font-size: 11px;
+              color: #64748b;
+              font-weight: 600;
+              margin-top: 2px;
+              max-width: 500px;
+            }
+
+            .status-badge {
+              display: inline-block;
+              background: #ecfdf5 !important;
+              color: #047857 !important;
+              border: 1.5px solid #6ee7b7;
+              font-size: 10px;
+              font-weight: 800;
+              padding: 5px 12px;
+              border-radius: 9999px;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              text-align: right;
+            }
+
+            .invoice-id {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 11px;
+              font-weight: 700;
+              color: #475569;
+              margin-top: 5px;
+              text-align: right;
+            }
+
+            .info-grid {
+              width: 100%;
+              border-collapse: separate;
+              border-spacing: 12px 0;
+              margin-left: -12px;
+              margin-right: -12px;
+              margin-bottom: 18px;
+            }
+
+            .info-card {
+              width: 50%;
+              background: #f8fafc !important;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 12px 14px;
+              vertical-align: top;
+            }
+
+            .card-heading {
+              font-size: 10px;
+              font-weight: 800;
+              color: #4f46e5;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 8px;
+              border-bottom: 1px solid #e2e8f0;
+              padding-bottom: 4px;
+            }
+
+            .data-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 5px;
+              font-size: 11px;
+            }
+
+            .data-label {
+              color: #64748b;
+            }
+
+            .data-val {
+              color: #0f172a;
+              font-weight: 700;
+              text-align: right;
+            }
+
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 16px;
+              border-radius: 10px;
+              overflow: hidden;
+              border: 1px solid #cbd5e1;
+            }
+
+            .items-table th {
+              background: #0f172a !important;
+              color: #ffffff !important;
+              font-size: 10px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              padding: 9px 12px;
+              text-align: left;
+            }
+
+            .items-table td {
+              padding: 11px 12px;
+              border-bottom: 1px solid #e2e8f0;
+              font-size: 11px;
+            }
+
+            .item-title {
+              font-weight: 800;
+              font-size: 12px;
+              color: #0f172a;
+            }
+
+            .item-sub {
+              font-size: 10px;
+              color: #64748b;
+              margin-top: 2px;
+            }
+
+            .summary-box {
+              background: #f8fafc !important;
+              border: 1px solid #cbd5e1;
+              border-radius: 12px;
+              padding: 12px 16px;
+              margin-bottom: 14px;
+            }
+
+            .summary-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 11px;
+              color: #475569;
+              margin-bottom: 4px;
+            }
+
+            .summary-total {
+              border-top: 1.5px dashed #94a3b8;
+              padding-top: 8px;
+              margin-top: 6px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+
+            .total-title {
+              font-size: 12px;
+              font-weight: 800;
+              text-transform: uppercase;
+              color: #0f172a;
+            }
+
+            .total-amount {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 17px;
+              font-weight: 900;
+              color: #4f46e5;
+            }
+
+            .terbilang-card {
+              background: #ffffff !important;
+              border-left: 4px solid #4f46e5;
+              border: 1px solid #e2e8f0;
+              border-left-width: 4px;
+              border-radius: 8px;
+              padding: 8px 12px;
+              margin-bottom: 16px;
+            }
+
+            .terbilang-title {
+              font-size: 9px;
+              font-weight: 800;
+              color: #64748b;
+              text-transform: uppercase;
+            }
+
+            .terbilang-text {
+              font-size: 11px;
+              font-weight: 700;
+              color: #334155;
+              font-style: italic;
+              text-transform: capitalize;
+              margin-top: 2px;
+            }
+
+            .footer-table {
+              width: 100%;
+              border-top: 1px solid #e2e8f0;
+              padding-top: 10px;
+              font-size: 10px;
+              color: #64748b;
+            }
+
+            .seal-badge {
+              color: #047857;
+              font-weight: 800;
+              margin-bottom: 2px;
+            }
+
+            @media print {
+              html, body {
+                padding: 0 !important;
+                margin: 0 !important;
+              }
+              .invoice-wrapper {
+                padding: 0 !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-wrapper">
+            <!-- Top Header -->
+            <table class="header-table">
+              <tr>
+                <td>
+                  <div class="brand-title">INVOICE PEMBAYARAN</div>
+                  <div class="brand-subtitle">Graha Aisyah Menteng Management • Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226</div>
+                </td>
+                <td style="text-align: right;">
+                  <div class="status-badge">LUNAS / TERVERIFIKASI</div>
+                  <div class="invoice-id">${invoiceNumber}</div>
+                </td>
+              </tr>
+            </table>
+
+            <!-- 2-Column Info Grid -->
+            <table class="info-grid">
+              <tr>
+                <td class="info-card">
+                  <div class="card-heading">Informasi Transaksi</div>
+                  <div class="data-row">
+                    <span class="data-label">No. Invoice:</span>
+                    <span class="data-val" style="font-family: monospace;">${invoiceNumber}</span>
+                  </div>
+                  <div class="data-row">
+                    <span class="data-label">Tanggal Terbit:</span>
+                    <span class="data-val">${createdAtStr}</span>
+                  </div>
+                  <div class="data-row">
+                    <span class="data-label">Metode Bayar:</span>
+                    <span class="data-val" style="color: #4f46e5;">${paymentMethodDisplay}</span>
+                  </div>
+                  <div class="data-row">
+                    <span class="data-label">Tanggal Transaksi:</span>
+                    <span class="data-val">${paymentDateStr}</span>
+                  </div>
+                </td>
+
+                <td class="info-card">
+                  <div class="card-heading" style="color: #7c3aed;">Diterbitkan Kepada</div>
+                  <div class="data-row">
+                    <span class="data-label">Nama Tamu:</span>
+                    <span class="data-val">${tenantName}</span>
+                  </div>
+                  <div class="data-row">
+                    <span class="data-label">Kamar:</span>
+                    <span class="data-val" style="color: #4f46e5;">Kamar ${roomNumberStr} (${roomTypeStr})</span>
+                  </div>
+                  <div class="data-row">
+                    <span class="data-label">Durasi Sewa:</span>
+                    <span class="data-val">${rentalDurationStr}</span>
+                  </div>
+                  ${nik !== '-' ? `
+                  <div class="data-row">
+                    <span class="data-label">NIK:</span>
+                    <span class="data-val" style="font-family: monospace;">${nik}</span>
+                  </div>` : ''}
+                </td>
+              </tr>
+            </table>
+
+            <!-- Items Table -->
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>Deskripsi Pembayaran</th>
+                  <th style="text-align: center; width: 140px;">Durasi</th>
+                  <th style="text-align: right; width: 160px;">Jumlah (IDR)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="item-title">Sewa Kamar ${roomNumberStr !== '-' ? `Kamar ${roomNumberStr}` : ''} (${roomTypeStr})</div>
+                    <div class="item-sub">Graha Aisyah Menteng • ${durationSubText}</div>
+                    ${payment.notes ? `<div class="item-sub" style="color: #4f46e5; margin-top: 3px;">Catatan: ${payment.notes}</div>` : ''}
+                  </td>
+                  <td style="text-align: center; font-weight: 700;">${rentalDurationStr}</td>
+                  <td style="text-align: right; font-weight: 800; font-family: monospace; font-size: 13px;">${formattedAmount}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- Total Calculation -->
+            <div class="summary-box">
+              <div class="summary-row">
+                <span>Subtotal Tagihan:</span>
+                <span style="font-family: monospace; font-weight: 700;">${formattedAmount}</span>
+              </div>
+              <div class="summary-row">
+                <span>Biaya Layanan & Admin:</span>
+                <span style="font-family: monospace; font-weight: 700; color: #16a34a;">Rp 0 (Gratis)</span>
+              </div>
+              <div class="summary-total">
+                <span class="total-title">Total Terbayar:</span>
+                <span class="total-amount">${formattedAmount}</span>
+              </div>
+            </div>
+
+            <!-- Terbilang Box -->
+            <div class="terbilang-card">
+              <div class="terbilang-title">Terbilang:</div>
+              <div class="terbilang-text">"${amountInWords}"</div>
+            </div>
+
+            <!-- Footer & Verification -->
+            <table class="footer-table">
+              <tr>
+                <td>
+                  <div class="seal-badge">Transaksi Sah & Terkonfirmasi Sistem</div>
+                  ${confirmedBy?.full_name ? `<div>Petugas Verifikasi: <strong>${confirmedBy.full_name}</strong></div>` : ''}
+                  ${payment.confirmed_at ? `<div>Waktu Verifikasi: ${new Date(payment.confirmed_at).toLocaleString('id-ID')}</div>` : ''}
+                </td>
+                <td style="text-align: right;">
+                  <div style="font-weight: 800; color: #0f172a;">Graha Aisyah Menteng</div>
+                  <div>Hunian Nyaman, Strategis, & Aman</div>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </body>
+      </html>
+    `
+
+    // Remove existing print iframe if any
+    const oldIframe = document.getElementById('app-print-invoice-iframe')
+    if (oldIframe) {
+      document.body.removeChild(oldIframe)
+    }
+
+    // Create a hidden clean iframe
+    const iframe = document.createElement('iframe')
+    iframe.id = 'app-print-invoice-iframe'
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.style.visibility = 'hidden'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument
+    if (!doc) {
+      window.print()
+      return
+    }
+
+    doc.open()
+    doc.write(htmlContent)
+    doc.close()
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+      } catch (e) {
+        console.warn('Iframe print fallback to window.print:', e)
+        window.print()
+      }
+    }, 300)
   }
 
   // Handle WhatsApp Link
