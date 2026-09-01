@@ -375,3 +375,39 @@ export async function assignRoom(prevState: any, formData: FormData) {
   }
 }
 
+export async function deleteCheckIn(prevState: any, formData: FormData) {
+  const check_in_id = formData.get('check_in_id') as string
+
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { error } = await supabase
+    .from('check_in_requests')
+    .delete()
+    .eq('id', check_in_id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/check-ins')
+  return { success: true }
+}
+
+

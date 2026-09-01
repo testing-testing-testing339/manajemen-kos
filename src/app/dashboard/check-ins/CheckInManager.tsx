@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useActionState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { approveCheckIn, rejectCheckIn, assignRoom } from './actions'
+import { approveCheckIn, rejectCheckIn, assignRoom, deleteCheckIn } from './actions'
 import Modal from '@/components/ui/Modal'
 import ImageLightbox from '@/components/ui/ImageLightbox'
 import Table from '@/components/ui/Table'
@@ -35,7 +35,8 @@ import {
   Search,
   Filter,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from 'lucide-react'
 
 type TabType = 'active' | 'history' | 'qrcode'
@@ -79,6 +80,15 @@ export default function CheckInManager({
   const [approveState, approveAction] = useActionState(approveCheckIn, null)
   const [rejectState, rejectAction] = useActionState(rejectCheckIn, null)
   const [assignState, assignAction] = useActionState(assignRoom, null)
+  const [deleteState, deleteAction] = useActionState(deleteCheckIn, null)
+
+  useEffect(() => {
+    if (deleteState?.success) {
+      setIsDetailModalOpen(false)
+      setSelectedCheckIn(null)
+      router.refresh()
+    }
+  }, [deleteState, router])
 
   useEffect(() => {
     setCheckIns(initialCheckIns)
@@ -520,17 +530,35 @@ export default function CheckInManager({
         {new Date(checkIn.updated_at || checkIn.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
       </span>,
 
-      <button
-        key={`hist-act-${checkIn.id}`}
-        type="button"
-        onClick={() => {
-          setSelectedCheckIn(checkIn)
-          setIsDetailModalOpen(true)
-        }}
-        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-      >
-        Lihat Detail & Foto
-      </button>
+      <div key={`hist-act-${checkIn.id}`} className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedCheckIn(checkIn)
+            setIsDetailModalOpen(true)
+          }}
+          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+        >
+          Lihat Detail & Foto
+        </button>
+        {checkIn.status === 'rejected' && (
+          <form action={deleteAction}>
+            <input type="hidden" name="check_in_id" value={checkIn.id} />
+            <button
+              type="submit"
+              onClick={(e) => {
+                if (!confirm(`Hapus permanen riwayat permintaan check-in ${checkIn.full_name}?`)) {
+                  e.preventDefault()
+                }
+              }}
+              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              title="Hapus riwayat ditolak"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </form>
+        )}
+      </div>
     ]
   })
 
@@ -1070,6 +1098,24 @@ export default function CheckInManager({
                     >
                       Pilih Kamar Sekarang
                     </button>
+                  )}
+
+                  {selectedCheckIn.status === 'rejected' && (
+                    <form action={deleteAction}>
+                      <input type="hidden" name="check_in_id" value={selectedCheckIn.id} />
+                      <button
+                        type="submit"
+                        onClick={(e) => {
+                          if (!confirm(`Hapus permanen riwayat permintaan check-in ${selectedCheckIn.full_name}?`)) {
+                            e.preventDefault()
+                          }
+                        }}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Hapus Riwayat Ditolak</span>
+                      </button>
+                    </form>
                   )}
                 </div>
               </div>
