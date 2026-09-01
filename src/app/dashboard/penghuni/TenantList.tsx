@@ -1614,19 +1614,6 @@ export default function TenantList({
               />
             </div>
 
-            {/* Impact Explanation Box */}
-            <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-xs space-y-1.5 text-indigo-950">
-              <div className="flex items-center gap-1.5 font-bold text-indigo-800">
-                <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>Otomatisasi & Sinkronisasi Sistem:</span>
-              </div>
-              <ul className="text-[11px] text-indigo-900/90 space-y-1 list-disc list-inside pl-1">
-                <li>Kamar lama (Kamar {moveTenant.rooms?.room_number || '-'}) otomatis menjadi <strong>Tersedia / Kosong</strong>.</li>
-                <li>Kamar tujuan yang dipilih otomatis menjadi <strong>Terisi</strong>.</li>
-                <li>Data penghuni, riwayat check-in, dan tagihan langsung terhubung ke kamar baru.</li>
-              </ul>
-            </div>
-
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">
               <button
