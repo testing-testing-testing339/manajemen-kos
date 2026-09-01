@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { processCheckout, moveTenantRoom } from './actions'
+import { processCheckout, moveTenantRoom, toggleTenantTransition } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
@@ -58,6 +58,7 @@ export default function TenantList({
   userRole 
 }: TenantListProps) {
   const router = useRouter()
+  const isOwner = userRole === 'owner'
   const [tenants, setTenants] = useState(initialTenants)
   const [checkoutHistory, setCheckoutHistory] = useState(initialCheckoutHistory)
 
@@ -71,6 +72,9 @@ export default function TenantList({
   const [damageFee, setDamageFee] = useState<number>(0)
   const [checkoutNotes, setCheckoutNotes] = useState<string>('')
   const [additionalPaymentMethod, setAdditionalPaymentMethod] = useState<'cash' | 'transfer'>('cash')
+  const [isWaiveLateFee, setIsWaiveLateFee] = useState<boolean>(false)
+  const [customLateFee, setCustomLateFee] = useState<number | null>(null)
+  const [skipPaymentRecord, setSkipPaymentRecord] = useState<boolean>(false)
   
   // Active Tenants Filter States
   const [searchQuery, setSearchQuery] = useState('')
@@ -91,6 +95,7 @@ export default function TenantList({
 
   const [checkoutState, checkoutAction] = useActionState(processCheckout, null)
   const [moveState, moveAction] = useActionState(moveTenantRoom, null)
+  const [transitionState, transitionAction] = useActionState(toggleTenantTransition, null)
 
   // Helper to extract room condition
   const getRoomCondition = (facilities: string[] = []): string | null => {
@@ -187,6 +192,15 @@ export default function TenantList({
   }, [moveState, router])
 
   useEffect(() => {
+    if (transitionState?.success) {
+      setMoveSuccessToast(transitionState.message || 'Status Tamu Transisi berhasil diperbarui!')
+      router.refresh()
+      const timer = setTimeout(() => setMoveSuccessToast(''), 7000)
+      return () => clearTimeout(timer)
+    }
+  }, [transitionState, router])
+
+  useEffect(() => {
     if (moveTenant) {
       setSelectedTargetRoomId('')
       setMoveNotes('')
@@ -207,6 +221,11 @@ export default function TenantList({
       setDamageFee(0)
       setCheckoutNotes('')
       setAdditionalPaymentMethod('cash')
+
+      const isTrans = Boolean(checkoutTenant.is_transition || checkoutTenant.rental_duration === 'transition')
+      setIsWaiveLateFee(isTrans)
+      setCustomLateFee(null)
+      setSkipPaymentRecord(isTrans)
     }
   }, [checkoutTenant])
 
@@ -292,11 +311,12 @@ export default function TenantList({
     }
   }, [checkoutTenant, checkoutDate, checkoutTime])
 
+  const effectiveLateFee = isWaiveLateFee ? 0 : (customLateFee !== null ? customLateFee : calculatedLateFee)
   const initialDeposit = checkoutTenant?.deposit_amount !== undefined && checkoutTenant?.deposit_amount !== null ? parseFloat(checkoutTenant.deposit_amount) : 0
-  const totalCharge = calculatedLateFee + damageFee
-  const claimedDeposit = Math.min(initialDeposit, totalCharge)
+  const totalCharge = effectiveLateFee + damageFee
+  const claimedDeposit = skipPaymentRecord ? 0 : Math.min(initialDeposit, totalCharge)
   const netRefund = Math.max(0, initialDeposit - totalCharge)
-  const additionalPayNeeded = Math.max(0, totalCharge - initialDeposit)
+  const additionalPayNeeded = skipPaymentRecord ? 0 : Math.max(0, totalCharge - initialDeposit)
 
   // Helper to determine due date status
   const getDueStatus = (dueDateStr: string) => {
@@ -458,15 +478,25 @@ export default function TenantList({
     const dueDate = tenant.payment_due_date ? new Date(tenant.payment_due_date) : null
     const dueStatus = getDueStatus(tenant.payment_due_date)
 
+    const isTransition = Boolean(tenant.is_transition || tenant.rental_duration === 'transition')
+
     return [
       <div key={`name-${tenant.id}`} className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
           {tenant.full_name?.slice(0, 2).toUpperCase() || 'TN'}
         </div>
         <div>
-          <p className="font-bold text-slate-900 text-xs">
-            {tenant.full_name}
-          </p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="font-bold text-slate-900 text-xs">
+              {tenant.full_name}
+            </p>
+            {isTransition && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-[10px]" title="Tamu masa transisi manual (Bebas denda & tanpa rekap kas)">
+                <Zap className="w-2.5 h-2.5 text-amber-600 fill-amber-500" />
+                <span>Tamu Transisi</span>
+              </span>
+            )}
+          </div>
           {tenant.id_card_url && (
             <a 
               href={tenant.id_card_url} 
@@ -556,7 +586,26 @@ export default function TenantList({
         )}
       </div>,
 
-      <div key={`action-${tenant.id}`} className="flex items-center gap-1.5">
+      <div key={`action-${tenant.id}`} className="flex items-center gap-1.5 flex-wrap">
+        {isOwner && (
+          <form action={transitionAction} className="inline-block">
+            <input type="hidden" name="tenant_id" value={tenant.id} />
+            <input type="hidden" name="is_transition" value={isTransition ? 'false' : 'true'} />
+            <button
+              type="submit"
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer shadow-2xs ${
+                isTransition
+                  ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300'
+                  : 'bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 border border-slate-200'
+              }`}
+              title={isTransition ? 'Klik untuk membatalkan status Tamu Transisi' : 'Tandai sebagai Tamu Transisi (Khusus Owner)'}
+            >
+              <Zap className={`w-3 h-3 ${isTransition ? 'text-amber-600 fill-amber-500' : 'text-slate-400'}`} />
+              <span>{isTransition ? 'Transisi ✓' : '+ Transisi'}</span>
+            </button>
+          </form>
+        )}
+
         <button
           type="button"
           onClick={() => setMoveTenant(tenant)}
@@ -1062,12 +1111,13 @@ export default function TenantList({
             <input type="hidden" name="id" value={checkoutTenant.id} />
             <input type="hidden" name="checkout_date" value={checkoutDate} />
             <input type="hidden" name="checkout_time" value={checkoutTime} />
-            <input type="hidden" name="late_fee" value={calculatedLateFee} />
+            <input type="hidden" name="late_fee" value={effectiveLateFee} />
             <input type="hidden" name="damage_fee" value={damageFee} />
             <input type="hidden" name="deposit_refund" value={netRefund} />
             <input type="hidden" name="additional_pay_needed" value={additionalPayNeeded} />
             <input type="hidden" name="claimed_deposit" value={claimedDeposit} />
             <input type="hidden" name="additional_payment_method" value={additionalPaymentMethod} />
+            <input type="hidden" name="skip_payment_record" value={skipPaymentRecord ? 'true' : 'false'} />
 
             <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
               <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
@@ -1123,33 +1173,121 @@ export default function TenantList({
                     />
                   </div>
                 </div>
-              </div>
-
-              {/* Denda Rule Indicator */}
-              <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 font-medium">Status Waktu Check-Out:</span>
-                  <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
-                    !isLate
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {lateStatusText}
-                  </span>
+                {/* Denda & Transisi Rule Section */}
+              {checkoutTenant?.is_transition ? (
+                <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-amber-950 flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-amber-600 fill-amber-500" />
+                      Status: Tamu Transisi (Ditandai Owner)
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300">
+                      Bebas Denda (Rp 0)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    Tamu ini diverifikasi oleh Owner sebagai tamu masa transisi manual. Sistem secara otomatis <strong>membebaskan denda keterlambatan (Rp 0)</strong> dan <strong>TIDAK mencatat transaksi ke rekap shift atau kas pembayaran</strong>.
+                  </p>
                 </div>
+              ) : (
+                <>
+                  {/* Denda Rule Indicator & Flexible Adjustment */}
+                  <div className="p-3.5 bg-white rounded-xl border border-slate-200 text-xs space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-medium">Status Waktu Check-Out:</span>
+                      <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
+                        !isLate
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : (isWaiveLateFee ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800')
+                      }`}>
+                        {isWaiveLateFee ? 'Denda Dibebaskan (Rp 0)' : lateStatusText}
+                      </span>
+                    </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 font-medium">Denda Keterlambatan:</span>
-                  <span className={`font-black ${calculatedLateFee > 0 ? 'text-red-600 text-sm' : 'text-emerald-700'}`}>
-                    {calculatedLateFee > 0 
-                      ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)
-                      : 'Rp 0 (Bebas Denda)'}
-                  </span>
-                </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-medium">Denda Keterlambatan:</span>
+                      <div className="text-right">
+                        <span className={`font-black ${effectiveLateFee > 0 ? 'text-red-600 text-sm' : 'text-emerald-700'}`}>
+                          {effectiveLateFee > 0 
+                            ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(effectiveLateFee)
+                            : 'Rp 0 (Bebas Denda)'}
+                        </span>
+                        {isWaiveLateFee && (
+                          <span className="block text-[10px] text-emerald-600 font-semibold">Toleransi / Bebas Denda</span>
+                        )}
+                      </div>
+                    </div>
 
-                <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-100">
-                  * Aturan denda: Berlaku pada/setelah tanggal jatuh tempo. s/d 15:00 WIB denda Rp 50.000 | 15:00–17:00 WIB denda Rp 100.000 | &gt; 17:00 WIB denda Rp 100.000 (1 hari).
-                </p>
+                    {/* Owner controls for fee waiver / adjustments */}
+                    {isOwner && calculatedLateFee > 0 && (
+                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsWaiveLateFee(!isWaiveLateFee)
+                            setCustomLateFee(null)
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isWaiveLateFee 
+                              ? 'bg-emerald-600 text-white shadow-xs' 
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{isWaiveLateFee ? '✓ Denda Telat Ditiadakan (Rp 0)' : 'Bebaskan Denda (Set Rp 0)'}</span>
+                        </button>
+
+                        {!isWaiveLateFee && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                            <span>Ubah nominal:</span>
+                            <div className="relative w-28">
+                              <span className="absolute inset-y-0 left-0 pl-2 flex items-center text-[10px] text-slate-400 font-bold">Rp</span>
+                              <input
+                                type="number"
+                                step="10000"
+                                min="0"
+                                value={customLateFee !== null ? customLateFee : calculatedLateFee}
+                                onChange={(e) => setCustomLateFee(e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="w-full pl-6 pr-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-100">
+                      * Aturan denda standar: Berlaku pada/setelah tanggal jatuh tempo. s/d 15:00 WIB Rp 50.000 | 15:00–17:00 WIB Rp 100.000 | &gt; 17:00 WIB Rp 100.000 (1 hari).
+                    </p>
+                  </div>
+
+                  {/* Mode Tamu Transisi (Khusus Owner) */}
+                  {isOwner && (
+                    <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl space-y-1">
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={skipPaymentRecord}
+                          onChange={(e) => {
+                            const val = e.target.checked
+                            setSkipPaymentRecord(val)
+                            if (val) {
+                              setIsWaiveLateFee(true)
+                            }
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-amber-950 block">Tamu Transisi / Input Manual (Tanpa Rekap Kas)</span>
+                          <span className="text-[11px] text-amber-800 leading-tight block mt-0.5">
+                            Centang ini jika tamu diinput manual hanya untuk info kamar terisi. Sistem <strong>TIDAK akan memasukkan denda/biaya ke rekap kas dan buku pembayaran</strong>.
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
               </div>
 
               {/* Input Biaya Kerusakan / Tambahan */}
@@ -1183,10 +1321,10 @@ export default function TenantList({
                       {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(initialDeposit)}
                     </span>
                   </div>
-                  {calculatedLateFee > 0 && (
+                  {effectiveLateFee > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span>Denda Keterlambatan:</span>
-                      <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}</span>
+                      <span className="font-bold">- {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(effectiveLateFee)}</span>
                     </div>
                   )}
                   {damageFee > 0 && (
@@ -1226,10 +1364,10 @@ export default function TenantList({
                     </p>
                   </div>
 
-                  {calculatedLateFee > 0 && (
+                  {effectiveLateFee > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span>Denda Keterlambatan:</span>
-                      <span className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedLateFee)}</span>
+                      <span className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(effectiveLateFee)}</span>
                     </div>
                   )}
                   {damageFee > 0 && (

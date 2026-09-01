@@ -103,7 +103,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
   // Get tenant and room details
   const { data: tenant } = await adminClient
     .from('tenants')
-    .select('id, room_id, full_name, deposit_amount, check_in_date, payment_due_date, rooms(room_number, room_type, floors(name, branches(name)))')
+    .select('*, rooms(room_number, room_type, floors(name, branches(name)))')
     .eq('id', id)
     .single()
 
@@ -133,10 +133,14 @@ export async function processCheckout(prevState: any, formData: FormData) {
     processedByName = userProfile?.full_name || user.email || 'Resepsionis'
   }
 
+  const isTransitionTenant = Boolean(tenant.is_transition || tenant.rental_duration === 'transition' || (formData.get('skip_payment_record') as string) === 'true')
+  const skip_payment_record = isTransitionTenant
+  const effectiveLateFee = isTransitionTenant ? 0 : late_fee
+
   const tenantDeposit = tenant.deposit_amount !== undefined && tenant.deposit_amount !== null ? parseFloat(tenant.deposit_amount) : 0
-  const totalCharge = late_fee + damage_fee
-  const actualClaimedDeposit = claimed_deposit_input > 0 ? claimed_deposit_input : Math.min(tenantDeposit, totalCharge)
-  const actualExtraToPay = additional_pay_needed > 0 ? additional_pay_needed : Math.max(0, totalCharge - tenantDeposit)
+  const totalCharge = effectiveLateFee + damage_fee
+  const actualClaimedDeposit = isTransitionTenant ? 0 : (claimed_deposit_input > 0 ? claimed_deposit_input : Math.min(tenantDeposit, totalCharge))
+  const actualExtraToPay = isTransitionTenant ? 0 : (additional_pay_needed > 0 ? additional_pay_needed : Math.max(0, totalCharge - tenantDeposit))
   const actualRefund = Math.max(0, tenantDeposit - totalCharge)
 
   const todayStr = getWIBDateString()
@@ -155,12 +159,12 @@ export async function processCheckout(prevState: any, formData: FormData) {
       checkout_date: checkout_date_input,
       checkout_time: checkout_time_input,
       deposit_amount: tenantDeposit,
-      late_fee: late_fee,
+      late_fee: effectiveLateFee,
       damage_fee: damage_fee,
       claimed_deposit: actualClaimedDeposit,
       deposit_refund: actualRefund,
       additional_pay_needed: actualExtraToPay,
-      notes: checkout_notes || null,
+      notes: checkout_notes ? (isTransitionTenant ? `${checkout_notes} [Tamu Transisi (Manual)]` : checkout_notes) : (isTransitionTenant ? '[Tamu Transisi (Manual)]' : null),
       processed_by: processedByName,
       created_at: timestampStr
     })
@@ -168,8 +172,8 @@ export async function processCheckout(prevState: any, formData: FormData) {
     console.warn('Could not insert to checkout_history directly:', histErr)
   }
 
-  // 2. If deposit is claimed (for late fee or damages), record as claimed deposit transaction
-  if (actualClaimedDeposit > 0) {
+  // 2. If deposit is claimed (for late fee or damages), record as claimed deposit transaction (ONLY if not skipped)
+  if (!skip_payment_record && actualClaimedDeposit > 0) {
     const claimNotes = `[Klaim Deposit] Tamu: ${tenant.full_name} | Kamar: ${roomNumber} | Denda Telat: Rp ${late_fee.toLocaleString('id-ID')} | Kerusakan: Rp ${damage_fee.toLocaleString('id-ID')} | Deposit Terklaim: Rp ${actualClaimedDeposit.toLocaleString('id-ID')} | Sisa Deposit Kembali: Rp ${actualRefund.toLocaleString('id-ID')}${checkout_notes ? ` | Catatan: ${checkout_notes}` : ''}`
     
     await adminClient.from('payments').insert({
@@ -184,8 +188,8 @@ export async function processCheckout(prevState: any, formData: FormData) {
     })
   }
 
-  // 3. If charges exceeded deposit, record the additional excess payment settled by guest
-  if (actualExtraToPay > 0) {
+  // 3. If charges exceeded deposit, record the additional excess payment settled by guest (ONLY if not skipped)
+  if (!skip_payment_record && actualExtraToPay > 0) {
     const extraMethod = additional_payment_method === 'transfer' ? 'transfer' : 'cash'
     const extraNotes = `[Pelunasan Check-Out] Tamu: ${tenant.full_name} | Kamar: ${roomNumber} | Pelunasan Biaya Tambahan/Kerusakan (Kekurangan Denda Melebihi Deposit)${checkout_notes ? ` | Catatan: ${checkout_notes}` : ''}`
     
@@ -394,5 +398,83 @@ export async function moveTenantRoom(prevState: any, formData: FormData) {
   return {
     success: true,
     message: `Berhasil memindahkan ${tenant.full_name} dari Kamar ${oldRoomNumber} (${oldRoomType}) ke Kamar ${newRoomNumber} (${newRoomType})!`
+  }
+}
+
+export async function toggleTenantTransition(prevState: any, formData: FormData) {
+  const tenant_id = formData.get('tenant_id') as string
+  const is_transition = formData.get('is_transition') === 'true'
+
+  if (!tenant_id) {
+    return { error: 'ID Penghuni tidak ditemukan' }
+  }
+
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const adminClient = serviceRoleKey 
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    : supabase
+
+  // Strictly check role: MUST BE OWNER
+  const { data: profile } = await adminClient
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'owner') {
+    return { error: 'Akses Ditolak: Hanya Pemilik Kos (Owner) yang berwenang menandai atau mengubah status Tamu Transisi.' }
+  }
+
+  // 1. Try updating is_transition column
+  let { error: updateError } = await adminClient
+    .from('tenants')
+    .update({ is_transition })
+    .eq('id', tenant_id)
+
+  // 2. If is_transition column doesn't exist yet, fallback gracefully to updating rental_duration
+  if (updateError && updateError.message?.includes('is_transition')) {
+    const fallbackDuration = is_transition ? 'transition' : 'daily'
+    const { error: fallbackErr } = await adminClient
+      .from('tenants')
+      .update({ rental_duration: fallbackDuration })
+      .eq('id', tenant_id)
+    if (fallbackErr) return { error: fallbackErr.message }
+  } else if (updateError) {
+    return { error: updateError.message }
+  }
+
+  revalidatePath('/dashboard/penghuni')
+  revalidatePath('/dashboard/kamar')
+  revalidatePath('/dashboard/pembayaran')
+  revalidatePath('/dashboard')
+
+  return { 
+    success: true, 
+    message: is_transition 
+      ? 'Penghuni berhasil ditandai sebagai Tamu Transisi (Bebas denda & tidak dicatat ke kas pembayaran).' 
+      : 'Status Tamu Transisi dinonaktifkan (kembali ke aturan standar).' 
   }
 }

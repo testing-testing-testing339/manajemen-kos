@@ -170,3 +170,68 @@ export async function confirmPayment(prevState: any, formData: FormData) {
   revalidatePath('/dashboard')
   return { success: true }
 }
+
+export async function deletePayment(prevState: any, formData: FormData) {
+  const payment_id = formData.get('payment_id') as string
+
+  if (!payment_id) {
+    return { error: 'ID Pembayaran tidak ditemukan' }
+  }
+
+  const cookieStore = await cookies()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const { createClient } = await import('@supabase/supabase-js')
+  const adminClient = serviceRoleKey
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    : supabase
+
+  const { data: profile } = await adminClient
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'owner') {
+    return { error: 'Akses Ditolak: Hanya Pemilik Kos (Owner) yang berwenang menghapus transaksi keuangan / pembayaran.' }
+  }
+
+  const { error: deleteError } = await adminClient
+    .from('payments')
+    .delete()
+    .eq('id', payment_id)
+
+  if (deleteError) {
+    return { error: deleteError.message }
+  }
+
+  revalidatePath('/dashboard/pembayaran')
+  revalidatePath('/dashboard/penghuni')
+  revalidatePath('/dashboard/riwayat-checkout')
+  revalidatePath('/dashboard')
+
+  return { success: true, message: 'Transaksi berhasil dihapus dari sistem.' }
+}
+

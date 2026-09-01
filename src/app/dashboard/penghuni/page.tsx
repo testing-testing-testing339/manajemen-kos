@@ -91,8 +91,11 @@ export default async function PenghuniPage() {
       )
     }
 
+    const isTransition = Boolean(t.is_transition || t.rental_duration === 'transition')
+
     return {
       ...t,
+      is_transition: isTransition,
       phone: t.phone || cir?.phone || '-',
       email: t.email || cir?.email || '-',
       check_in_date: checkInDate,

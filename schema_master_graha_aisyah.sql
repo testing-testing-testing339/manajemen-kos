@@ -50,6 +50,10 @@ EXCEPTION
     NULL;
 END $$;
 
+-- 3.1 Pastikan kolom is_transition tersedia pada tabel tenants (Tamu Transisi Khusus Owner)
+ALTER TABLE tenants
+ADD COLUMN IF NOT EXISTS is_transition boolean DEFAULT false;
+
 -- 4. Tabel Riwayat Check-Out Tamu
 CREATE TABLE IF NOT EXISTS checkout_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
