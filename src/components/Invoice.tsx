@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { Printer, Send, Building2, CheckCircle2, ShieldCheck, FileText } from 'lucide-react'
+import { Printer, Send, Building2, CheckCircle2, ShieldCheck, FileText, Sparkles, Calendar, Clock, Shield } from 'lucide-react'
 
 interface InvoiceProps {
   payment: any
@@ -161,6 +161,44 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
   const isProofValid = paymentProofUrl && !paymentProofUrl.includes('placehold')
   const hasPhotos = Boolean(ktpPhotoUrl || selfiePhotoUrl || isProofValid)
 
+  // Deposit / Guarantee Details
+  const depositAmount = parseFloat(checkInRequest?.deposit_amount || tenant?.deposit_amount || payment?.deposit_amount || 0)
+  const guaranteeTypeDisplay = isDepositClaim
+    ? 'Klaim Deposit Terpakai'
+    : isCheckoutSettlement
+    ? 'Rekonsiliasi Selesai'
+    : depositAmount > 0
+    ? `Uang Tunai / Transfer (Rp ${new Intl.NumberFormat('id-ID').format(depositAmount)})`
+    : 'Titip KTP Fisik Asli'
+
+  // Schedule Check-In & Check-Out
+  const checkInRawDate = tenant?.check_in_date || checkInRequest?.assigned_at || checkInRequest?.created_at || payment.created_at
+  const checkInDateObj = new Date(checkInRawDate)
+  const checkInScheduleStr = `${checkInDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • ${checkInDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`
+
+  let checkOutScheduleStr = '-'
+  if (tenant?.payment_due_date) {
+    const dueObj = new Date(tenant.payment_due_date)
+    checkOutScheduleStr = `${dueObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
+  } else {
+    const checkOutDateObj = new Date(checkInDateObj)
+    if (durationType === 'transit_morning' || durationType === 'transit') {
+      checkOutScheduleStr = `${checkInDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB (Siang)`
+    } else if (durationType === 'weekly') {
+      const weeks = checkInRequest?.rental_weeks || tenant?.rental_count || 1
+      checkOutDateObj.setDate(checkOutDateObj.getDate() + (weeks * 7))
+      checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
+    } else if (durationType === 'monthly') {
+      const months = checkInRequest?.rental_months || tenant?.rental_count || 1
+      checkOutDateObj.setMonth(checkOutDateObj.getMonth() + months)
+      checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
+    } else {
+      const days = checkInRequest?.rental_days || tenant?.rental_count || 1
+      checkOutDateObj.setDate(checkOutDateObj.getDate() + days)
+      checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
+    }
+  }
+
   // Isolated high-quality print & PDF handler (No modal clipping, no white space gap)
   const handlePrint = () => {
     const htmlContent = `
@@ -184,15 +222,15 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
 
             @page {
               size: A4 portrait;
-              margin: 10mm 10mm 10mm 10mm;
+              margin: 8mm 8mm 8mm 8mm;
             }
 
             html, body {
               background-color: #ffffff !important;
               color: #0f172a !important;
               font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              font-size: 12px;
-              line-height: 1.4;
+              font-size: 11px;
+              line-height: 1.35;
               margin: 0;
               padding: 0;
             }
@@ -201,15 +239,15 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
               max-width: 100%;
               margin: 0 auto;
               background: #ffffff;
-              padding: 6px;
+              padding: 4px;
             }
 
             .header-table {
               width: 100%;
               border-collapse: collapse;
-              border-bottom: 2.5px solid #0f172a;
-              padding-bottom: 14px;
-              margin-bottom: 18px;
+              border-bottom: 2px solid #0f172a;
+              padding-bottom: 10px;
+              margin-bottom: 12px;
             }
 
             .header-table td {
@@ -217,7 +255,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
             }
 
             .brand-title {
-              font-size: 22px;
+              font-size: 20px;
               font-weight: 900;
               color: #0f172a;
               letter-spacing: -0.5px;
@@ -225,11 +263,11 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
             }
 
             .brand-subtitle {
-              font-size: 11px;
+              font-size: 10.5px;
               color: #64748b;
               font-weight: 600;
               margin-top: 2px;
-              max-width: 500px;
+              max-width: 480px;
             }
 
             .status-badge {
@@ -237,9 +275,9 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
               background: #ecfdf5 !important;
               color: #047857 !important;
               border: 1.5px solid #6ee7b7;
-              font-size: 10px;
+              font-size: 9.5px;
               font-weight: 800;
-              padding: 5px 12px;
+              padding: 4px 10px;
               border-radius: 9999px;
               text-transform: uppercase;
               letter-spacing: 0.5px;
@@ -251,44 +289,44 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
               font-size: 11px;
               font-weight: 700;
               color: #475569;
-              margin-top: 5px;
+              margin-top: 4px;
               text-align: right;
             }
 
             .info-grid {
               width: 100%;
               border-collapse: separate;
-              border-spacing: 12px 0;
-              margin-left: -12px;
-              margin-right: -12px;
-              margin-bottom: 18px;
+              border-spacing: 10px 0;
+              margin-left: -10px;
+              margin-right: -10px;
+              margin-bottom: 12px;
             }
 
             .info-card {
               width: 50%;
               background: #f8fafc !important;
               border: 1px solid #e2e8f0;
-              border-radius: 12px;
-              padding: 12px 14px;
+              border-radius: 10px;
+              padding: 10px 12px;
               vertical-align: top;
             }
 
             .card-heading {
-              font-size: 10px;
+              font-size: 9.5px;
               font-weight: 800;
               color: #4f46e5;
               text-transform: uppercase;
               letter-spacing: 0.5px;
-              margin-bottom: 8px;
+              margin-bottom: 6px;
               border-bottom: 1px solid #e2e8f0;
-              padding-bottom: 4px;
+              padding-bottom: 3px;
             }
 
             .data-row {
               display: flex;
               justify-content: space-between;
-              margin-bottom: 5px;
-              font-size: 11px;
+              margin-bottom: 4px;
+              font-size: 10.5px;
             }
 
             .data-label {
@@ -304,8 +342,8 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
             .items-table {
               width: 100%;
               border-collapse: collapse;
-              margin-bottom: 16px;
-              border-radius: 10px;
+              margin-bottom: 12px;
+              border-radius: 8px;
               overflow: hidden;
               border: 1px solid #cbd5e1;
             }
@@ -313,59 +351,59 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
             .items-table th {
               background: #0f172a !important;
               color: #ffffff !important;
-              font-size: 10px;
+              font-size: 9.5px;
               font-weight: 800;
               text-transform: uppercase;
               letter-spacing: 0.5px;
-              padding: 9px 12px;
+              padding: 7px 10px;
               text-align: left;
             }
 
             .items-table td {
-              padding: 11px 12px;
+              padding: 8px 10px;
               border-bottom: 1px solid #e2e8f0;
-              font-size: 11px;
+              font-size: 10.5px;
             }
 
             .item-title {
               font-weight: 800;
-              font-size: 12px;
+              font-size: 11.5px;
               color: #0f172a;
             }
 
             .item-sub {
-              font-size: 10px;
+              font-size: 9.5px;
               color: #64748b;
-              margin-top: 2px;
+              margin-top: 1.5px;
             }
 
             .summary-box {
               background: #f8fafc !important;
               border: 1px solid #cbd5e1;
-              border-radius: 12px;
-              padding: 12px 16px;
-              margin-bottom: 14px;
+              border-radius: 10px;
+              padding: 10px 14px;
+              margin-bottom: 10px;
             }
 
             .summary-row {
               display: flex;
               justify-content: space-between;
-              font-size: 11px;
+              font-size: 10.5px;
               color: #475569;
-              margin-bottom: 4px;
+              margin-bottom: 3px;
             }
 
             .summary-total {
               border-top: 1.5px dashed #94a3b8;
-              padding-top: 8px;
-              margin-top: 6px;
+              padding-top: 6px;
+              margin-top: 4px;
               display: flex;
               justify-content: space-between;
               align-items: center;
             }
 
             .total-title {
-              font-size: 12px;
+              font-size: 11px;
               font-weight: 800;
               text-transform: uppercase;
               color: #0f172a;
@@ -373,7 +411,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
 
             .total-amount {
               font-family: 'JetBrains Mono', monospace;
-              font-size: 17px;
+              font-size: 15px;
               font-weight: 900;
               color: #4f46e5;
             }
@@ -383,32 +421,32 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
               border-left: 4px solid #4f46e5;
               border: 1px solid #e2e8f0;
               border-left-width: 4px;
-              border-radius: 8px;
-              padding: 8px 12px;
-              margin-bottom: 16px;
+              border-radius: 6px;
+              padding: 6px 10px;
+              margin-bottom: 12px;
             }
 
             .terbilang-title {
-              font-size: 9px;
+              font-size: 8.5px;
               font-weight: 800;
               color: #64748b;
               text-transform: uppercase;
             }
 
             .terbilang-text {
-              font-size: 11px;
+              font-size: 10.5px;
               font-weight: 700;
               color: #334155;
               font-style: italic;
               text-transform: capitalize;
-              margin-top: 2px;
+              margin-top: 1px;
             }
 
             .footer-table {
               width: 100%;
               border-top: 1px solid #e2e8f0;
-              padding-top: 10px;
-              font-size: 10px;
+              padding-top: 8px;
+              font-size: 9.5px;
               color: #64748b;
             }
 
@@ -449,7 +487,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
             <table class="info-grid">
               <tr>
                 <td class="info-card">
-                  <div class="card-heading">Informasi Transaksi</div>
+                  <div class="card-heading">Informasi Transaksi & Jaminan</div>
                   <div class="data-row">
                     <span class="data-label">No. Invoice:</span>
                     <span class="data-val" style="font-family: monospace;">${invoiceNumber}</span>
@@ -466,10 +504,14 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
                     <span class="data-label">Tanggal Transaksi:</span>
                     <span class="data-val">${paymentDateStr}</span>
                   </div>
+                  <div class="data-row">
+                    <span class="data-label">Jenis Jaminan / Deposit:</span>
+                    <span class="data-val" style="color: #b45309; font-weight: 800;">${guaranteeTypeDisplay}</span>
+                  </div>
                 </td>
 
                 <td class="info-card">
-                  <div class="card-heading" style="color: #7c3aed;">Diterbitkan Kepada</div>
+                  <div class="card-heading" style="color: #7c3aed;">Diterbitkan Kepada & Jadwal Sewa</div>
                   <div class="data-row">
                     <span class="data-label">Nama Tamu:</span>
                     <span class="data-val">${tenantName}</span>
@@ -481,6 +523,14 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
                   <div class="data-row">
                     <span class="data-label">Durasi Sewa:</span>
                     <span class="data-val">${rentalDurationStr}</span>
+                  </div>
+                  <div class="data-row">
+                    <span class="data-label">Jadwal Check-In:</span>
+                    <span class="data-val" style="color: #047857;">${checkInScheduleStr}</span>
+                  </div>
+                  <div class="data-row">
+                    <span class="data-label">Jadwal Check-Out:</span>
+                    <span class="data-val" style="color: #b91c1c;">${checkOutScheduleStr}</span>
                   </div>
                   ${nik !== '-' ? `
                   <div class="data-row">
@@ -537,53 +587,53 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
 
             ${hasPhotos ? `
             <!-- Lampiran Bukti Identitas & Pembayaran Digital -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 16px;">
-              <div style="font-size: 10px; font-weight: 800; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 10px;">
-                Lampiran Bukti Identitas & Pembayaran Digital
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 12px;">
+              <div style="font-size: 9.5px; font-weight: 800; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">
+                Lampiran Bukti Identitas & Pembayaran Digital (Foto Asli)
               </div>
               <table style="width: 100%; border-collapse: separate; border-spacing: 8px 0; margin-left: -8px; margin-right: -8px;">
                 <tr>
                   <td style="width: 33.33%; vertical-align: top; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; text-align: center;">
-                    <div style="font-size: 9px; font-weight: 800; color: #64748b; margin-bottom: 6px;">FOTO KTP / IDENTITAS</div>
+                    <div style="font-size: 9px; font-weight: 800; color: #475569; margin-bottom: 6px; text-transform: uppercase;">FOTO KTP / IDENTITAS</div>
                     ${ktpPhotoUrl ? `
-                      <div style="height: 85px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #f1f5f9;">
-                        <img src="${ktpPhotoUrl}" style="max-width: 100%; max-height: 85px; object-fit: contain;" />
+                      <div style="height: 125px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #0f172a;">
+                        <img src="${ktpPhotoUrl}" style="max-width: 100%; max-height: 125px; object-fit: contain;" />
                       </div>
                     ` : `
-                      <div style="height: 85px; border-radius: 6px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #94a3b8;">
+                      <div style="height: 125px; border-radius: 6px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 9.5px; color: #94a3b8;">
                         Tidak ada foto
                       </div>
                     `}
-                    <div style="font-size: 9px; font-family: monospace; color: #475569; margin-top: 4px;">${nik !== '-' ? `NIK: ${nik}` : 'Identitas Tamu'}</div>
+                    <div style="font-size: 9px; font-family: monospace; font-weight: 700; color: #334155; margin-top: 5px;">${nik !== '-' ? `NIK: ${nik}` : 'Identitas Tamu'}</div>
                   </td>
 
                   <td style="width: 33.33%; vertical-align: top; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; text-align: center;">
-                    <div style="font-size: 9px; font-weight: 800; color: #64748b; margin-bottom: 6px;">FOTO WAJAH (SELFIE)</div>
+                    <div style="font-size: 9px; font-weight: 800; color: #475569; margin-bottom: 6px; text-transform: uppercase;">FOTO WAJAH (SELFIE)</div>
                     ${selfiePhotoUrl ? `
-                      <div style="height: 85px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #f1f5f9;">
-                        <img src="${selfiePhotoUrl}" style="max-width: 100%; max-height: 85px; object-fit: contain;" />
+                      <div style="height: 125px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #0f172a;">
+                        <img src="${selfiePhotoUrl}" style="max-width: 100%; max-height: 125px; object-fit: contain;" />
                       </div>
                     ` : `
-                      <div style="height: 85px; border-radius: 6px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #94a3b8;">
+                      <div style="height: 125px; border-radius: 6px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 9.5px; color: #94a3b8;">
                         Tidak ada foto
                       </div>
                     `}
-                    <div style="font-size: 9px; font-family: monospace; color: #475569; margin-top: 4px;">${tenantName}</div>
+                    <div style="font-size: 9px; font-family: monospace; font-weight: 700; color: #334155; margin-top: 5px;">${tenantName}</div>
                   </td>
 
                   <td style="width: 33.33%; vertical-align: top; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; text-align: center;">
-                    <div style="font-size: 9px; font-weight: 800; color: #64748b; margin-bottom: 6px;">BUKTI PEMBAYARAN</div>
+                    <div style="font-size: 9px; font-weight: 800; color: #475569; margin-bottom: 6px; text-transform: uppercase;">BUKTI PEMBAYARAN</div>
                     ${isProofValid ? `
-                      <div style="height: 85px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #f1f5f9;">
-                        <img src="${paymentProofUrl}" style="max-width: 100%; max-height: 85px; object-fit: contain;" />
+                      <div style="height: 125px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #0f172a;">
+                        <img src="${paymentProofUrl}" style="max-width: 100%; max-height: 125px; object-fit: contain;" />
                       </div>
                     ` : `
-                      <div style="height: 85px; border-radius: 6px; background: #fef3c7; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; color: #92400e; padding: 4px;">
-                        <strong>Tunai di Resepsionis</strong>
-                        <span style="font-size: 8px; color: #b45309;">Diterima Kasir</span>
+                      <div style="height: 125px; border-radius: 6px; background: #fef3c7; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9.5px; color: #92400e; padding: 6px;">
+                        <strong style="font-size: 10.5px;">Tunai di Resepsionis</strong>
+                        <span style="font-size: 8.5px; color: #b45309; margin-top: 2px;">Diterima Langsung oleh Kasir</span>
                       </div>
                     `}
-                    <div style="font-size: 9px; font-family: monospace; color: #475569; margin-top: 4px;">${paymentMethodDisplay}</div>
+                    <div style="font-size: 9px; font-family: monospace; font-weight: 700; color: #334155; margin-top: 5px;">${paymentMethodDisplay}</div>
                   </td>
                 </tr>
               </table>
@@ -669,10 +719,13 @@ Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Ut
 *STATUS:* *LUNAS (TERVERIFIKASI)*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-*DATA PENYEWA:*
+*DATA PENYEWA & JADWAL:*
 • *Nama:* ${tenantName}
 • *Kamar:* Kamar ${roomNumberStr} (${roomTypeStr})
 • *Durasi:* ${rentalDurationStr}
+• *Jaminan/Deposit:* ${guaranteeTypeDisplay}
+• *Jadwal Check-In:* ${checkInScheduleStr}
+• *Jadwal Check-Out:* ${checkOutScheduleStr}
 ${nik !== '-' ? `• *NIK:* ${nik}\n` : ''}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 *RINCIAN PEMBAYARAN:*
@@ -763,7 +816,8 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
           {/* Invoice Information */}
           <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 space-y-2">
             <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200/60 pb-1">
-              <span>Informasi Transaksi</span>
+              <Shield className="w-3 h-3 text-indigo-600" />
+              <span>Informasi Transaksi & Jaminan</span>
             </div>
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between items-center gap-2">
@@ -782,13 +836,20 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
                 <span className="text-slate-500 whitespace-nowrap">Tanggal Transaksi:</span>
                 <span className="font-semibold text-slate-800 text-right">{paymentDateStr}</span>
               </div>
+              <div className="flex justify-between items-center gap-2 pt-1 border-t border-slate-200/60">
+                <span className="text-slate-500 whitespace-nowrap">Jaminan / Deposit:</span>
+                <span className="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-right text-[11px]">
+                  {guaranteeTypeDisplay}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Tenant Information */}
           <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 space-y-2">
             <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200/60 pb-1">
-              <span>Diterbitkan Kepada</span>
+              <Calendar className="w-3 h-3 text-purple-600" />
+              <span>Diterbitkan Kepada & Jadwal Sewa</span>
             </div>
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between items-center gap-2">
@@ -805,8 +866,16 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
                 <span className="text-slate-500 whitespace-nowrap">Durasi Sewa:</span>
                 <span className="font-semibold text-slate-800 text-right">{rentalDurationStr}</span>
               </div>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 whitespace-nowrap">Check-In:</span>
+                <span className="font-bold text-emerald-700 text-right text-[11px]">{checkInScheduleStr}</span>
+              </div>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 whitespace-nowrap">Check-Out:</span>
+                <span className="font-bold text-rose-700 text-right text-[11px]">{checkOutScheduleStr}</span>
+              </div>
               {nik !== '-' && (
-                <div className="flex justify-between items-center gap-2">
+                <div className="flex justify-between items-center gap-2 pt-0.5 border-t border-slate-200/60">
                   <span className="text-slate-500 whitespace-nowrap">NIK:</span>
                   <span className="font-mono text-slate-700 text-right">{nik}</span>
                 </div>
@@ -881,61 +950,92 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
 
         {/* Lampiran Bukti Identitas & Pembayaran Digital */}
         {hasPhotos && (
-          <div className="bg-slate-50/80 p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                Lampiran Bukti Identitas & Pembayaran
-              </span>
-              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                Terverifikasi
+          <div className="bg-slate-50/90 p-4 sm:p-5 rounded-2xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                  Lampiran Bukti Identitas & Pembayaran Digital
+                </span>
+              </div>
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                Dokumen Terverifikasi
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Foto KTP */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-500 block">Foto KTP / Identitas</span>
+              <div className="bg-white p-3 rounded-2xl border border-slate-200 text-center space-y-2 shadow-xs">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-extrabold text-slate-700">Foto KTP / Identitas</span>
+                  <span className="text-[9px] font-mono text-slate-400">{nik !== '-' ? 'NIK Valid' : ''}</span>
+                </div>
                 {ktpPhotoUrl ? (
-                  <div className="aspect-[1.5/1] rounded-lg overflow-hidden border border-slate-100 bg-slate-100">
-                    <img src={ktpPhotoUrl} alt="KTP" className="w-full h-full object-cover" />
+                  <div className="w-full h-48 sm:h-52 rounded-xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center p-1">
+                    <img 
+                      src={ktpPhotoUrl} 
+                      alt="KTP" 
+                      className="w-full h-full object-contain hover:scale-105 transition-transform duration-300 cursor-pointer"
+                      onClick={() => window.open(ktpPhotoUrl, '_blank')}
+                      title="Klik untuk melihat foto ukuran penuh" 
+                    />
                   </div>
                 ) : (
-                  <div className="aspect-[1.5/1] rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-medium">
-                    Tidak ada foto
+                  <div className="w-full h-48 sm:h-52 rounded-xl bg-slate-100 flex flex-col items-center justify-center text-xs text-slate-400 font-medium border border-dashed border-slate-200">
+                    <span>Tidak ada foto KTP</span>
                   </div>
                 )}
-                <span className="text-[9px] font-mono text-slate-500 block truncate">{nik !== '-' ? `NIK: ${nik}` : 'Identitas Tamu'}</span>
+                <span className="text-[10px] font-mono text-slate-600 block truncate font-bold">{nik !== '-' ? `NIK: ${nik}` : 'Identitas Tamu'}</span>
               </div>
 
               {/* Foto Selfie / Wajah */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-500 block">Foto Wajah (Selfie)</span>
+              <div className="bg-white p-3 rounded-2xl border border-slate-200 text-center space-y-2 shadow-xs">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-extrabold text-slate-700">Foto Wajah (Selfie)</span>
+                  <span className="text-[9px] text-indigo-600 font-bold">Check-in</span>
+                </div>
                 {selfiePhotoUrl ? (
-                  <div className="aspect-[1.5/1] rounded-lg overflow-hidden border border-slate-100 bg-slate-100">
-                    <img src={selfiePhotoUrl} alt="Selfie" className="w-full h-full object-cover" />
+                  <div className="w-full h-48 sm:h-52 rounded-xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center p-1">
+                    <img 
+                      src={selfiePhotoUrl} 
+                      alt="Selfie" 
+                      className="w-full h-full object-contain hover:scale-105 transition-transform duration-300 cursor-pointer"
+                      onClick={() => window.open(selfiePhotoUrl, '_blank')}
+                      title="Klik untuk melihat foto ukuran penuh" 
+                    />
                   </div>
                 ) : (
-                  <div className="aspect-[1.5/1] rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-medium">
-                    Tidak ada foto
+                  <div className="w-full h-48 sm:h-52 rounded-xl bg-slate-100 flex flex-col items-center justify-center text-xs text-slate-400 font-medium border border-dashed border-slate-200">
+                    <span>Tidak ada foto selfie</span>
                   </div>
                 )}
-                <span className="text-[9px] font-mono text-slate-500 block truncate">{tenantName}</span>
+                <span className="text-[10px] font-mono text-slate-600 block truncate font-bold">{tenantName}</span>
               </div>
 
               {/* Bukti Bayar */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-500 block">Bukti Pembayaran</span>
+              <div className="bg-white p-3 rounded-2xl border border-slate-200 text-center space-y-2 shadow-xs">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-extrabold text-slate-700">Bukti Pembayaran</span>
+                  <span className="text-[9px] text-emerald-600 font-bold">{isCash ? 'Tunai' : 'Digital'}</span>
+                </div>
                 {isProofValid ? (
-                  <div className="aspect-[1.5/1] rounded-lg overflow-hidden border border-slate-100 bg-slate-100">
-                    <img src={paymentProofUrl} alt="Bukti Bayar" className="w-full h-full object-cover" />
+                  <div className="w-full h-48 sm:h-52 rounded-xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center p-1">
+                    <img 
+                      src={paymentProofUrl} 
+                      alt="Bukti Bayar" 
+                      className="w-full h-full object-contain hover:scale-105 transition-transform duration-300 cursor-pointer"
+                      onClick={() => window.open(paymentProofUrl, '_blank')}
+                      title="Klik untuk melihat foto ukuran penuh" 
+                    />
                   </div>
                 ) : (
-                  <div className="aspect-[1.5/1] rounded-lg bg-amber-50/70 border border-amber-200 flex flex-col items-center justify-center text-[10px] text-amber-800 p-2">
-                    <span className="font-bold">Tunai Resepsionis</span>
-                    <span className="text-[9px] text-slate-500">Diterima langsung</span>
+                  <div className="w-full h-48 sm:h-52 rounded-xl bg-amber-50/80 border border-amber-200 flex flex-col items-center justify-center text-xs text-amber-800 p-3 space-y-1">
+                    <ShieldCheck className="w-8 h-8 text-amber-600 mb-1" />
+                    <strong className="text-sm">Tunai di Resepsionis</strong>
+                    <span className="text-[10px] text-amber-700 text-center">Diterima & diverifikasi langsung oleh petugas kasir</span>
                   </div>
                 )}
-                <span className="text-[9px] font-mono text-slate-500 block truncate">{paymentMethodDisplay}</span>
+                <span className="text-[10px] font-mono text-slate-600 block truncate font-bold">{paymentMethodDisplay}</span>
               </div>
             </div>
           </div>
