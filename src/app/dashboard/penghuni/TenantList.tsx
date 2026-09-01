@@ -92,16 +92,62 @@ export default function TenantList({
   const [checkoutState, checkoutAction] = useActionState(processCheckout, null)
   const [moveState, moveAction] = useActionState(moveTenantRoom, null)
 
-  // Available rooms filtered for the tenant's current branch (excluding current room)
-  const availableRoomsForTenant = useMemo(() => {
-    if (!moveTenant) return []
+  // Helper to extract room condition
+  const getRoomCondition = (facilities: string[] = []): string | null => {
+    if (!Array.isArray(facilities)) return null
+    const match = facilities.find(f => 
+      f.toLowerCase().startsWith('kondisi:') || 
+      f.toLowerCase().includes('ac mati') || 
+      f.toLowerCase().includes('tv mati') || 
+      f.toLowerCase().includes('tv gk idup')
+    )
+    if (!match) return null
+    if (match.toLowerCase().includes('ac mati')) return 'AC Mati'
+    if (match.toLowerCase().includes('tv mati') || match.toLowerCase().includes('tv gk idup')) return 'TV Mati / Gak Idup'
+    return match.replace(/^kondisi:\s*/i, '')
+  }
+
+  // Group available rooms for tenant by Section / Floor into optgroups
+  const availableRoomsBySection = useMemo(() => {
+    if (!moveTenant) return {}
     const currentBranchId = moveTenant.rooms?.floors?.branch_id
-    return initialAvailableRooms.filter(r => {
-      if (r.id === moveTenant.room_id) return false
-      if (currentBranchId && r.floors?.branch_id && r.floors.branch_id !== currentBranchId) return false
-      return true
+
+    const map: Record<string, any[]> = {
+      'VIP Belakang Warkop': [],
+      'Dasar': [],
+      'Gedung Atas Lt 2': [],
+      'Gedung Atas Lt 3': []
+    }
+    const otherFloors: Record<string, any[]> = {}
+
+    initialAvailableRooms.forEach(room => {
+      if (room.id === moveTenant.room_id) return
+      if (currentBranchId && room.floors?.branch_id && room.floors.branch_id !== currentBranchId) return
+
+      const floorName = room.floors?.name || (room.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Dasar')
+      if (map[floorName]) {
+        map[floorName].push(room)
+      } else {
+        if (!otherFloors[floorName]) otherFloors[floorName] = []
+        otherFloors[floorName].push(room)
+      }
     })
+
+    const sortFn = (a: any, b: any) => {
+      const numA = parseInt(a.room_number?.toString().replace(/\D/g, '')) || 0
+      const numB = parseInt(b.room_number?.toString().replace(/\D/g, '')) || 0
+      return numA - numB
+    }
+
+    Object.keys(map).forEach(key => map[key].sort(sortFn))
+    Object.keys(otherFloors).forEach(key => otherFloors[key].sort(sortFn))
+
+    return { ...map, ...otherFloors }
   }, [moveTenant, initialAvailableRooms])
+
+  const totalAvailableRoomsCount = useMemo(() => {
+    return Object.values(availableRoomsBySection).reduce((acc, curr) => acc + (curr?.length || 0), 0)
+  }, [availableRoomsBySection])
 
   useEffect(() => {
     setTenants(initialTenants)
@@ -1506,72 +1552,51 @@ export default function TenantList({
               </div>
             </div>
 
-            {/* Pilihan Kamar Tujuan */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Pilih Kamar Tujuan (Kamar Kosong) *
-                </label>
-                <span className="text-[11px] font-semibold text-slate-500">
-                  {availableRoomsForTenant.length} Kamar Tersedia
-                </span>
-              </div>
+            {/* Pilihan Kamar Tujuan via Dropdown dengan Optgroup */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                Pilih Kamar Tujuan (Kamar Kosong) *
+              </label>
 
-              {availableRoomsForTenant.length === 0 ? (
+              {totalAvailableRoomsCount === 0 ? (
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-1 text-xs text-amber-800">
                   <AlertTriangle className="w-5 h-5 mx-auto text-amber-600" />
                   <p className="font-bold">Tidak Ada Kamar Kosong</p>
                   <p className="text-[11px] text-amber-700">Semua kamar di cabang ini sedang terisi. Tamu belum dapat dipindahkan saat ini.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto p-1 border border-slate-100 rounded-2xl bg-slate-50/50">
-                  {availableRoomsForTenant.map((r: any) => {
-                    const isVipRoom = r.room_type === 'vip' || (r.floors?.name || '').toLowerCase().includes('vip')
-                    const isSelected = selectedTargetRoomId === r.id
+                <select
+                  name="target_room_id"
+                  required
+                  value={selectedTargetRoomId}
+                  onChange={(e) => setSelectedTargetRoomId(e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="">-- Pilih Kamar Kosong Tujuan --</option>
+                  
+                  {Object.entries(availableRoomsBySection).map(([sectionName, rooms]) => {
+                    if (!rooms || rooms.length === 0) return null
                     return (
-                      <div
-                        key={r.id}
-                        onClick={() => setSelectedTargetRoomId(r.id)}
-                        className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                          isSelected
-                            ? 'border-indigo-600 bg-indigo-50 shadow-xs ring-2 ring-indigo-500/20'
-                            : 'border-slate-200 hover:border-indigo-300 bg-white'
-                        }`}
+                      <optgroup 
+                        key={sectionName} 
+                        label={`${sectionName.toUpperCase()} (${rooms.length} Kamar Tersedia)`}
                       >
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <div className="flex items-center gap-1.5">
-                            <DoorClosed className={`w-4 h-4 ${isSelected ? 'text-indigo-600' : 'text-slate-500'}`} />
-                            <span className="font-extrabold text-slate-900 text-xs">
-                              Kamar {r.room_number}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              isVipRoom ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
-                            }`}>
-                              {isVipRoom ? 'VIP' : 'Standard'}
-                            </span>
-                            {isSelected && (
-                              <div className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">
-                                <Check className="w-2.5 h-2.5" />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="text-[11px] text-slate-500 space-y-0.5">
-                          <p className="font-medium">{r.floors?.name || 'Graha Aisyah'}</p>
-                          {r.price && (
-                            <p className="font-bold text-indigo-700 font-mono">
-                              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(r.price)} / bln
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                        {rooms.map((r: any) => {
+                          const cond = getRoomCondition(r.facilities)
+                          return (
+                            <option key={r.id} value={r.id}>
+                              Kamar {r.room_number} • {sectionName} {cond ? `(Catatan: ${cond})` : ''}
+                            </option>
+                          )
+                        })}
+                      </optgroup>
                     )
                   })}
-                </div>
+                </select>
               )}
+              <p className="text-[10px] text-slate-400 mt-1">
+                * Pilih kamar kosong tujuan yang diinginkan tamu untuk dipindahkan.
+              </p>
             </div>
 
             {/* Alasan / Catatan Pindah Kamar */}
@@ -1613,7 +1638,7 @@ export default function TenantList({
               </button>
               <SubmitButton
                 variant="primary"
-                disabled={!selectedTargetRoomId || availableRoomsForTenant.length === 0}
+                disabled={!selectedTargetRoomId || totalAvailableRoomsCount === 0}
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
                 loadingText="Memindahkan Kamar..."
               >
