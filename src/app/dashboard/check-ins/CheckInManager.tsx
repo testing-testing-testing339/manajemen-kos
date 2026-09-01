@@ -10,6 +10,7 @@ import ImageLightbox from '@/components/ui/ImageLightbox'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
 import QRCode from 'qrcode'
+import { getDailyRentalRate } from '@/lib/dateUtils'
 import { 
   UserCheck, 
   QrCode, 
@@ -194,6 +195,30 @@ export default function CheckInManager({
     return `${checkIn.rental_days || 1} Hari`
   }
 
+  // Detect Early Check-In (Pagi 06:00 - 12:00 WIB with Rp 150rb/night)
+  const isEarlyCheckIn = (checkIn: any) => {
+    if (!checkIn) return false
+    let dur = checkIn.rental_duration
+    let pricePerDay = 0
+    if (checkIn.selected_room_type) {
+      try {
+        const parsed = typeof checkIn.selected_room_type === 'string'
+          ? JSON.parse(checkIn.selected_room_type)
+          : checkIn.selected_room_type
+        if (parsed?.rental_duration) dur = parsed.rental_duration
+        if (parsed?.price_per_day) pricePerDay = parsed.price_per_day
+      } catch (e) {}
+    }
+    if (dur === 'daily') {
+      if (pricePerDay === 150000) return true
+      if (checkIn.created_at) {
+        const { isMorningTransit } = getDailyRentalRate(checkIn.created_at)
+        if (isMorningTransit) return true
+      }
+    }
+    return false
+  }
+
   // Parse room type preference
   const getRoomPreference = (checkIn: any) => {
     if (!checkIn) return { name: 'Kamar Non-VIP (Standard)', isVip: false }
@@ -353,9 +378,14 @@ export default function CheckInManager({
         {roomPref.isVip ? 'VIP' : 'Non-VIP'}
       </span>,
 
-      <span key={`dur-${checkIn.id}`} className="text-xs font-medium text-slate-700">
-        {formatRentalDuration(checkIn)}
-      </span>,
+      <div key={`dur-${checkIn.id}`} className="space-y-0.5">
+        <p className="text-xs font-semibold text-slate-800">{formatRentalDuration(checkIn)}</p>
+        {isEarlyCheckIn(checkIn) && (
+          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">
+            Early Check-In
+          </span>
+        )}
+      </div>,
 
       <div key={`total-${checkIn.id}`}>
         <p className="text-xs font-bold text-indigo-600">
@@ -811,6 +841,11 @@ export default function CheckInManager({
                 <div className="space-y-0.5">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Durasi Sewa</p>
                   <p className="text-xs font-black text-slate-900">{formatRentalDuration(selectedCheckIn)}</p>
+                  {isEarlyCheckIn(selectedCheckIn) && (
+                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/15 text-amber-700 border border-amber-500/30 whitespace-nowrap">
+                      Early Check-In (Rp 150rb/mlm)
+                    </span>
+                  )}
                 </div>
 
                 <div className="space-y-0.5">

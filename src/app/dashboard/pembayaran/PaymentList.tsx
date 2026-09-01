@@ -9,7 +9,7 @@ import ImageLightbox from '@/components/ui/ImageLightbox'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
 import Invoice from '@/components/Invoice'
-import { getWIBDateString, formatWIBDate } from '@/lib/dateUtils'
+import { getWIBDateString, formatWIBDate, getDailyRentalRate } from '@/lib/dateUtils'
 import { 
   CreditCard, 
   Banknote, 
@@ -1216,15 +1216,22 @@ export default function PaymentList({
                       <span className="text-slate-500">
                         {(() => {
                           let dType = checkInRequest?.rental_duration || tenant?.rental_duration
+                          let isEarly = false
                           if (checkInRequest?.selected_room_type) {
                             try {
                               const p = typeof checkInRequest.selected_room_type === 'string' ? JSON.parse(checkInRequest.selected_room_type) : checkInRequest.selected_room_type
                               if (p?.rental_duration) dType = p.rental_duration
+                              if (p?.price_per_day === 150000) isEarly = true
                             } catch (e) {}
+                          }
+                          if (!isEarly && checkInRequest?.created_at && dType === 'daily') {
+                            const { isMorningTransit } = getDailyRentalRate(checkInRequest.created_at)
+                            if (isMorningTransit) isEarly = true
                           }
                           if (dType === 'transit_morning' || dType === 'transit') return 'Sewa Sesi Pagi (s/d 12:00):'
                           if (dType === 'weekly') return 'Sewa Mingguan:'
                           if (dType === 'monthly') return 'Sewa Bulanan:'
+                          if (isEarly) return 'Sewa Kamar (Early Check-In):'
                           return 'Sewa Kamar:'
                         })()}
                       </span>
