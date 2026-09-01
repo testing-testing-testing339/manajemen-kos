@@ -16,6 +16,7 @@ import {
   captureVideoFrameToWebP,
   formatFileSize
 } from '@/lib/imageCompressor'
+import { getDailyRentalRate } from '@/lib/dateUtils'
 import { 
   CreditCard, 
   Camera, 
@@ -154,8 +155,21 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const [monthlyPackage, setMonthlyPackage] = useState<MonthlyPackage>('ac')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('qris')
 
+  // Dynamic Daily Pricing based on WIB Time:
+  // - 06:00 - 12:00 WIB: Rp 150.000 / malam (Check-in pagi transit)
+  // - Setelah 12:00 WIB: Rp 100.000 / malam (Tarif normal)
+  const [dailyRateInfo, setDailyRateInfo] = useState(getDailyRentalRate())
+
+  useEffect(() => {
+    setDailyRateInfo(getDailyRentalRate())
+    const interval = setInterval(() => {
+      setDailyRateInfo(getDailyRentalRate())
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Pricing Constants (Ketentuan Graha Aisyah Menteng)
-  const BASE_PRICE_PER_DAY = 100000 // Rp 100.000 / malam (Tarif Flat)
+  const BASE_PRICE_PER_DAY = dailyRateInfo.pricePerDay
   const BASE_PRICE_PER_WEEK = 500000 // Rp 500.000 / minggu
   const BASE_PRICE_PER_MONTH_AC = 1350000 // Rp 1.350.000 / bulan (Kamar AC / Berfasilitas)
   const BASE_PRICE_PER_MONTH_NON_AC = 650000 // Rp 650.000 / bulan (Kamar Non-AC / Non-Fasilitas)
@@ -1183,7 +1197,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               Pilih Tipe Kamar & Durasi Sewa
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Tarif sewa Rp 100.000 / malam untuk seluruh kamar
+              {dailyRateInfo.isMorningTransit 
+                ? 'Tarif sewa pagi transit (06:00 – 12:00 WIB): Rp 150.000 / malam' 
+                : 'Tarif sewa normal: Rp 100.000 / malam'}
             </p>
           </div>
 
@@ -1210,8 +1226,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       VIP Belakang Warkop
                     </span>
                     <div className="text-right">
-                      <span className="text-sm font-black text-white">Rp 100.000</span>
-                      <span className="text-[10px] text-slate-400 block font-normal">/ malam</span>
+                      <span className="text-sm font-black text-white">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block font-normal">
+                        / malam {dailyRateInfo.isMorningTransit ? '(Pagi)' : ''}
+                      </span>
                     </div>
                   </div>
 
@@ -1256,8 +1276,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       Standard • Dasar & Gedung Atas
                     </span>
                     <div className="text-right">
-                      <span className="text-sm font-black text-white">Rp 100.000</span>
-                      <span className="text-[10px] text-slate-400 block font-normal">/ malam</span>
+                      <span className="text-sm font-black text-white">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block font-normal">
+                        / malam {dailyRateInfo.isMorningTransit ? '(Pagi)' : ''}
+                      </span>
                     </div>
                   </div>
 
@@ -1304,7 +1328,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
-                Harian (Rp 100rb)
+                Harian ({dailyRateInfo.pricePerDay === 150000 ? 'Rp 150rb' : 'Rp 100rb'})
               </button>
               <button
                 type="button"
@@ -1337,7 +1361,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <p className="text-xs font-extrabold text-white">Jumlah Malam Menginap</p>
-                      <p className="text-[11px] text-slate-400">Rp 100.000 / malam (Flat Seluruh Kamar)</p>
+                      <p className="text-[11px] text-indigo-400 font-bold">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)} / malam
+                      </p>
                     </div>
 
                     {/* Stepper +/- & editable input */}
@@ -1400,6 +1426,30 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Time-based Rate Banner */}
+                  <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${
+                    dailyRateInfo.isMorningTransit 
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' 
+                      : 'bg-slate-800/80 border-slate-700/60 text-slate-300'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <Clock className={`w-4 h-4 ${dailyRateInfo.isMorningTransit ? 'text-amber-400' : 'text-emerald-400'}`} />
+                        <span>
+                          {dailyRateInfo.isMorningTransit 
+                            ? 'Tarif Khusus Check-In Pagi (06:00 – 12:00 WIB): Rp 150.000 / malam' 
+                            : 'Tarif Normal (Setelah 12:00 WIB): Rp 100.000 / malam'}
+                        </span>
+                      </span>
+                      <span className="text-[10px] font-mono opacity-80 shrink-0">{dailyRateInfo.formattedTime}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      {dailyRateInfo.isMorningTransit
+                        ? 'Check-in pagi antara pukul 06:00 s/d 12:00 WIB dikenakan tarif Rp 150.000/malam. Setelah pukul 12:00 WIB berlaku tarif normal Rp 100.000/malam.'
+                        : 'Sewa harian setelah pukul 12:00 WIB dikenakan tarif normal Rp 100.000/malam.'}
+                    </p>
                   </div>
                 </div>
               )}
@@ -1710,13 +1760,16 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-4">
             {/* Clock Highlight */}
-            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-1">
+            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-1.5">
               <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs">
                 <Clock className="w-4 h-4" />
-                <span>Waktu Check-In & Check-Out:</span>
+                <span>Waktu & Ketentuan Tarif Check-In / Check-Out:</span>
               </div>
-              <p className="text-xs text-slate-300 font-medium">
-                Check-in: Mulai pukul <strong>14:00 WIB</strong> • Check-out: Maksimal pukul <strong>12:00 WIB</strong>
+              <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                Check-in standar: Mulai pukul <strong>14:00 WIB</strong> (Tarif normal <strong>Rp 100.000/malam</strong> setelah jam 12:00 WIB) • Check-out: Maksimal pukul <strong>12:00 WIB</strong>.
+              </p>
+              <p className="text-[11px] text-amber-300 font-semibold bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                * Check-in pagi antara pukul <strong>06:00 s/d 12:00 WIB</strong> dikenakan tarif transit pagi <strong>Rp 150.000/malam</strong>.
               </p>
             </div>
 

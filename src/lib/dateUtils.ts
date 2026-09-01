@@ -35,3 +35,43 @@ export function formatWIBDate(
 export function getWIBNow(): Date {
   return new Date()
 }
+
+/**
+ * Determines current daily rental price based on WIB (Asia/Jakarta) time:
+ * - 06:00 - 12:00 WIB: Rp 150.000 / malam (Check-in pagi transit)
+ * - Setelah 12:00 WIB: Rp 100.000 / malam (Tarif normal)
+ */
+export function getDailyRentalRate(date: Date | string | number = new Date()): {
+  pricePerDay: number
+  isMorningTransit: boolean
+  formattedTime: string
+  label: string
+} {
+  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date
+  const validDate = (!d || isNaN(d.getTime())) ? new Date() : d
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  })
+  const parts = formatter.formatToParts(validDate)
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10)
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10)
+  const totalMinutes = hour * 60 + minute
+
+  // 06:00 (360 min) to 12:00 (720 min) WIB
+  const isMorningTransit = totalMinutes >= 360 && totalMinutes < 720
+  const pricePerDay = isMorningTransit ? 150000 : 100000
+
+  return {
+    pricePerDay,
+    isMorningTransit,
+    formattedTime: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} WIB`,
+    label: isMorningTransit 
+      ? 'Tarif Transit Pagi (06:00 - 12:00 WIB)' 
+      : 'Tarif Normal (Setelah 12:00 WIB)'
+  }
+}
+
