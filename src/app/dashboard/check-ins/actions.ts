@@ -3,7 +3,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { getWIBDateString } from '@/lib/dateUtils'
+import { getWIBDateString, calculateCheckoutDueDate } from '@/lib/dateUtils'
 
 export async function approveCheckIn(prevState: any, formData: FormData) {
   const check_in_id = formData.get('check_in_id') as string
@@ -273,20 +273,14 @@ export async function assignRoom(prevState: any, formData: FormData) {
         ? new Date(checkInRequest.created_at)
         : new Date()
       
-      // Calculate payment due date based on rental_duration, rental_months, rental_weeks, and rental_days
-      const paymentDueDate = new Date(checkInDate)
-      
-      if (checkInData.rental_duration === 'daily' && checkInData.rental_days) {
-        paymentDueDate.setDate(paymentDueDate.getDate() + checkInData.rental_days)
-      } else if (checkInData.rental_duration === 'weekly') {
-        const weeks = checkInData.rental_weeks || (checkInData.rental_days ? Math.round(checkInData.rental_days / 7) : 1)
-        paymentDueDate.setDate(paymentDueDate.getDate() + (weeks * 7))
-      } else if (checkInData.rental_duration === 'monthly') {
-        const months = checkInData.rental_months || (checkInData.rental_days ? Math.round(checkInData.rental_days / 30) : 1)
-        paymentDueDate.setMonth(paymentDueDate.getMonth() + months)
-      } else {
-        paymentDueDate.setDate(paymentDueDate.getDate() + (checkInData.rental_days || 1))
-      }
+      // Calculate payment due date based on rental_duration and WIB cutoff time (12:00 WIB)
+      const paymentDueDateStr = calculateCheckoutDueDate(
+        checkInDate,
+        checkInData.rental_duration || 'daily',
+        checkInData.rental_days || 1,
+        checkInData.rental_weeks || 1,
+        checkInData.rental_months || 1
+      )
 
       // Determine actual payment method
       const isCash = checkInData.payment_method === 'cash' || 
@@ -308,7 +302,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
         full_name: checkInData.full_name,
         id_card_url: checkInData.id_card_photo_url,
         check_in_date: getWIBDateString(checkInDate),
-        payment_due_date: getWIBDateString(paymentDueDate),
+        payment_due_date: paymentDueDateStr,
         deposit_amount: checkInData.deposit_amount !== undefined && checkInData.deposit_amount !== null
           ? parseFloat(checkInData.deposit_amount)
           : 0,
