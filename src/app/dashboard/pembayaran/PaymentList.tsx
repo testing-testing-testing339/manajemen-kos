@@ -922,123 +922,135 @@ export default function PaymentList({
             </div>
           </div>
 
-          {/* 5 Shift KPI Cards with Laba Bersih & Titipan Deposit (Clickable for Detail) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-            {/* 1. Laba Bersih / Sewa Murni (Featured Emerald) */}
-            <div 
-              onClick={() => { setShiftModalFilter('rent'); setKpiModal('shift_reconciliation') }}
-              className="bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500 rounded-2xl p-4 flex flex-col justify-between bg-gradient-to-br from-emerald-50 to-teal-50 shadow-2xs cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-900 group-hover:text-emerald-700">
-                  Laba Bersih (Sewa Murni)
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
-                  <TrendingUp className="w-4 h-4" />
+          {/* Glassmorphism Financial Core Suite */}
+          <div className="space-y-3">
+            {/* Top 3 Core Financial Glass Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 1. Laba Bersih (Sewa Murni) */}
+              <div 
+                onClick={() => { setShiftModalFilter('rent'); setKpiModal('shift_reconciliation') }}
+                className="relative overflow-hidden rounded-3xl p-5 bg-white/75 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_16px_35px_rgba(16,185,129,0.12)] hover:border-emerald-400/60 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-emerald-400/10 via-teal-300/5 to-transparent rounded-bl-full pointer-events-none transition-transform group-hover:scale-110"></div>
+                <div className="flex items-center justify-between relative z-10">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-800 border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Laba Bersih (Sewa Murni)
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-700 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-2xs">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <div className="mt-4 relative z-10">
+                  <p className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight group-hover:text-emerald-700 transition-colors">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalNetRent)}
+                  </p>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/80 text-xs">
+                    <span className="text-slate-500 font-medium">Sewa Kamar + Denda</span>
+                    <span className="text-emerald-700 font-bold inline-flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                      Detail Transaksi <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="mt-2">
-                <p className="text-xl sm:text-2xl font-black text-emerald-950 font-mono">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalNetRent)}
-                </p>
-                <div className="flex items-center justify-between mt-1 text-[11px]">
-                  <span className="text-emerald-700 font-bold">Sewa + Pelunasan Denda</span>
-                  <span className="text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Detail →</span>
+
+              {/* 2. Titipan Deposit Masuk */}
+              <div 
+                onClick={() => { setShiftModalFilter('deposit'); setKpiModal('shift_reconciliation') }}
+                className="relative overflow-hidden rounded-3xl p-5 bg-white/75 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_16px_35px_rgba(168,85,247,0.12)] hover:border-purple-400/60 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-purple-400/10 via-indigo-300/5 to-transparent rounded-bl-full pointer-events-none transition-transform group-hover:scale-110"></div>
+                <div className="flex items-center justify-between relative z-10">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/10 text-purple-800 border border-purple-500/20">
+                    <ShieldAlert className="w-3 h-3 text-purple-600" />
+                    Titipan Deposit Masuk
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-700 flex items-center justify-center border border-purple-500/20 group-hover:bg-purple-600 group-hover:text-white transition-all shadow-2xs">
+                    <ShieldAlert className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <div className="mt-4 relative z-10">
+                  <p className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight group-hover:text-purple-700 transition-colors">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalDeposit)}
+                  </p>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/80 text-xs">
+                    <span className="text-slate-500 font-medium">Uang Jaminan (Wajib Kembali)</span>
+                    <span className="text-purple-700 font-bold inline-flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                      Detail Tamu <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Total Kas Masuk (Kotor) */}
+              <div 
+                onClick={() => { setShiftModalFilter('all'); setKpiModal('shift_reconciliation') }}
+                className="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white border border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_16px_40px_rgba(99,102,241,0.2)] hover:border-indigo-500/60 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
+              >
+                <div className="absolute -top-10 -right-10 w-36 h-36 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform"></div>
+                <div className="flex items-center justify-between relative z-10">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/10 text-indigo-300 border border-white/10">
+                    Total Kas Masuk (Kotor)
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-white/10 text-emerald-400 flex items-center justify-center border border-white/10 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-2xs">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <div className="mt-4 relative z-10">
+                  <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono tracking-tight">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalGrand)}
+                  </p>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/10 text-xs">
+                    <span className="text-slate-400 font-medium">{shiftStats.totalCount} Transaksi Masuk</span>
+                    <span className="text-indigo-300 font-bold inline-flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                      Buka Rekonsiliasi <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* 2. Titipan Deposit (Featured Purple/Indigo) */}
-            <div 
-              onClick={() => { setShiftModalFilter('deposit'); setKpiModal('shift_reconciliation') }}
-              className="bg-purple-500/10 border border-purple-500/30 hover:border-purple-500 rounded-2xl p-4 flex flex-col justify-between bg-gradient-to-br from-purple-50 to-indigo-50 shadow-2xs cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-900 group-hover:text-purple-700">
-                  Titipan Deposit Masuk
+            {/* Bottom 2 Channel Breakdown Cards (Tunai vs QRIS Glass) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Tunai (Cash) */}
+              <div 
+                onClick={() => { setShiftModalFilter('cash'); setKpiModal('shift_reconciliation') }}
+                className="p-3.5 rounded-2xl bg-white/60 backdrop-blur-md border border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/40 transition-all cursor-pointer flex items-center justify-between shadow-2xs group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-700 border border-amber-500/20 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                    <Banknote className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Penerimaan Tunai (Fisik)</span>
+                    <span className="text-base font-black font-mono text-slate-900">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalCash)}</span>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-800 border border-amber-500/20 font-mono">
+                  {shiftStats.countCash} Tamu Tunai
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
-                  <ShieldAlert className="w-4 h-4" />
-                </div>
               </div>
-              <div className="mt-2">
-                <p className="text-xl sm:text-2xl font-black text-purple-950 font-mono">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalDeposit)}
-                </p>
-                <div className="flex items-center justify-between mt-1 text-[11px]">
-                  <span className="text-purple-700 font-bold">Uang Jaminan (Wajib Kembali)</span>
-                  <span className="text-purple-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Detail →</span>
-                </div>
-              </div>
-            </div>
 
-            {/* 3. Total Keseluruhan (Pemasukan Kas Kotor) */}
-            <div 
-              onClick={() => { setShiftModalFilter('all'); setKpiModal('shift_reconciliation') }}
-              className="bg-slate-900 text-white rounded-2xl p-4 flex flex-col justify-between border border-slate-800 hover:border-indigo-500 shadow-sm cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 group-hover:text-indigo-300">
-                  Total Pemasukan Kas
+              {/* QRIS / Transfer */}
+              <div 
+                onClick={() => { setShiftModalFilter('qris'); setKpiModal('shift_reconciliation') }}
+                className="p-3.5 rounded-2xl bg-white/60 backdrop-blur-md border border-slate-200/80 hover:border-indigo-400 hover:bg-indigo-50/40 transition-all cursor-pointer flex items-center justify-between shadow-2xs group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-700 border border-indigo-500/20 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Penerimaan QRIS / TF (Bank)</span>
+                    <span className="text-base font-black font-mono text-slate-900">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalQris)}</span>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/10 text-indigo-800 border border-indigo-500/20 font-mono">
+                  {shiftStats.countQris} Tamu QRIS
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-white/10 text-emerald-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <p className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalGrand)}
-                </p>
-                <div className="flex items-center justify-between mt-1 text-[11px]">
-                  <span className="text-slate-300 font-semibold">{shiftStats.totalCount} Transaksi</span>
-                  <span className="text-indigo-300 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Lihat Rekonsiliasi →</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 4. Total Cash */}
-            <div 
-              onClick={() => { setShiftModalFilter('cash'); setKpiModal('shift_reconciliation') }}
-              className="bg-amber-50/60 border border-amber-200/80 hover:border-amber-400 rounded-2xl p-4 flex flex-col justify-between cursor-pointer hover:shadow-sm hover:scale-[1.01] transition-all group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800">
-                  Penerimaan Tunai (Cash)
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-all">
-                  <Banknote className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <p className="text-xl sm:text-2xl font-black text-amber-900 font-mono">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalCash)}
-                </p>
-                <p className="text-[11px] text-amber-700 font-semibold mt-0.5">
-                  {shiftStats.countCash} Transaksi Tunai
-                </p>
-              </div>
-            </div>
-
-            {/* 5. Total QRIS */}
-            <div 
-              onClick={() => { setShiftModalFilter('qris'); setKpiModal('shift_reconciliation') }}
-              className="bg-indigo-50/60 border border-indigo-200/80 hover:border-indigo-400 rounded-2xl p-4 flex flex-col justify-between cursor-pointer hover:shadow-sm hover:scale-[1.01] transition-all group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-800">
-                  Penerimaan QRIS / TF
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                  <CreditCard className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <p className="text-xl sm:text-2xl font-black text-indigo-900 font-mono">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalQris)}
-                </p>
-                <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">
-                  {shiftStats.countQris} Transaksi Digital
-                </p>
               </div>
             </div>
           </div>
