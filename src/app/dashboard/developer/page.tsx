@@ -2,8 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import Forbidden from '@/components/Forbidden'
 import DeveloperDashboard from './DeveloperDashboard'
+
+export const dynamic = 'force-dynamic'
 
 export default async function DeveloperPage() {
   const cookieStore = await cookies()
@@ -28,53 +29,38 @@ export default async function DeveloperPage() {
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'owner') {
-    return (
-      <Forbidden 
-        title="Akses Monitoring Developer Khusus Owner" 
-        message="Hanya akun Administrator / Pemilik Kos yang dapat mengakses panel pemantauan sistem dan database storage." 
-      />
-    )
-  }
-
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const adminClient = serviceRoleKey
     ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       })
-    : null
+    : supabase
 
   const startTime = Date.now()
 
-  // Parallel fetch row counts across tables
+  // High-performance single batch parallel query for deep investigation & audit logs
   const [
-    tenantsCountRes,
-    roomsCountRes,
-    floorsCountRes,
-    branchesCountRes,
-    checkInsCountRes,
-    paymentsCountRes,
-    profilesCountRes,
-    damagesCountRes,
-    plnCountRes,
+    tenantsRes,
+    roomsRes,
+    floorsRes,
+    branchesRes,
+    checkInsRes,
+    paymentsRes,
+    profilesRes,
+    damagesRes,
+    plnRes,
     authUsersRes,
   ] = await Promise.all([
-    supabase.from('tenants').select('*', { count: 'exact', head: true }),
-    supabase.from('rooms').select('*', { count: 'exact', head: true }),
-    supabase.from('floors').select('*', { count: 'exact', head: true }),
-    supabase.from('branches').select('*', { count: 'exact', head: true }),
-    supabase.from('check_in_requests').select('*', { count: 'exact', head: true }),
-    supabase.from('payments').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('property_damages').select('*', { count: 'exact', head: true }),
-    supabase.from('pln_tokens').select('*', { count: 'exact', head: true }),
-    adminClient ? adminClient.auth.admin.listUsers() : Promise.resolve({ data: { users: [] } }),
+    adminClient.from('tenants').select('*, rooms(room_number, room_type, floors(name, branches(name)))').order('created_at', { ascending: false }),
+    adminClient.from('rooms').select('*, floors(name, branches(name))').order('room_number', { ascending: true }),
+    adminClient.from('floors').select('*, branches(name)'),
+    adminClient.from('branches').select('*'),
+    adminClient.from('check_in_requests').select('*, rooms(room_number, room_type, floors(name, branches(name)))').order('created_at', { ascending: false }),
+    adminClient.from('payments').select('*, tenants(full_name, rooms(room_number))').order('created_at', { ascending: false }),
+    adminClient.from('profiles').select('*').order('role', { ascending: false }),
+    adminClient.from('property_damages').select('*').order('created_at', { ascending: false }),
+    adminClient.from('pln_tokens').select('*').order('recorded_at', { ascending: false }),
+    adminClient && serviceRoleKey ? adminClient.auth.admin.listUsers() : Promise.resolve({ data: { users: [] } }),
   ])
 
   const latencyMs = Date.now() - startTime
@@ -136,19 +122,19 @@ export default async function DeveloperPage() {
 
   // Calculate table metrics
   const tables = [
-    { name: 'check_in_requests', label: 'Permintaan Check-In & Tamu', count: checkInsCountRes.count ?? 0, estimatedBytesPerRow: 1200 },
-    { name: 'payments', label: 'Transaksi Pembayaran Kas & Sewa', count: paymentsCountRes.count ?? 0, estimatedBytesPerRow: 800 },
-    { name: 'tenants', label: 'Data Penghuni Aktif', count: tenantsCountRes.count ?? 0, estimatedBytesPerRow: 600 },
-    { name: 'rooms', label: 'Unit Kamar Kos', count: roomsCountRes.count ?? 0, estimatedBytesPerRow: 400 },
-    { name: 'floors', label: 'Lantai Bangunan', count: floorsCountRes.count ?? 0, estimatedBytesPerRow: 250 },
-    { name: 'branches', label: 'Cabang Kos', count: branchesCountRes.count ?? 0, estimatedBytesPerRow: 350 },
-    { name: 'profiles', label: 'Profil Pengguna & Staf', count: profilesCountRes.count ?? 0, estimatedBytesPerRow: 500 },
-    { name: 'property_damages', label: 'Laporan Kerusakan & Aset', count: (damagesCountRes as any)?.count ?? 0, estimatedBytesPerRow: 700 },
-    { name: 'pln_tokens', label: 'Catatan Meteran PLN', count: (plnCountRes as any)?.count ?? 0, estimatedBytesPerRow: 300 },
+    { name: 'check_in_requests', label: 'Permintaan Check-In & Tamu', count: checkInsRes.data?.length ?? 0, estimatedBytesPerRow: 1200 },
+    { name: 'payments', label: 'Transaksi Pembayaran Kas & Sewa', count: paymentsRes.data?.length ?? 0, estimatedBytesPerRow: 800 },
+    { name: 'tenants', label: 'Data Penghuni Aktif', count: tenantsRes.data?.length ?? 0, estimatedBytesPerRow: 600 },
+    { name: 'rooms', label: 'Unit Kamar Kos', count: roomsRes.data?.length ?? 0, estimatedBytesPerRow: 400 },
+    { name: 'floors', label: 'Lantai Bangunan', count: floorsRes.data?.length ?? 0, estimatedBytesPerRow: 250 },
+    { name: 'branches', label: 'Cabang Kos', count: branchesRes.data?.length ?? 0, estimatedBytesPerRow: 350 },
+    { name: 'profiles', label: 'Profil Pengguna & Staf', count: profilesRes.data?.length ?? 0, estimatedBytesPerRow: 500 },
+    { name: 'property_damages', label: 'Laporan Kerusakan & Aset', count: damagesRes.data?.length ?? 0, estimatedBytesPerRow: 700 },
+    { name: 'pln_tokens', label: 'Catatan Meteran PLN', count: plnRes.data?.length ?? 0, estimatedBytesPerRow: 300 },
   ]
 
   const totalDbRows = tables.reduce((acc, t) => acc + t.count, 0)
-  const totalEstimatedDbBytes = tables.reduce((acc, t) => acc + (t.count * t.estimatedBytesPerRow), 0) + (1024 * 1024 * 2) // Base DB catalog overhead ~2MB
+  const totalEstimatedDbBytes = tables.reduce((acc, t) => acc + (t.count * t.estimatedBytesPerRow), 0) + (1024 * 1024 * 2)
 
   return (
     <DeveloperDashboard 
@@ -161,6 +147,13 @@ export default async function DeveloperPage() {
       tables={tables}
       authUsersCount={authUsersRes.data?.users?.length || 0}
       supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
+      tenants={tenantsRes.data || []}
+      checkIns={checkInsRes.data || []}
+      payments={paymentsRes.data || []}
+      profiles={profilesRes.data || []}
+      rooms={roomsRes.data || []}
+      floors={floorsRes.data || []}
+      branches={branchesRes.data || []}
     />
   )
 }
