@@ -112,7 +112,7 @@ export default async function PembayaranPage() {
     if (roomIds.length > 0) {
       let checkInQueryForTenants = supabase
         .from('check_in_requests')
-        .select('id, assigned_room_id, total_amount, rental_duration, rental_days')
+        .select('id, assigned_room_id, total_amount, rental_duration, rental_days, rental_weeks, rental_months, selected_room_type')
         .in('assigned_room_id', roomIds)
         .eq('status', 'completed')
       
@@ -178,7 +178,7 @@ export default async function PembayaranPage() {
         const tenantIds = paymentsWithTenantId.map((p: any) => p.tenant_id)
         let tenantsQuery = supabase
           .from('tenants')
-          .select('id, full_name, rooms(room_number, floors(branches(name)))')
+          .select('id, full_name, rental_duration, rental_count, check_in_date, payment_due_date, rooms(room_number, floors(branches(name)))')
           .in('id', tenantIds)
         
         // Additional filtering for staff using cached data
@@ -209,7 +209,7 @@ export default async function PembayaranPage() {
       
       let checkInRequestsQuery = supabase
         .from('check_in_requests')
-        .select('id, full_name, phone, payment_proof_url, id_card_photo_url, selfie_photo_url, total_amount, deposit_amount, payment_method, payment_destination, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, selected_room_type, rooms(room_number, floors(branches(name)))')
+        .select('id, full_name, phone, payment_proof_url, id_card_photo_url, selfie_photo_url, total_amount, deposit_amount, payment_method, payment_destination, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, rental_weeks, rental_months, selected_room_type, rooms(room_number, floors(branches(name)))')
         .order('created_at', { ascending: false })
       
       if (userRole === 'staff' && userBranchId) {

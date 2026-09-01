@@ -1197,6 +1197,37 @@ export default function PaymentList({
                     </span>
                   </div>
 
+                  <div className="flex justify-between items-center border-b border-slate-200/60 pb-1.5">
+                    <span className="text-slate-500">Durasi Sewa:</span>
+                    <span className="font-bold text-slate-800 bg-indigo-50/80 text-indigo-900 border border-indigo-100/80 px-2 py-0.5 rounded text-xs">
+                      {(() => {
+                        if (isDepositClaim) return 'Klaim Deposit'
+                        if (isCheckoutSettlement) return 'Pelunasan Check-Out'
+                        let dType = checkInRequest?.rental_duration || tenant?.rental_duration || 'daily'
+                        if (checkInRequest?.selected_room_type) {
+                          try {
+                            const p = typeof checkInRequest.selected_room_type === 'string' ? JSON.parse(checkInRequest.selected_room_type) : checkInRequest.selected_room_type
+                            if (p?.rental_duration) dType = p.rental_duration
+                          } catch (e) {}
+                        }
+                        if (dType === 'transit_morning' || dType === 'transit') return 'Sesi Pagi (s/d 12:00 WIB)'
+                        if (dType === 'weekly') {
+                          const w = checkInRequest?.rental_weeks || tenant?.rental_count || 1
+                          return `${w} Minggu (${w * 7} Hari)`
+                        }
+                        if (dType === 'monthly') {
+                          const m = checkInRequest?.rental_months || tenant?.rental_count || 1
+                          return `${m} Bulan`
+                        }
+                        if (dType === 'daily') {
+                          const d = checkInRequest?.rental_days || tenant?.rental_count || 1
+                          return `${d} Hari (Harian)`
+                        }
+                        return tenant?.rental_duration || '1 Hari (Harian)'
+                      })()}
+                    </span>
+                  </div>
+
                   {isDepositClaim ? (
                     <div className="flex justify-between border-b border-slate-200/60 pb-1.5 bg-purple-50 p-2 rounded-lg border border-purple-100">
                       <span className="text-purple-900 font-semibold">Jenis Transaksi:</span>
