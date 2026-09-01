@@ -106,6 +106,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       terms_accepted: true,
       payment_proof: dummyProof,
     })
+    setGuaranteeType('deposit')
     setRoomCategory('vip')
     setDurationType('daily')
     setDailyDays(2)
@@ -126,6 +127,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       terms_accepted: false,
       payment_proof: null,
     })
+    setGuaranteeType(null)
+    setRoomCategory(null)
+    setDurationType(null)
+    setMonthlyPackage(null)
+    setPaymentMethod(null)
     setStep(1)
     setValidationErrors({})
     setError('')
@@ -143,17 +149,17 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     payment_proof: null as File | null,
   })
 
-  // Guarantee Selection (Deposit Rp 100k or Titip KTP Asli)
-  const [guaranteeType, setGuaranteeType] = useState<GuaranteeType>('deposit')
+  // Guarantee Selection (Deposit Rp 100k or Titip KTP Asli) - Starts as null (unselected)
+  const [guaranteeType, setGuaranteeType] = useState<GuaranteeType | null>(null)
 
-  // Room & Duration selections
-  const [roomCategory, setRoomCategory] = useState<RoomCategory>('vip')
-  const [durationType, setDurationType] = useState<DurationType>('daily')
+  // Room & Duration selections - Starts as null (unselected)
+  const [roomCategory, setRoomCategory] = useState<RoomCategory | null>(null)
+  const [durationType, setDurationType] = useState<DurationType | null>(null)
   const [dailyDays, setDailyDays] = useState<number>(1)
   const [weeklyWeeks, setWeeklyWeeks] = useState<number>(1)
   const [monthlyMonths, setMonthlyMonths] = useState<number>(1)
-  const [monthlyPackage, setMonthlyPackage] = useState<MonthlyPackage>('ac')
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('qris')
+  const [monthlyPackage, setMonthlyPackage] = useState<MonthlyPackage | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
 
   // Dynamic Daily Pricing based on WIB Time:
   // - 06:00 - 12:00 WIB: Rp 150.000 / malam (Check-in pagi transit)
@@ -174,14 +180,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const BASE_PRICE_PER_WEEK = 500000 // Rp 500.000 / minggu
   const BASE_PRICE_PER_MONTH_AC = 1350000 // Rp 1.350.000 / bulan (Kamar AC / Berfasilitas)
   const BASE_PRICE_PER_MONTH_NON_AC = 650000 // Rp 650.000 / bulan (Kamar Non-AC / Non-Fasilitas)
-  const DEPOSIT_AMOUNT = guaranteeType === 'deposit' ? 100000 : 0 // Rp 100k if deposit option, Rp 0 if KTP guarantee option
+  const DEPOSIT_AMOUNT = guaranteeType === 'deposit' ? 100000 : 0 // Rp 100k if deposit option, Rp 0 if KTP guarantee option or unselected
 
   // Calculated Totals
   const rentSubtotal = 
+    !durationType ? 0 :
     durationType === 'transit_morning' ? PRICE_TRANSIT_MORNING :
-    durationType === 'daily' ? BASE_PRICE_PER_DAY * dailyDays :
-    durationType === 'weekly' ? BASE_PRICE_PER_WEEK * weeklyWeeks :
-    (monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC : BASE_PRICE_PER_MONTH_AC) * monthlyMonths
+    durationType === 'daily' ? BASE_PRICE_PER_DAY * (dailyDays || 1) :
+    durationType === 'weekly' ? BASE_PRICE_PER_WEEK * (weeklyWeeks || 1) :
+    durationType === 'monthly' ? (
+      monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC :
+      monthlyPackage === 'ac' ? BASE_PRICE_PER_MONTH_AC : 0
+    ) * (monthlyMonths || 1) : 0
 
   const totalAmount = rentSubtotal + DEPOSIT_AMOUNT
 
@@ -266,7 +276,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
         msg = 'Izin kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda atau gunakan tombol Kamera HP.'
       } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-        msg = 'Kamera depan tidak terdeteksi pada perangkat Anda. Silakan gunakan tombol Kamera HP.'
+        msg = 'Kamera tidak terdeteksi pada perangkat Anda. Silakan gunakan tombol Kamera HP.'
       } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
         msg = 'Kamera sedang digunakan oleh aplikasi lain. Silakan tutup aplikasi lain dan coba lagi.'
       } else if (err?.message) {
@@ -302,10 +312,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       if (file) {
         if (type === 'id_card') {
           setFormData(prev => ({ ...prev, id_card_photo: file }))
-          setValidationErrors(prev => ({ ...prev, id_card_photo: '' }))
+          setValidationErrors(prev => {
+            const next = { ...prev }
+            delete next.id_card_photo
+            return next
+          })
         } else {
           setFormData(prev => ({ ...prev, selfie_photo: file }))
-          setValidationErrors(prev => ({ ...prev, selfie_photo: '' }))
+          setValidationErrors(prev => {
+            const next = { ...prev }
+            delete next.selfie_photo
+            return next
+          })
         }
         stopCamera(type)
       }
@@ -353,11 +371,19 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         })
 
         setFormData(prev => ({ ...prev, [field]: compressedFile }))
-        setValidationErrors(prev => ({ ...prev, [field]: '' }))
+        setValidationErrors(prev => {
+          const next = { ...prev }
+          delete next[field]
+          return next
+        })
       } catch (compErr) {
         console.warn('Compression error, using raw file as fallback:', compErr)
         setFormData(prev => ({ ...prev, [field]: rawFile }))
-        setValidationErrors(prev => ({ ...prev, [field]: '' }))
+        setValidationErrors(prev => {
+          const next = { ...prev }
+          delete next[field]
+          return next
+        })
       } finally {
         setCompressingField(null)
         inputElement.value = ''
@@ -365,11 +391,15 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     }
   }
 
-  // Validation
+  // Step 1 Validation
   const validateStep1 = () => {
     if (devMode) return true // Bypass in Dev Mode untuk kemudahan inspeksi admin
     const errs: { [key: string]: string } = {}
     
+    if (!guaranteeType) {
+      errs.guarantee_type = 'Silakan pilih salah satu opsi jaminan (Deposit Rp 100.000 atau Titip KTP Asli)'
+    }
+
     const nameV = validateFullName(formData.full_name)
     if (!nameV.valid) {
       errs.full_name = 'Nama lengkap minimal 2 karakter (sesuai KTP)'
@@ -393,24 +423,120 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     }
 
     setValidationErrors(errs)
-    return Object.keys(errs).length === 0
+    if (Object.keys(errs).length > 0) {
+      setError('Mohon lengkapi opsi dan data diri yang ditandai merah')
+      return false
+    }
+    setError('')
+    return true
   }
 
-  // Submit Handler
+  // Step 2 Validation
+  const validateStep2 = () => {
+    if (devMode) return true
+    if (!formData.id_card_photo) {
+      setValidationErrors(prev => ({ ...prev, id_card_photo: 'Harap ambil foto atau upload kartu KTP Anda terlebih dahulu' }))
+      setError('Harap ambil atau unggah foto KTP Anda terlebih dahulu')
+      return false
+    }
+    setValidationErrors(prev => {
+      const next = { ...prev }
+      delete next.id_card_photo
+      return next
+    })
+    setError('')
+    return true
+  }
+
+  // Step 3 Validation
+  const validateStep3 = () => {
+    if (devMode) return true
+    if (!formData.selfie_photo) {
+      setValidationErrors(prev => ({ ...prev, selfie_photo: 'Harap ambil foto wajah/selfie langsung dari kamera depan' }))
+      setError('Harap ambil atau unggah foto wajah/selfie Anda terlebih dahulu')
+      return false
+    }
+    setValidationErrors(prev => {
+      const next = { ...prev }
+      delete next.selfie_photo
+      return next
+    })
+    setError('')
+    return true
+  }
+
+  // Step 4 Validation
+  const validateStep4 = () => {
+    if (devMode) return true
+    const errs: { [key: string]: string } = {}
+
+    if (!roomCategory) {
+      errs.room_category = 'Silakan pilih salah satu kategori kamar (VIP Belakang Warkop atau Standard)'
+    }
+
+    if (!durationType) {
+      errs.rental_duration = 'Silakan pilih salah satu durasi sewa (Sesi Pagi, Harian, Mingguan, atau Bulanan)'
+    } else if (durationType === 'monthly' && !monthlyPackage) {
+      errs.monthly_package = 'Silakan pilih fasilitas kamar bulanan (Kamar Ber-AC atau Non-AC)'
+    }
+
+    setValidationErrors(errs)
+    if (Object.keys(errs).length > 0) {
+      setError('Mohon pilih kategori kamar dan durasi sewa yang ditandai merah')
+      return false
+    }
+    setError('')
+    return true
+  }
+
+  // Step 5 Validation
+  const validateStep5 = () => {
+    if (devMode) return true
+    const errs: { [key: string]: string } = {}
+
+    if (!formData.terms_accepted) {
+      errs.terms_accepted = 'Anda wajib mencentang persetujuan aturan & kebijakan kost untuk melanjutkan'
+    }
+
+    setValidationErrors(errs)
+    if (Object.keys(errs).length > 0) {
+      setError('Anda harus menyetujui aturan dan kebijakan kost untuk melanjutkan')
+      return false
+    }
+    setError('')
+    return true
+  }
+
+  // Step 6 / Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!devMode) {
+      const errs: { [key: string]: string } = {}
+
+      if (!paymentMethod) {
+        errs.payment_method = 'Silakan pilih salah satu metode pembayaran (QRIS atau Tunai/Cash)'
+      }
+
+      if (!formData.payment_proof) {
+        if (paymentMethod === 'qris') {
+          errs.payment_proof = 'Harap lampirkan foto/screenshot bukti transfer QRIS'
+        } else if (paymentMethod === 'cash') {
+          errs.payment_proof = 'Harap foto dan lampirkan bukti serah terima uang tunai ke staf resepsionis'
+        } else {
+          errs.payment_proof = 'Harap lampirkan bukti pembayaran yang sah'
+        }
+      }
+
+      if (Object.keys(errs).length > 0) {
+        setValidationErrors(errs)
+        setError('Mohon lengkapi metode pembayaran dan bukti yang ditandai merah')
+        return
+      }
+    }
+
     setLoading(true)
     setError('')
-
-    if (!formData.payment_proof && !devMode) {
-      if (paymentMethod === 'qris') {
-        setError('Harap lampirkan bukti pembayaran QRIS')
-      } else {
-        setError('Harap foto dan lampirkan bukti serah terima uang tunai ke petugas resepsionis')
-      }
-      setLoading(false)
-      return
-    }
 
     try {
       const submitData = new FormData()
@@ -418,26 +544,26 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       submitData.append('full_name', sanitizeString(formData.full_name))
       submitData.append('phone', sanitizeString(formData.phone))
       submitData.append('email', sanitizeString(formData.email || ''))
-      submitData.append('guarantee_type', guaranteeType)
+      submitData.append('guarantee_type', guaranteeType || 'deposit')
       submitData.append('id_card_number', sanitizeString(formData.id_card_number || '-'))
-      submitData.append('room_category', roomCategory)
-      submitData.append('rental_duration', durationType)
+      submitData.append('room_category', roomCategory || 'vip')
+      submitData.append('rental_duration', durationType || 'daily')
       submitData.append('rental_days', durationType === 'transit_morning' ? '1' : (durationType === 'daily' ? dailyDays.toString() : (durationType === 'weekly' ? (weeklyWeeks * 7).toString() : (monthlyMonths * 30).toString())))
       submitData.append('rental_weeks', weeklyWeeks.toString())
       submitData.append('rental_months', monthlyMonths.toString())
       submitData.append('deposit_amount', DEPOSIT_AMOUNT.toString())
       submitData.append('total_amount', totalAmount.toString())
-      submitData.append('payment_method', paymentMethod)
+      submitData.append('payment_method', paymentMethod || 'qris')
       submitData.append('payment_destination', paymentMethod === 'qris' ? 'QRIS Standar Pembayaran Nasional - Graha Aisyah Menteng' : 'Resepsionis Tunai / Cash')
       submitData.append('terms_accepted', 'true')
 
       // Selected room type JSON for compatibility
       const isVip = roomCategory === 'vip'
       const roomTypeInfo = {
-        category: roomCategory,
+        category: roomCategory || 'vip',
         name: isVip ? 'Kamar VIP Belakang Warkop' : 'Kamar Standard',
-        rental_duration: durationType,
-        monthly_package: durationType === 'monthly' ? monthlyPackage : undefined,
+        rental_duration: durationType || 'daily',
+        monthly_package: durationType === 'monthly' ? (monthlyPackage || 'ac') : undefined,
         price_per_day: durationType === 'transit_morning' ? PRICE_TRANSIT_MORNING : BASE_PRICE_PER_DAY,
         price_per_week: BASE_PRICE_PER_WEEK,
         price_per_month: monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC : BASE_PRICE_PER_MONTH_AC,
@@ -641,14 +767,14 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       </div>
 
       {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3 text-red-400 text-xs">
+        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-3 text-rose-400 text-xs animate-in fade-in">
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <p>{error}</p>
+          <p className="font-medium">{error}</p>
         </div>
       )}
 
       {/* =========================================================================
-          STEP 1: DATA DIRI
+          STEP 1: DATA DIRI & JAMINAN
       ========================================================================= */}
       {step === 1 && (
         <div className="space-y-4">
@@ -664,16 +790,35 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
           {/* Pilihan Jaminan Menginap */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-              Jaminan Kamar & Kunci *
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Jaminan Kamar & Kunci *
+              </label>
+              {validationErrors.guarantee_type && (
+                <span className="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/30 font-bold animate-pulse">
+                  Wajib Dipilih
+                </span>
+              )}
+            </div>
+
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-1 rounded-3xl transition-all ${
+              validationErrors.guarantee_type ? 'border-2 border-dashed border-rose-500/80 bg-rose-500/5 p-2.5 ring-2 ring-rose-500/20' : ''
+            }`}>
               {/* Opsi Deposit */}
               <div
-                onClick={() => setGuaranteeType('deposit')}
+                onClick={() => {
+                  setGuaranteeType('deposit')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.guarantee_type
+                    return next
+                  })
+                }}
                 className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
                   guaranteeType === 'deposit'
-                    ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30'
+                    ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-500/10'
+                    : validationErrors.guarantee_type
+                    ? 'border-rose-500/50 bg-slate-850/70 hover:border-rose-400'
                     : 'border-slate-800 bg-slate-850/60 hover:border-slate-700'
                 }`}
               >
@@ -685,7 +830,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 shrink-0 transition-colors ${
                       guaranteeType === 'deposit'
-                        ? 'border-indigo-500 bg-indigo-600'
+                        ? 'border-indigo-500 bg-indigo-600 ring-2 ring-indigo-400/40'
                         : 'border-slate-600 bg-slate-800'
                     }`}>
                       {guaranteeType === 'deposit' && (
@@ -701,10 +846,19 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
               {/* Opsi KTP */}
               <div
-                onClick={() => setGuaranteeType('ktp')}
+                onClick={() => {
+                  setGuaranteeType('ktp')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.guarantee_type
+                    return next
+                  })
+                }}
                 className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
                   guaranteeType === 'ktp'
-                    ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30'
+                    ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-500/10'
+                    : validationErrors.guarantee_type
+                    ? 'border-rose-500/50 bg-slate-850/70 hover:border-rose-400'
                     : 'border-slate-800 bg-slate-850/60 hover:border-slate-700'
                 }`}
               >
@@ -716,7 +870,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 shrink-0 transition-colors ${
                       guaranteeType === 'ktp'
-                        ? 'border-indigo-500 bg-indigo-600'
+                        ? 'border-indigo-500 bg-indigo-600 ring-2 ring-indigo-400/40'
                         : 'border-slate-600 bg-slate-800'
                     }`}>
                       {guaranteeType === 'ktp' && (
@@ -730,6 +884,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 </div>
               </div>
             </div>
+            {validationErrors.guarantee_type && (
+              <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1 mt-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.guarantee_type}</span>
+              </p>
+            )}
           </div>
 
           <div>
@@ -745,15 +905,27 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 autoCorrect="off"
                 spellCheck={false}
                 value={formData.full_name}
-                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, full_name: e.target.value })
+                  if (validationErrors.full_name) {
+                    setValidationErrors(prev => {
+                      const next = { ...prev }
+                      delete next.full_name
+                      return next
+                    })
+                  }
+                }}
                 placeholder="Masukkan nama lengkap Anda"
                 className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
-                  validationErrors.full_name ? 'border-red-500' : 'border-slate-700'
+                  validationErrors.full_name ? 'border-rose-500 ring-1 ring-rose-500/50 bg-rose-500/5' : 'border-slate-700'
                 }`}
               />
             </div>
             {validationErrors.full_name && (
-              <p className="text-[11px] text-red-400 mt-1">{validationErrors.full_name}</p>
+              <p className="text-[11px] text-rose-400 font-medium mt-1 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.full_name}</span>
+              </p>
             )}
           </div>
 
@@ -768,15 +940,27 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 autoComplete="tel"
                 required
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, phone: e.target.value })
+                  if (validationErrors.phone) {
+                    setValidationErrors(prev => {
+                      const next = { ...prev }
+                      delete next.phone
+                      return next
+                    })
+                  }
+                }}
                 placeholder="Contoh: 081234567890"
                 className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
-                  validationErrors.phone ? 'border-red-500' : 'border-slate-700'
+                  validationErrors.phone ? 'border-rose-500 ring-1 ring-rose-500/50 bg-rose-500/5' : 'border-slate-700'
                 }`}
               />
             </div>
             {validationErrors.phone && (
-              <p className="text-[11px] text-red-400 mt-1">{validationErrors.phone}</p>
+              <p className="text-[11px] text-rose-400 font-medium mt-1 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.phone}</span>
+              </p>
             )}
           </div>
 
@@ -792,14 +976,26 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               autoCorrect="off"
               spellCheck={false}
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value.trim() })}
+              onChange={(e) => {
+                setFormData({ ...formData, email: e.target.value.trim() })
+                if (validationErrors.email) {
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.email
+                    return next
+                  })
+                }
+              }}
               placeholder="nama@email.com"
               className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
-                validationErrors.email ? 'border-red-500' : 'border-slate-700'
+                validationErrors.email ? 'border-rose-500 ring-1 ring-rose-500/50 bg-rose-500/5' : 'border-slate-700'
               }`}
             />
             {validationErrors.email && (
-              <p className="text-[11px] text-red-400 mt-1">{validationErrors.email}</p>
+              <p className="text-[11px] text-rose-400 font-medium mt-1 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.email}</span>
+              </p>
             )}
           </div>
 
@@ -815,14 +1011,26 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               required
               maxLength={16}
               value={formData.id_card_number}
-              onChange={(e) => setFormData({ ...formData, id_card_number: e.target.value.replace(/\D/g, '') })}
+              onChange={(e) => {
+                setFormData({ ...formData, id_card_number: e.target.value.replace(/\D/g, '') })
+                if (validationErrors.id_card_number) {
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.id_card_number
+                    return next
+                  })
+                }
+              }}
               placeholder="16 digit nomor NIK KTP"
               className={`w-full px-4 py-3 bg-slate-800/80 border rounded-xl text-sm text-white placeholder-slate-500 font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
-                validationErrors.id_card_number ? 'border-red-500' : 'border-slate-700'
+                validationErrors.id_card_number ? 'border-rose-500 ring-1 ring-rose-500/50 bg-rose-500/5' : 'border-slate-700'
               }`}
             />
             {validationErrors.id_card_number && (
-              <p className="text-[11px] text-red-400 mt-1">{validationErrors.id_card_number}</p>
+              <p className="text-[11px] text-rose-400 font-medium mt-1 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.id_card_number}</span>
+              </p>
             )}
           </div>
 
@@ -870,7 +1078,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           {!formData.id_card_photo ? (
             <div className="space-y-4">
               {/* ID Card Framing Container (Aspect Ratio 16:10 / 1.58:1) */}
-              <div className="relative w-full max-w-md mx-auto aspect-[1.58/1] bg-slate-950 rounded-3xl overflow-hidden border-2 border-dashed border-indigo-500/40 flex items-center justify-center group shadow-2xl">
+              <div className={`relative w-full max-w-md mx-auto aspect-[1.58/1] bg-slate-950 rounded-3xl overflow-hidden border-2 transition-all flex items-center justify-center group shadow-2xl ${
+                validationErrors.id_card_photo 
+                  ? 'border-rose-500 ring-4 ring-rose-500/30 bg-rose-500/5' 
+                  : 'border-dashed border-indigo-500/40'
+              }`}>
                 {/* Permanent video element */}
                 <video
                   ref={idCardVideoRef}
@@ -906,11 +1118,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-200">Kamera KTP Belum Dibuka</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Klik Buka Kamera atau gunakan tombol Ambil / Upload Foto</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Klik Buka Kamera atau gunakan tombol Ambil / Upload File</p>
                     </div>
                   </div>
                 )}
               </div>
+
+              {validationErrors.id_card_photo && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium flex items-center gap-2 max-w-md mx-auto">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{validationErrors.id_card_photo}</span>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md mx-auto">
@@ -978,7 +1197,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, id_card_photo: null })}
-                className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Ulangi / Ganti Foto KTP
@@ -1000,16 +1219,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (!devMode && !formData.id_card_photo) {
-                  setError('Harap ambil atau unggah foto KTP terlebih dahulu')
-                  return
+                if (validateStep2()) {
+                  stopCamera('id_card')
+                  setStep(3)
                 }
-                stopCamera('id_card')
-                setError('')
-                setStep(3)
               }}
-              disabled={!devMode && !formData.id_card_photo}
-              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               Lanjut: Foto Selfie
             </button>
@@ -1045,7 +1260,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </div>
           ) : !formData.selfie_photo ? (
             <div className="space-y-4">
-              <div className="relative w-full max-w-xs mx-auto aspect-square bg-slate-950 rounded-3xl overflow-hidden border-2 border-dashed border-indigo-500/40 flex items-center justify-center shadow-2xl">
+              <div className={`relative w-full max-w-xs mx-auto aspect-square bg-slate-950 rounded-3xl overflow-hidden border-2 transition-all flex items-center justify-center shadow-2xl ${
+                validationErrors.selfie_photo 
+                  ? 'border-rose-500 ring-4 ring-rose-500/30 bg-rose-500/5' 
+                  : 'border-dashed border-indigo-500/40'
+              }`}>
                 {/* Permanent mirrored video element */}
                 <video
                   ref={selfieVideoRef}
@@ -1081,6 +1300,13 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   </div>
                 )}
               </div>
+
+              {validationErrors.selfie_photo && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium flex items-center gap-2 max-w-xs mx-auto">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{validationErrors.selfie_photo}</span>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xs mx-auto">
                 {cameraActive === 'selfie' ? (
@@ -1156,7 +1382,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, selfie_photo: null })}
-                className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Ulangi Foto Selfie
@@ -1178,16 +1404,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (!devMode && !formData.selfie_photo) {
-                  setError('Harap ambil atau unggah foto selfie Anda')
-                  return
+                if (validateStep3()) {
+                  stopCamera('selfie')
+                  setStep(4)
                 }
-                stopCamera('selfie')
-                setError('')
-                setStep(4)
               }}
-              disabled={!devMode && !formData.selfie_photo}
-              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               Lanjut: Pilih Kamar & Durasi
             </button>
@@ -1214,17 +1436,35 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
           {/* 1. Room Category Cards */}
           <div className="space-y-2.5">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-              1. Pilih Kategori Kamar:
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                1. Pilih Kategori Kamar *
+              </label>
+              {validationErrors.room_category && (
+                <span className="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/30 font-bold animate-pulse">
+                  Wajib Dipilih
+                </span>
+              )}
+            </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-1 rounded-3xl transition-all ${
+              validationErrors.room_category ? 'border-2 border-dashed border-rose-500/80 bg-rose-500/5 p-2.5 ring-2 ring-rose-500/20' : ''
+            }`}>
               {/* VIP Card */}
               <div
-                onClick={() => setRoomCategory('vip')}
+                onClick={() => {
+                  setRoomCategory('vip')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.room_category
+                    return next
+                  })
+                }}
                 className={`p-4 sm:p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
                   roomCategory === 'vip'
-                    ? 'border-purple-500 bg-purple-950/20 shadow-xl shadow-purple-500/10 ring-2 ring-purple-500/20'
+                    ? 'border-purple-500 bg-purple-950/30 shadow-xl shadow-purple-500/10 ring-2 ring-purple-500/30'
+                    : validationErrors.room_category
+                    ? 'border-rose-500/40 bg-slate-900/90 hover:border-purple-400'
                     : 'border-slate-800 bg-slate-900/90 hover:border-slate-700'
                 }`}
               >
@@ -1253,8 +1493,8 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <div className={`pt-2.5 border-t flex items-center justify-between text-xs font-bold ${
                   roomCategory === 'vip' ? 'border-purple-500/30 text-purple-300' : 'border-slate-800 text-slate-500'
                 }`}>
-                  <span>{roomCategory === 'vip' ? 'Kategori Dipilih' : 'Ketuk untuk memilih'}</span>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                  <span>{roomCategory === 'vip' ? 'Kategori Dipilih' : 'Ketuk untuk memilih VIP'}</span>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs transition-colors ${
                     roomCategory === 'vip' ? 'bg-purple-500 text-white shadow-sm' : 'border border-slate-700'
                   }`}>
                     {roomCategory === 'vip' ? <Check className="w-3 h-3" /> : ''}
@@ -1264,10 +1504,19 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
               {/* Non-VIP (Standard) Card */}
               <div
-                onClick={() => setRoomCategory('non_vip')}
+                onClick={() => {
+                  setRoomCategory('non_vip')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.room_category
+                    return next
+                  })
+                }}
                 className={`p-4 sm:p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
                   roomCategory === 'non_vip'
-                    ? 'border-indigo-500 bg-indigo-950/20 shadow-xl shadow-indigo-500/10 ring-2 ring-indigo-500/20'
+                    ? 'border-indigo-500 bg-indigo-950/30 shadow-xl shadow-indigo-500/10 ring-2 ring-indigo-500/30'
+                    : validationErrors.room_category
+                    ? 'border-rose-500/40 bg-slate-900/90 hover:border-indigo-400'
                     : 'border-slate-800 bg-slate-900/90 hover:border-slate-700'
                 }`}
               >
@@ -1295,8 +1544,8 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <div className={`pt-2.5 border-t flex items-center justify-between text-xs font-bold ${
                   roomCategory === 'non_vip' ? 'border-indigo-500/30 text-indigo-300' : 'border-slate-800 text-slate-500'
                 }`}>
-                  <span>{roomCategory === 'non_vip' ? 'Kategori Dipilih' : 'Ketuk untuk memilih'}</span>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                  <span>{roomCategory === 'non_vip' ? 'Kategori Dipilih' : 'Ketuk untuk memilih Standard'}</span>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs transition-colors ${
                     roomCategory === 'non_vip' ? 'bg-indigo-500 text-white shadow-sm' : 'border border-slate-700'
                   }`}>
                     {roomCategory === 'non_vip' ? <Check className="w-3 h-3" /> : ''}
@@ -1304,20 +1553,47 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 </div>
               </div>
             </div>
+
+            {validationErrors.room_category && (
+              <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1 mt-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.room_category}</span>
+              </p>
+            )}
           </div>
 
           {/* 2. Duration Selector */}
           <div className="space-y-3">
-            <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
-              2. Pilih Durasi Sewa *
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
+                2. Pilih Durasi Sewa *
+              </label>
+              {validationErrors.rental_duration && (
+                <span className="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/30 font-bold animate-pulse">
+                  Wajib Dipilih
+                </span>
+              )}
+            </div>
+
+            <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 p-1 rounded-2xl transition-all ${
+              validationErrors.rental_duration ? 'border-2 border-dashed border-rose-500/80 bg-rose-500/5 p-2 ring-2 ring-rose-500/20' : ''
+            }`}>
               <button
                 type="button"
-                onClick={() => setDurationType('transit_morning')}
-                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                onClick={() => {
+                  setDurationType('transit_morning')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.rental_duration
+                    delete next.monthly_package
+                    return next
+                  })
+                }}
+                className={`py-3 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                   durationType === 'transit_morning'
-                    ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-400/30'
+                    ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-400/40 scale-[1.02]'
+                    : validationErrors.rental_duration
+                    ? 'bg-slate-800/80 text-slate-300 border border-rose-500/40 hover:border-amber-500'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
@@ -1326,10 +1602,20 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               </button>
               <button
                 type="button"
-                onClick={() => setDurationType('daily')}
-                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                onClick={() => {
+                  setDurationType('daily')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.rental_duration
+                    delete next.monthly_package
+                    return next
+                  })
+                }}
+                className={`py-3 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                   durationType === 'daily'
-                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/30'
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40 scale-[1.02]'
+                    : validationErrors.rental_duration
+                    ? 'bg-slate-800/80 text-slate-300 border border-rose-500/40 hover:border-indigo-500'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
@@ -1338,10 +1624,20 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               </button>
               <button
                 type="button"
-                onClick={() => setDurationType('weekly')}
-                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                onClick={() => {
+                  setDurationType('weekly')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.rental_duration
+                    delete next.monthly_package
+                    return next
+                  })
+                }}
+                className={`py-3 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                   durationType === 'weekly'
-                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/30'
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40 scale-[1.02]'
+                    : validationErrors.rental_duration
+                    ? 'bg-slate-800/80 text-slate-300 border border-rose-500/40 hover:border-indigo-500'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
@@ -1350,10 +1646,19 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               </button>
               <button
                 type="button"
-                onClick={() => setDurationType('monthly')}
-                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                onClick={() => {
+                  setDurationType('monthly')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.rental_duration
+                    return next
+                  })
+                }}
+                className={`py-3 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                   durationType === 'monthly'
-                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/30'
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40 scale-[1.02]'
+                    : validationErrors.rental_duration
+                    ? 'bg-slate-800/80 text-slate-300 border border-rose-500/40 hover:border-indigo-500'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
@@ -1362,211 +1667,57 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               </button>
             </div>
 
+            {validationErrors.rental_duration && (
+              <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.rental_duration}</span>
+              </p>
+            )}
+
             {/* Sub-inputs for duration */}
-            <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-4">
-              {durationType === 'transit_morning' && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-black text-amber-300 flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-amber-400" />
-                        <span>Paket Sesi Pagi / Transit (Beberapa Jam)</span>
-                      </p>
-                      <p className="text-[11px] text-slate-300 mt-0.5">
-                        Biaya Flat: <strong className="text-white font-mono">Rp 100.000</strong>
-                      </p>
-                    </div>
-                    <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded-lg border border-amber-500/30 shrink-0">
-                      Wajib Checkout 12:00 Siang
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-slate-950/70 rounded-xl border border-amber-500/20 text-[11px] text-slate-300 space-y-1">
-                    <p className="font-bold text-amber-200">Ketentuan Sewa Sesi Pagi:</p>
-                    <ul className="list-disc list-inside space-y-0.5 text-slate-300 text-[11px]">
-                      <li>Ditujukan untuk tamu yang masuk dini hari atau pagi hari (misal jam 01:00, 04:00, 08:00 WIB).</li>
-                      <li><strong>Wajib check-out pada jam 12:00 siang hari ini juga</strong>.</li>
-                      <li>Jika check-out melewati jam 12:00 siang, berlaku denda perpanjangan sesuai aturan kost.</li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-              {durationType === 'daily' && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <p className="text-xs font-extrabold text-white">Jumlah Malam Menginap</p>
-                      <p className="text-[11px] text-indigo-400 font-bold">
-                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)} / malam
-                      </p>
-                    </div>
-
-                    {/* Stepper +/- & editable input */}
-                    <div className="flex items-center gap-1.5 bg-slate-800 p-1.5 rounded-xl border border-slate-700">
-                      <button
-                        type="button"
-                        onClick={() => setDailyDays(Math.max(1, dailyDays - 1))}
-                        className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
-                        title="Kurangi 1 malam"
-                      >
-                        -
-                      </button>
-                      <div className="flex items-center justify-center px-1">
-                        <input
-                          type="number"
-                          min="1"
-                          max="90"
-                          value={dailyDays || ''}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value)
-                            if (!isNaN(val) && val >= 1) {
-                              setDailyDays(Math.min(90, val))
-                            } else if (e.target.value === '') {
-                              setDailyDays(1)
-                            }
-                          }}
-                          className="w-10 text-center text-xs font-black text-white font-mono bg-transparent focus:outline-none focus:bg-slate-700/50 rounded py-0.5"
-                        />
-                        <span className="text-xs font-black text-indigo-400 select-none">Malam</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setDailyDays(Math.min(90, dailyDays + 1))}
-                        className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
-                        title="Tambah 1 malam"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Time-based Rate Banner */}
-                  <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${
-                    dailyRateInfo.isMorningTransit 
-                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' 
-                      : 'bg-slate-800/80 border-slate-700/60 text-slate-300'
-                  }`}>
+            {!durationType ? (
+              <div className="p-5 bg-slate-900/60 rounded-2xl border border-slate-800 text-center py-6 text-slate-400 text-xs space-y-1.5">
+                <Clock className="w-6 h-6 mx-auto text-slate-600 mb-1" />
+                <p className="font-bold text-slate-300">Belum Ada Durasi Sewa yang Dipilih</p>
+                <p className="text-[11px] text-slate-500">Pilih salah satu tombol durasi di atas (Sesi Pagi, Harian, Mingguan, atau Bulanan)</p>
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-4 animate-in fade-in">
+                {durationType === 'transit_morning' && (
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1.5 font-bold">
-                        <Clock className={`w-4 h-4 ${dailyRateInfo.isMorningTransit ? 'text-amber-400' : 'text-emerald-400'}`} />
-                        <span>
-                          {dailyRateInfo.isMorningTransit 
-                            ? 'Tarif Khusus Check-In Pagi (06:00 – 12:00 WIB): Rp 150.000 / malam' 
-                            : 'Tarif Normal (Setelah 12:00 WIB): Rp 100.000 / malam'}
-                        </span>
-                      </span>
-                      <span className="text-[10px] font-mono opacity-80 shrink-0">{dailyRateInfo.formattedTime}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
-                      {dailyRateInfo.isMorningTransit
-                        ? 'Check-in pagi antara pukul 06:00 s/d 12:00 WIB dikenakan tarif Rp 150.000/malam. Setelah pukul 12:00 WIB berlaku tarif normal Rp 100.000/malam.'
-                        : 'Sewa harian setelah pukul 12:00 WIB dikenakan tarif normal Rp 100.000/malam.'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {durationType === 'weekly' && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <p className="text-xs font-extrabold text-white">Jumlah Durasi Minggu</p>
-                      <p className="text-[11px] text-indigo-400 font-bold">Tarif Rp 500.000 / minggu</p>
-                    </div>
-
-                    {/* Stepper +/- & editable input */}
-                    <div className="flex items-center gap-1.5 bg-slate-800 p-1.5 rounded-xl border border-slate-700">
-                      <button
-                        type="button"
-                        onClick={() => setWeeklyWeeks(Math.max(1, weeklyWeeks - 1))}
-                        className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
-                        title="Kurangi 1 minggu"
-                      >
-                        -
-                      </button>
-                      <div className="flex items-center justify-center px-1">
-                        <input
-                          type="number"
-                          min="1"
-                          max="24"
-                          value={weeklyWeeks || ''}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value)
-                            if (!isNaN(val) && val >= 1) {
-                              setWeeklyWeeks(Math.min(24, val))
-                            } else if (e.target.value === '') {
-                              setWeeklyWeeks(1)
-                            }
-                          }}
-                          className="w-10 text-center text-xs font-black text-white font-mono bg-transparent focus:outline-none focus:bg-slate-700/50 rounded py-0.5"
-                        />
-                        <span className="text-xs font-black text-indigo-400 select-none">Mgg</span>
+                      <div>
+                        <p className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                          <Clock className="w-4 h-4 text-amber-400" />
+                          <span>Paket Sesi Pagi / Transit (Beberapa Jam)</span>
+                        </p>
+                        <p className="text-[11px] text-slate-300 mt-0.5">
+                          Biaya Flat: <strong className="text-white font-mono">Rp 100.000</strong>
+                        </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setWeeklyWeeks(Math.min(24, weeklyWeeks + 1))}
-                        className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
-                        title="Tambah 1 minggu"
-                      >
-                        +
-                      </button>
+                      <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded-lg border border-amber-500/30 shrink-0">
+                        Wajib Checkout 12:00 Siang
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/70 rounded-xl border border-amber-500/20 text-[11px] text-slate-300 space-y-1">
+                      <p className="font-bold text-amber-200">Ketentuan Sewa Sesi Pagi:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-slate-300 text-[11px]">
+                        <li>Ditujukan untuk tamu yang masuk dini hari atau pagi hari (misal jam 01:00, 04:00, 08:00 WIB).</li>
+                        <li><strong>Wajib check-out pada jam 12:00 siang hari ini juga</strong>.</li>
+                        <li>Jika check-out melewati jam 12:00 siang, berlaku denda perpanjangan sesuai aturan kost.</li>
+                      </ul>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {durationType === 'monthly' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
-                      Pilihan Paket Fasilitas Bulanan:
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setMonthlyPackage('ac')}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          monthlyPackage === 'ac'
-                            ? 'bg-indigo-950/40 border-indigo-500 text-white ring-1 ring-indigo-500/50'
-                            : 'bg-slate-800/60 border-slate-700/80 text-slate-400 hover:border-slate-600'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className="text-xs font-black text-indigo-300 flex items-center gap-1">
-                            <Wind className="w-3.5 h-3.5 text-indigo-400" /> Kamar Ber-AC
-                          </span>
-                          <span className="text-xs font-black text-white font-mono">Rp 1.350.000</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400">Unit kamar ber-AC dingin & kamar mandi dalam</p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setMonthlyPackage('non_ac')}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          monthlyPackage === 'non_ac'
-                            ? 'bg-indigo-950/40 border-indigo-500 text-white ring-1 ring-indigo-500/50'
-                            : 'bg-slate-800/60 border-slate-700/80 text-slate-400 hover:border-slate-600'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className="text-xs font-black text-emerald-300 flex items-center gap-1">
-                            Kamar Non-AC / Standar
-                          </span>
-                          <span className="text-xs font-black text-white font-mono">Rp 650.000</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400">Hemat budget, kamar mandi dalam & kasur</p>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Bebas tentukan berapa bulan */}
-                  <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                {durationType === 'daily' && (
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
-                        <p className="text-xs font-extrabold text-white">Jumlah Durasi Bulan</p>
-                        <p className="text-[11px] text-slate-400">
-                          {monthlyPackage === 'non_ac' ? 'Rp 650.000' : 'Rp 1.350.000'} / bulan
+                        <p className="text-xs font-extrabold text-white">Jumlah Malam Menginap</p>
+                        <p className="text-[11px] text-indigo-400 font-bold">
+                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)} / malam
                         </p>
                       </div>
 
@@ -1574,9 +1725,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       <div className="flex items-center gap-1.5 bg-slate-800 p-1.5 rounded-xl border border-slate-700">
                         <button
                           type="button"
-                          onClick={() => setMonthlyMonths(Math.max(1, monthlyMonths - 1))}
+                          onClick={() => setDailyDays(Math.max(1, dailyDays - 1))}
                           className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
-                          title="Kurangi 1 bulan"
+                          title="Kurangi 1 malam"
                         >
                           -
                         </button>
@@ -1584,48 +1735,252 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                           <input
                             type="number"
                             min="1"
-                            max="36"
-                            value={monthlyMonths || ''}
+                            max="90"
+                            value={dailyDays || ''}
                             onChange={(e) => {
                               const val = parseInt(e.target.value)
                               if (!isNaN(val) && val >= 1) {
-                                setMonthlyMonths(Math.min(36, val))
+                                setDailyDays(Math.min(90, val))
                               } else if (e.target.value === '') {
-                                setMonthlyMonths(1)
+                                setDailyDays(1)
                               }
                             }}
                             className="w-10 text-center text-xs font-black text-white font-mono bg-transparent focus:outline-none focus:bg-slate-700/50 rounded py-0.5"
                           />
-                          <span className="text-xs font-black text-indigo-400 select-none">Bln</span>
+                          <span className="text-xs font-black text-indigo-400 select-none">Malam</span>
                         </div>
                         <button
                           type="button"
-                          onClick={() => setMonthlyMonths(Math.min(36, monthlyMonths + 1))}
+                          onClick={() => setDailyDays(Math.min(90, dailyDays + 1))}
                           className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
-                          title="Tambah 1 bulan"
+                          title="Tambah 1 malam"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Time-based Rate Banner */}
+                    <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${
+                      dailyRateInfo.isMorningTransit 
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' 
+                        : 'bg-slate-800/80 border-slate-700/60 text-slate-300'
+                    }`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 font-bold">
+                          <Clock className={`w-4 h-4 ${dailyRateInfo.isMorningTransit ? 'text-amber-400' : 'text-emerald-400'}`} />
+                          <span>
+                            {dailyRateInfo.isMorningTransit 
+                              ? 'Tarif Khusus Check-In Pagi (06:00 – 12:00 WIB): Rp 150.000 / malam' 
+                              : 'Tarif Normal (Setelah 12:00 WIB): Rp 100.000 / malam'}
+                          </span>
+                        </span>
+                        <span className="text-[10px] font-mono opacity-80 shrink-0">{dailyRateInfo.formattedTime}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        {dailyRateInfo.isMorningTransit
+                          ? 'Check-in pagi antara pukul 06:00 s/d 12:00 WIB dikenakan tarif Rp 150.000/malam. Setelah pukul 12:00 WIB berlaku tarif normal Rp 100.000/malam.'
+                          : 'Sewa harian setelah pukul 12:00 WIB dikenakan tarif normal Rp 100.000/malam.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {durationType === 'weekly' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <p className="text-xs font-extrabold text-white">Jumlah Durasi Minggu</p>
+                        <p className="text-[11px] text-indigo-400 font-bold">Tarif Rp 500.000 / minggu</p>
+                      </div>
+
+                      {/* Stepper +/- & editable input */}
+                      <div className="flex items-center gap-1.5 bg-slate-800 p-1.5 rounded-xl border border-slate-700">
+                        <button
+                          type="button"
+                          onClick={() => setWeeklyWeeks(Math.max(1, weeklyWeeks - 1))}
+                          className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                          title="Kurangi 1 minggu"
+                        >
+                          -
+                        </button>
+                        <div className="flex items-center justify-center px-1">
+                          <input
+                            type="number"
+                            min="1"
+                            max="24"
+                            value={weeklyWeeks || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value)
+                              if (!isNaN(val) && val >= 1) {
+                                setWeeklyWeeks(Math.min(24, val))
+                              } else if (e.target.value === '') {
+                                setWeeklyWeeks(1)
+                              }
+                            }}
+                            className="w-10 text-center text-xs font-black text-white font-mono bg-transparent focus:outline-none focus:bg-slate-700/50 rounded py-0.5"
+                          />
+                          <span className="text-xs font-black text-indigo-400 select-none">Mgg</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setWeeklyWeeks(Math.min(24, weeklyWeeks + 1))}
+                          className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                          title="Tambah 1 minggu"
                         >
                           +
                         </button>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Informative Notice Banner for Weekly and Monthly */}
-              {(durationType === 'weekly' || durationType === 'monthly') && (
-                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs text-amber-200">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-300">
-                    <Info className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>Ketentuan Khusus Sewa {durationType === 'weekly' ? 'Mingguan' : 'Bulanan'}:</span>
+                {durationType === 'monthly' && (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                          Pilihan Paket Fasilitas Bulanan *
+                        </label>
+                        {validationErrors.monthly_package && (
+                          <span className="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/30 font-bold animate-pulse">
+                            Wajib Dipilih
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-1 rounded-2xl transition-all ${
+                        validationErrors.monthly_package ? 'border-2 border-dashed border-rose-500/80 bg-rose-500/5 p-2 ring-2 ring-rose-500/20' : ''
+                      }`}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMonthlyPackage('ac')
+                            setValidationErrors(prev => {
+                              const next = { ...prev }
+                              delete next.monthly_package
+                              return next
+                            })
+                          }}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                            monthlyPackage === 'ac'
+                              ? 'bg-indigo-950/40 border-indigo-500 text-white ring-2 ring-indigo-500/50 shadow-md'
+                              : validationErrors.monthly_package
+                              ? 'bg-slate-800/60 border-rose-500/40 text-slate-300 hover:border-indigo-400'
+                              : 'bg-slate-800/60 border-slate-700/80 text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="text-xs font-black text-indigo-300 flex items-center gap-1">
+                              <Wind className="w-3.5 h-3.5 text-indigo-400" /> Kamar Ber-AC
+                            </span>
+                            <span className="text-xs font-black text-white font-mono">Rp 1.350.000</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400">Unit kamar ber-AC dingin & kamar mandi dalam</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMonthlyPackage('non_ac')
+                            setValidationErrors(prev => {
+                              const next = { ...prev }
+                              delete next.monthly_package
+                              return next
+                            })
+                          }}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                            monthlyPackage === 'non_ac'
+                              ? 'bg-indigo-950/40 border-indigo-500 text-white ring-2 ring-indigo-500/50 shadow-md'
+                              : validationErrors.monthly_package
+                              ? 'bg-slate-800/60 border-rose-500/40 text-slate-300 hover:border-emerald-400'
+                              : 'bg-slate-800/60 border-slate-700/80 text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="text-xs font-black text-emerald-300 flex items-center gap-1">
+                              Kamar Non-AC / Standar
+                            </span>
+                            <span className="text-xs font-black text-white font-mono">Rp 650.000</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400">Hemat budget, kamar mandi dalam & kasur</p>
+                        </button>
+                      </div>
+                      {validationErrors.monthly_package && (
+                        <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{validationErrors.monthly_package}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bebas tentukan berapa bulan */}
+                    <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <p className="text-xs font-extrabold text-white">Jumlah Durasi Bulan</p>
+                          <p className="text-[11px] text-slate-400">
+                            {monthlyPackage === 'non_ac' ? 'Rp 650.000' : 'Rp 1.350.000'} / bulan
+                          </p>
+                        </div>
+
+                        {/* Stepper +/- & editable input */}
+                        <div className="flex items-center gap-1.5 bg-slate-800 p-1.5 rounded-xl border border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => setMonthlyMonths(Math.max(1, monthlyMonths - 1))}
+                            className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                            title="Kurangi 1 bulan"
+                          >
+                            -
+                          </button>
+                          <div className="flex items-center justify-center px-1">
+                            <input
+                              type="number"
+                              min="1"
+                              max="36"
+                              value={monthlyMonths || ''}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value)
+                                if (!isNaN(val) && val >= 1) {
+                                  setMonthlyMonths(Math.min(36, val))
+                                } else if (e.target.value === '') {
+                                  setMonthlyMonths(1)
+                                }
+                              }}
+                              className="w-10 text-center text-xs font-black text-white font-mono bg-transparent focus:outline-none focus:bg-slate-700/50 rounded py-0.5"
+                            />
+                            <span className="text-xs font-black text-indigo-400 select-none">Bln</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMonthlyMonths(Math.min(36, monthlyMonths + 1))}
+                            className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center cursor-pointer transition-colors"
+                            title="Tambah 1 bulan"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <ul className="text-[11px] text-amber-200/90 space-y-1 list-disc list-inside pl-1">
-                    <li><strong>Token Listrik PLN:</strong> Belum termasuk token listrik (No Include). Pengisian token PLN dilakukan mandiri oleh penyewa per kamar.</li>
-                    <li><strong>Perlengkapan Kamar:</strong> Tidak termasuk handuk, sprei, dan selimut (No Include). Penyewa dihimbau membawa perlengkapan tidur sendiri.</li>
-                  </ul>
-                </div>
-              )}
-            </div>
+                )}
+
+                {/* Informative Notice Banner for Weekly and Monthly */}
+                {(durationType === 'weekly' || durationType === 'monthly') && (
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs text-amber-200">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                      <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Ketentuan Khusus Sewa {durationType === 'weekly' ? 'Mingguan' : 'Bulanan'}:</span>
+                    </div>
+                    <ul className="text-[11px] text-amber-200/90 space-y-1 list-disc list-inside pl-1">
+                      <li><strong>Token Listrik PLN:</strong> Belum termasuk token listrik (No Include). Pengisian token PLN dilakukan mandiri oleh penyewa per kamar.</li>
+                      <li><strong>Perlengkapan Kamar:</strong> Tidak termasuk handuk, sprei, dan selimut (No Include). Penyewa dihimbau membawa perlengkapan tidur sendiri.</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 3. Comprehensive Transparent Billing Breakdown Card */}
@@ -1635,57 +1990,80 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <Receipt className="w-4 h-4 text-indigo-400" />
                 Rincian Biaya Sewa
               </span>
-              <span className="text-[11px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
-                {roomCategory === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room'}
+              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                roomCategory === 'vip' 
+                  ? 'text-purple-300 bg-purple-500/10 border-purple-500/30' 
+                  : roomCategory === 'non_vip' 
+                  ? 'text-indigo-300 bg-indigo-500/10 border-indigo-500/30'
+                  : 'text-slate-400 bg-slate-800/80 border-slate-700'
+              }`}>
+                {roomCategory === 'vip' ? 'VIP Belakang Warkop' : roomCategory === 'non_vip' ? 'Standard Room' : 'Kamar Belum Dipilih'}
               </span>
             </div>
 
-            <div className="space-y-2 text-xs">
-              {/* Rent item */}
-              <div className="flex justify-between text-slate-300">
-                <span className="flex items-center gap-1">
-                  Biaya Sewa ({durationType === 'transit_morning' 
-                    ? 'Sesi Pagi (s/d 12:00 Siang)' 
-                    : durationType === 'daily' 
-                    ? `${dailyDays} Malam (Harian)` 
-                    : durationType === 'weekly' 
-                      ? `${weeklyWeeks} Minggu (@ Rp 500rb)` 
-                      : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC @ Rp 650rb' : 'AC @ Rp 1,35jt'})`}):
-                </span>
-                <span className="font-bold text-white font-mono">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentSubtotal)}
-                </span>
+            {!roomCategory || !durationType || (durationType === 'monthly' && !monthlyPackage) ? (
+              <div className="py-4 text-center text-xs text-slate-400 space-y-1">
+                <p className="font-semibold text-slate-300">Pilihan Belum Lengkap</p>
+                <p className="text-[11px] text-slate-500">
+                  {!roomCategory && !durationType 
+                    ? 'Pilih kategori kamar dan durasi sewa di atas untuk melihat rincian biaya'
+                    : !roomCategory 
+                    ? 'Pilih kategori kamar di atas untuk menampilkan rincian biaya'
+                    : !durationType 
+                    ? 'Pilih durasi sewa di atas untuk menampilkan rincian biaya'
+                    : 'Pilih paket fasilitas kamar AC atau Non-AC di atas'}
+                </p>
               </div>
-
-              {/* Deposit item */}
-              <div className="flex justify-between text-slate-300">
-                <div>
-                  <span className="font-medium block">
-                    {guaranteeType === 'deposit' ? 'Uang Titipan Deposit' : 'Jaminan Menginap (KTP Asli)'}
+            ) : (
+              <div className="space-y-2 text-xs">
+                {/* Rent item */}
+                <div className="flex justify-between text-slate-300">
+                  <span className="flex items-center gap-1">
+                    Biaya Sewa ({durationType === 'transit_morning' 
+                      ? 'Sesi Pagi (s/d 12:00 Siang)' 
+                      : durationType === 'daily' 
+                      ? `${dailyDays} Malam (Harian)` 
+                      : durationType === 'weekly' 
+                        ? `${weeklyWeeks} Minggu (@ Rp 500rb)` 
+                        : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC @ Rp 650rb' : 'AC @ Rp 1,35jt'})`}):
                   </span>
-                  <span className="text-[10px] text-emerald-400 block font-normal">
-                    {guaranteeType === 'deposit'
-                      ? '(100% Dikembalikan utuh saat checkout)'
-                      : '(Bebas Biaya Deposit • Jaminan KTP Asli)'}
+                  <span className="font-bold text-white font-mono">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentSubtotal)}
                   </span>
                 </div>
-                <span className={`font-bold font-mono ${guaranteeType === 'deposit' ? 'text-amber-400' : 'text-emerald-400'}`}>
-                  {guaranteeType === 'deposit' ? 'Rp 100.000' : 'Rp 0'}
-                </span>
+
+                {/* Deposit item */}
+                <div className="flex justify-between text-slate-300">
+                  <div>
+                    <span className="font-medium block">
+                      {guaranteeType === 'deposit' ? 'Uang Titipan Deposit' : 'Jaminan Menginap (KTP Asli)'}
+                    </span>
+                    <span className="text-[10px] text-emerald-400 block font-normal">
+                      {guaranteeType === 'deposit'
+                        ? '(100% Dikembalikan utuh saat checkout)'
+                        : '(Bebas Biaya Deposit • Jaminan KTP Asli)'}
+                    </span>
+                  </div>
+                  <span className={`font-bold font-mono ${guaranteeType === 'deposit' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {guaranteeType === 'deposit' ? 'Rp 100.000' : 'Rp 0'}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Total Highlight */}
             <div className="pt-3 border-t border-slate-800 flex justify-between items-center bg-slate-900/60 p-3 rounded-2xl">
               <div>
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Dibayar:</span>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Tagihan:</span>
                 <span className="text-[10px] text-slate-500 font-medium">
                   {guaranteeType === 'deposit' ? 'Termasuk Deposit Rp 100k (Refundable)' : 'Hanya Sewa Kamar Saja (Rp 0 Deposit)'}
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 font-mono">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
+                  {(!roomCategory || !durationType || (durationType === 'monthly' && !monthlyPackage)) 
+                    ? '-' 
+                    : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAmount)}
                 </span>
               </div>
             </div>
@@ -1702,7 +2080,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </button>
             <button
               type="button"
-              onClick={() => setStep(5)}
+              onClick={() => {
+                if (validateStep4()) {
+                  setStep(5)
+                }
+              }}
               className="flex-1 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:opacity-95 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 cursor-pointer transition-all"
             >
               Lanjut: Aturan & Ketentuan
@@ -1770,18 +2152,39 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </div>
           </div>
 
-          <label className="flex items-start gap-3 p-3 bg-slate-800/40 rounded-xl border border-slate-700/60 cursor-pointer">
-            <input
-              type="checkbox"
-              required
-              checked={formData.terms_accepted}
-              onChange={(e) => setFormData({ ...formData, terms_accepted: e.target.checked })}
-              className="mt-0.5 w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-indigo-500"
-            />
-            <span className="text-xs text-slate-200 leading-snug">
-              Saya telah membaca, memahami, dan menyetujui seluruh kebijakan, aturan deposit, dan ketentuan denda keterlambatan check-out di Graha Aisyah Menteng. *
-            </span>
-          </label>
+          <div className="space-y-1.5">
+            <label className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${
+              validationErrors.terms_accepted 
+                ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-500/5' 
+                : 'bg-slate-800/40 border-slate-700/60 hover:border-slate-600'
+            }`}>
+              <input
+                type="checkbox"
+                required
+                checked={formData.terms_accepted}
+                onChange={(e) => {
+                  setFormData({ ...formData, terms_accepted: e.target.checked })
+                  if (e.target.checked) {
+                    setValidationErrors(prev => {
+                      const next = { ...prev }
+                      delete next.terms_accepted
+                      return next
+                    })
+                  }
+                }}
+                className="mt-0.5 w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-indigo-500 cursor-pointer"
+              />
+              <span className="text-xs text-slate-200 leading-snug">
+                Saya telah membaca, memahami, dan menyetujui seluruh kebijakan, aturan deposit, dan ketentuan denda keterlambatan check-out di Graha Aisyah Menteng. *
+              </span>
+            </label>
+            {validationErrors.terms_accepted && (
+              <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.terms_accepted}</span>
+              </p>
+            )}
+          </div>
 
           <div className="flex gap-3 pt-2">
             <button
@@ -1794,15 +2197,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <button
               type="button"
               onClick={() => {
-                if (!devMode && !formData.terms_accepted) {
-                  setError('Anda harus menyetujui aturan dan kebijakan kost untuk melanjutkan')
-                  return
+                if (validateStep5()) {
+                  setStep(6)
                 }
-                setError('')
-                setStep(6)
               }}
-              disabled={!devMode && !formData.terms_accepted}
-              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               Lanjut: Pembayaran
             </button>
@@ -1826,41 +2225,89 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           </div>
 
           {/* Method Selector */}
-          <div className="grid grid-cols-2 gap-3">
-            <div
-              onClick={() => setPaymentMethod('qris')}
-              className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center space-y-1.5 ${
-                paymentMethod === 'qris'
-                  ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
-                  : 'border-slate-800 bg-slate-850 hover:border-slate-700'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
-                <QrCode className="w-5 h-5" />
-              </div>
-              <p className="text-xs font-bold text-white">QRIS Pembayaran Digital</p>
-              <p className="text-[10px] text-slate-400">Scan Semua Bank & E-Wallet</p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Pilih Metode Pembayaran *
+              </label>
+              {validationErrors.payment_method && (
+                <span className="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/30 font-bold animate-pulse">
+                  Wajib Dipilih
+                </span>
+              )}
             </div>
 
-            <div
-              onClick={() => setPaymentMethod('cash')}
-              className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center space-y-1.5 ${
-                paymentMethod === 'cash'
-                  ? 'border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/10'
-                  : 'border-slate-800 bg-slate-850 hover:border-slate-700'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-                <Banknote className="w-5 h-5" />
+            <div className={`grid grid-cols-2 gap-3 p-1 rounded-3xl transition-all ${
+              validationErrors.payment_method ? 'border-2 border-dashed border-rose-500/80 bg-rose-500/5 p-2.5 ring-2 ring-rose-500/20' : ''
+            }`}>
+              <div
+                onClick={() => {
+                  setPaymentMethod('qris')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.payment_method
+                    return next
+                  })
+                }}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center space-y-1.5 ${
+                  paymentMethod === 'qris'
+                    ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/30'
+                    : validationErrors.payment_method
+                    ? 'border-rose-500/50 bg-slate-850 hover:border-indigo-400'
+                    : 'border-slate-800 bg-slate-850 hover:border-slate-700'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-bold text-white">QRIS Pembayaran Digital</p>
+                <p className="text-[10px] text-slate-400">Scan Semua Bank & E-Wallet</p>
               </div>
-              <p className="text-xs font-bold text-white">Cash / Bayar Tunai</p>
-              <p className="text-[10px] text-slate-400">Bayar di meja resepsionis</p>
+
+              <div
+                onClick={() => {
+                  setPaymentMethod('cash')
+                  setValidationErrors(prev => {
+                    const next = { ...prev }
+                    delete next.payment_method
+                    return next
+                  })
+                }}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center space-y-1.5 ${
+                  paymentMethod === 'cash'
+                    ? 'border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/10 ring-2 ring-emerald-500/30'
+                    : validationErrors.payment_method
+                    ? 'border-rose-500/50 bg-slate-850 hover:border-emerald-400'
+                    : 'border-slate-800 bg-slate-850 hover:border-slate-700'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                  <Banknote className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-bold text-white">Cash / Bayar Tunai</p>
+                <p className="text-[10px] text-slate-400">Bayar di meja resepsionis</p>
+              </div>
             </div>
+
+            {validationErrors.payment_method && (
+              <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1 mt-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{validationErrors.payment_method}</span>
+              </p>
+            )}
           </div>
+
+          {!paymentMethod && (
+            <div className="p-6 bg-slate-950 rounded-3xl border border-slate-800 text-center space-y-1.5 text-slate-400 text-xs">
+              <Banknote className="w-8 h-8 text-slate-600 mx-auto mb-1" />
+              <p className="font-bold text-slate-200">Pilih Metode Pembayaran di Atas</p>
+              <p className="text-[11px] text-slate-500">Pilih QRIS Digital untuk scan barcode, atau Cash untuk pembayaran tunai di meja resepsionis</p>
+            </div>
+          )}
 
           {/* QRIS Display Section */}
           {paymentMethod === 'qris' && (
-            <div className="space-y-4 bg-slate-950 p-5 rounded-3xl border border-slate-800">
+            <div className="space-y-4 bg-slate-950 p-5 rounded-3xl border border-slate-800 animate-in fade-in">
               <div className="text-center space-y-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
                   Scan QRIS Standar Pembayaran Nasional (GPN)
@@ -1885,10 +2332,12 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
               {/* Upload Proof */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                  <span>Upload Bukti Pembayaran QRIS *</span>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Upload Bukti Pembayaran QRIS *
+                  </label>
                   <span className="text-[10px] text-slate-400 font-normal">Maks. 20MB</span>
-                </label>
+                </div>
 
                 {compressingField === 'payment_proof' ? (
                   <div className="p-5 bg-slate-900/90 border border-indigo-500/30 rounded-2xl text-center flex flex-col items-center justify-center gap-2 text-xs text-indigo-300 animate-pulse">
@@ -1947,13 +2396,17 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 ) : (
                   <label 
                     htmlFor="qris_payment_proof"
-                    className="border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-slate-900/60 hover:bg-slate-900 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group"
+                    className={`border-2 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group ${
+                      validationErrors.payment_proof 
+                        ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-500/5' 
+                        : 'border-dashed border-slate-700 hover:border-indigo-500 bg-slate-900/60 hover:bg-slate-900'
+                    }`}
                   >
                     <div className="w-9 h-9 rounded-xl bg-indigo-500/10 group-hover:bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
                       <Upload className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="text-xs font-bold text-slate-200 group-hover:text-indigo-300">Pilih / Upload Bukti Transfer</p>
+                      <p className="text-xs font-bold text-slate-200 group-hover:text-indigo-300">Pilih / Upload Bukti Transfer QRIS</p>
                       <p className="text-[10px] text-slate-400">Screenshot m-Banking / e-Wallet (JPG, PNG, WebP)</p>
                     </div>
                     <input
@@ -1965,13 +2418,20 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     />
                   </label>
                 )}
+
+                {validationErrors.payment_proof && (
+                  <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{validationErrors.payment_proof}</span>
+                  </p>
+                )}
               </div>
             </div>
           )}
 
           {/* Cash Resepsionis Section */}
           {paymentMethod === 'cash' && (
-            <div className="space-y-4 bg-slate-950 p-5 rounded-3xl border border-slate-800">
+            <div className="space-y-4 bg-slate-950 p-5 rounded-3xl border border-slate-800 animate-in fade-in">
               <div className="p-4 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl space-y-2">
                 <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
                   <Banknote className="w-5 h-5" />
@@ -1987,13 +2447,13 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
               {/* Upload Foto Serah Terima Uang */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <Camera className="w-4 h-4 text-emerald-400" />
                     <span>Foto Bukti Penyerahan Uang Tunai ke Petugas *</span>
-                  </span>
+                  </label>
                   <span className="text-[10px] text-slate-400 font-normal">Maks. 20MB</span>
-                </label>
+                </div>
                 <p className="text-[11px] text-slate-400 mb-1">
                   Tamu memfotokan uang tunai saat diserahkan ke staf resepsionis sebagai bukti pembayaran yang sah untuk pemilik kost.
                 </p>
@@ -2056,7 +2516,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 ) : (
                   <label 
                     htmlFor="cash_payment_proof"
-                    className="border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-900/60 hover:bg-slate-900 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group"
+                    className={`border-2 p-4 rounded-2xl flex items-center justify-center gap-3 cursor-pointer transition-all group ${
+                      validationErrors.payment_proof 
+                        ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-500/5' 
+                        : 'border-dashed border-slate-700 hover:border-emerald-500 bg-slate-900/60 hover:bg-slate-900'
+                    }`}
                   >
                     <div className="w-9 h-9 rounded-xl bg-emerald-500/10 group-hover:bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                       <Camera className="w-4 h-4" />
@@ -2075,6 +2539,13 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     />
                   </label>
                 )}
+
+                {validationErrors.payment_proof && (
+                  <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{validationErrors.payment_proof}</span>
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -2089,7 +2560,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             </button>
             <button
               type="submit"
-              disabled={loading || (!devMode && !formData.payment_proof)}
+              disabled={loading}
               className="flex-1 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-98"
             >
               {loading ? (
