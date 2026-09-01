@@ -16,7 +16,7 @@ import {
   captureVideoFrameToWebP,
   formatFileSize
 } from '@/lib/imageCompressor'
-import { getDailyRentalRate, calculateDailyRentalTotal } from '@/lib/dateUtils'
+import { getDailyRentalRate } from '@/lib/dateUtils'
 import { 
   CreditCard, 
   Camera, 
@@ -176,11 +176,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const BASE_PRICE_PER_MONTH_NON_AC = 650000 // Rp 650.000 / bulan (Kamar Non-AC / Non-Fasilitas)
   const DEPOSIT_AMOUNT = guaranteeType === 'deposit' ? 100000 : 0 // Rp 100k if deposit option, Rp 0 if KTP guarantee option
 
-  // Calculated Totals:
-  // Jika check-in pagi (06:00 - 12:00 WIB), hari ke-1 = Rp 150rb, hari ke-2 dst = Rp 100rb (cth: 2 hari = 250rb)
+  // Calculated Totals
   const rentSubtotal = 
     durationType === 'transit_morning' ? PRICE_TRANSIT_MORNING :
-    durationType === 'daily' ? calculateDailyRentalTotal(dailyDays, dailyRateInfo.isMorningTransit) :
+    durationType === 'daily' ? BASE_PRICE_PER_DAY * dailyDays :
     durationType === 'weekly' ? BASE_PRICE_PER_WEEK * weeklyWeeks :
     (monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC : BASE_PRICE_PER_MONTH_AC) * monthlyMonths
 
@@ -515,7 +514,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 {durationType === 'transit_morning' 
                   ? 'Sesi Pagi (Wajib Checkout Jam 12:00 Siang)' 
                   : durationType === 'daily' 
-                  ? `${dailyDays} Hari (${dailyRateInfo.isMorningTransit && dailyDays > 1 ? `Hari ke-1 Rp 150rb + ${dailyDays - 1}x Rp 100rb` : (dailyRateInfo.isMorningTransit ? 'Rp 150rb' : 'Harian')})` 
+                  ? `${dailyDays} Hari (Harian)` 
                   : durationType === 'weekly' 
                   ? `${weeklyWeeks} Minggu (Mingguan)` 
                   : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC' : 'AC'})`}
@@ -1398,9 +1397,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     <div>
                       <p className="text-xs font-extrabold text-white">Jumlah Malam Menginap</p>
                       <p className="text-[11px] text-indigo-400 font-bold">
-                        {dailyRateInfo.isMorningTransit
-                          ? 'Hari ke-1 Rp 150.000 • Hari ke-2 dst Rp 100.000 / malam'
-                          : 'Tarif Rp 100.000 / malam'}
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)} / malam
                       </p>
                     </div>
 
@@ -1454,7 +1451,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                         <Clock className={`w-4 h-4 ${dailyRateInfo.isMorningTransit ? 'text-amber-400' : 'text-emerald-400'}`} />
                         <span>
                           {dailyRateInfo.isMorningTransit 
-                            ? 'Check-In Pagi (06:00 – 12:00 WIB): Hari ke-1 Rp 150.000' 
+                            ? 'Tarif Khusus Check-In Pagi (06:00 – 12:00 WIB): Rp 150.000 / malam' 
                             : 'Tarif Normal (Setelah 12:00 WIB): Rp 100.000 / malam'}
                         </span>
                       </span>
@@ -1462,7 +1459,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                     <p className="text-[11px] text-slate-300 leading-relaxed">
                       {dailyRateInfo.isMorningTransit
-                        ? 'Check-in pagi hari ke-1 adalah Rp 150.000. Untuk hari ke-2 dan seterusnya kembali ke tarif normal Rp 100.000/malam (misal sewa 2 malam = Rp 250.000).'
+                        ? 'Check-in pagi antara pukul 06:00 s/d 12:00 WIB dikenakan tarif Rp 150.000/malam. Setelah pukul 12:00 WIB berlaku tarif normal Rp 100.000/malam.'
                         : 'Sewa harian setelah pukul 12:00 WIB dikenakan tarif normal Rp 100.000/malam.'}
                     </p>
                   </div>
@@ -1650,9 +1647,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                   Biaya Sewa ({durationType === 'transit_morning' 
                     ? 'Sesi Pagi (s/d 12:00 Siang)' 
                     : durationType === 'daily' 
-                    ? (dailyRateInfo.isMorningTransit && dailyDays > 1
-                        ? `${dailyDays} Malam (1x Rp 150rb + ${dailyDays - 1}x Rp 100rb)`
-                        : `${dailyDays} Malam (Harian)`) 
+                    ? `${dailyDays} Malam (Harian)` 
                     : durationType === 'weekly' 
                       ? `${weeklyWeeks} Minggu (@ Rp 500rb)` 
                       : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC @ Rp 650rb' : 'AC @ Rp 1,35jt'})`}):

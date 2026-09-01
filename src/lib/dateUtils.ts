@@ -70,26 +70,9 @@ export function getDailyRentalRate(date: Date | string | number = new Date()): {
     isMorningTransit,
     formattedTime: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} WIB`,
     label: isMorningTransit 
-      ? 'Check-In Pagi (06:00 - 12:00 WIB)' 
+      ? 'Tarif Transit Pagi (06:00 - 12:00 WIB)' 
       : 'Tarif Normal (Setelah 12:00 WIB)'
   }
-}
-
-/**
- * Calculates total rental amount for daily stay:
- * - If check-in is morning (06:00 - 12:00 WIB):
- *   Day 1: Rp 150.000
- *   Day 2+: Rp 100.000 / day
- *   (e.g., 1 day = Rp 150k, 2 days = Rp 250k, 3 days = Rp 350k)
- * - If check-in is normal:
- *   Rp 100.000 / day (e.g. 1 day = Rp 100k, 2 days = Rp 200k)
- */
-export function calculateDailyRentalTotal(days: number = 1, isMorning: boolean = false): number {
-  const validDays = Math.max(1, parseInt(String(days)) || 1)
-  if (!isMorning) {
-    return validDays * 100000
-  }
-  return 150000 + ((validDays - 1) * 100000)
 }
 
 /**
