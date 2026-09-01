@@ -154,6 +154,13 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
   const amountInWords = `${numberToWords(amount)} rupiah`
   const formattedAmount = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount)
 
+  // Photo Attachments (KTP, Selfie, and Payment Proof)
+  const ktpPhotoUrl = checkInRequest?.id_card_photo_url || tenant?.id_card_photo_url
+  const selfiePhotoUrl = checkInRequest?.selfie_photo_url || tenant?.selfie_photo_url
+  const paymentProofUrl = payment?.payment_proof_url || checkInRequest?.payment_proof_url
+  const isProofValid = paymentProofUrl && !paymentProofUrl.includes('placehold')
+  const hasPhotos = Boolean(ktpPhotoUrl || selfiePhotoUrl || isProofValid)
+
   // Isolated high-quality print & PDF handler (No modal clipping, no white space gap)
   const handlePrint = () => {
     const htmlContent = `
@@ -177,7 +184,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
 
             @page {
               size: A4 portrait;
-              margin: 12mm 12mm 12mm 12mm;
+              margin: 10mm 10mm 10mm 10mm;
             }
 
             html, body {
@@ -528,6 +535,61 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
               <div class="terbilang-text">"${amountInWords}"</div>
             </div>
 
+            ${hasPhotos ? `
+            <!-- Lampiran Bukti Identitas & Pembayaran Digital -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 16px;">
+              <div style="font-size: 10px; font-weight: 800; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 10px;">
+                Lampiran Bukti Identitas & Pembayaran Digital
+              </div>
+              <table style="width: 100%; border-collapse: separate; border-spacing: 8px 0; margin-left: -8px; margin-right: -8px;">
+                <tr>
+                  <td style="width: 33.33%; vertical-align: top; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; text-align: center;">
+                    <div style="font-size: 9px; font-weight: 800; color: #64748b; margin-bottom: 6px;">FOTO KTP / IDENTITAS</div>
+                    ${ktpPhotoUrl ? `
+                      <div style="height: 85px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #f1f5f9;">
+                        <img src="${ktpPhotoUrl}" style="max-width: 100%; max-height: 85px; object-fit: contain;" />
+                      </div>
+                    ` : `
+                      <div style="height: 85px; border-radius: 6px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #94a3b8;">
+                        Tidak ada foto
+                      </div>
+                    `}
+                    <div style="font-size: 9px; font-family: monospace; color: #475569; margin-top: 4px;">${nik !== '-' ? `NIK: ${nik}` : 'Identitas Tamu'}</div>
+                  </td>
+
+                  <td style="width: 33.33%; vertical-align: top; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; text-align: center;">
+                    <div style="font-size: 9px; font-weight: 800; color: #64748b; margin-bottom: 6px;">FOTO WAJAH (SELFIE)</div>
+                    ${selfiePhotoUrl ? `
+                      <div style="height: 85px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #f1f5f9;">
+                        <img src="${selfiePhotoUrl}" style="max-width: 100%; max-height: 85px; object-fit: contain;" />
+                      </div>
+                    ` : `
+                      <div style="height: 85px; border-radius: 6px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #94a3b8;">
+                        Tidak ada foto
+                      </div>
+                    `}
+                    <div style="font-size: 9px; font-family: monospace; color: #475569; margin-top: 4px;">${tenantName}</div>
+                  </td>
+
+                  <td style="width: 33.33%; vertical-align: top; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; text-align: center;">
+                    <div style="font-size: 9px; font-weight: 800; color: #64748b; margin-bottom: 6px;">BUKTI PEMBAYARAN</div>
+                    ${isProofValid ? `
+                      <div style="height: 85px; overflow: hidden; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: #f1f5f9;">
+                        <img src="${paymentProofUrl}" style="max-width: 100%; max-height: 85px; object-fit: contain;" />
+                      </div>
+                    ` : `
+                      <div style="height: 85px; border-radius: 6px; background: #fef3c7; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; color: #92400e; padding: 4px;">
+                        <strong>Tunai di Resepsionis</strong>
+                        <span style="font-size: 8px; color: #b45309;">Diterima Kasir</span>
+                      </div>
+                    `}
+                    <div style="font-size: 9px; font-family: monospace; color: #475569; margin-top: 4px;">${paymentMethodDisplay}</div>
+                  </td>
+                </tr>
+              </table>
+            </div>
+            ` : ''}
+
             <!-- Footer & Verification -->
             <table class="footer-table">
               <tr>
@@ -816,6 +878,68 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
             </p>
           </div>
         </div>
+
+        {/* Lampiran Bukti Identitas & Pembayaran Digital */}
+        {hasPhotos && (
+          <div className="bg-slate-50/80 p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                Lampiran Bukti Identitas & Pembayaran
+              </span>
+              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                Terverifikasi
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* Foto KTP */}
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 block">Foto KTP / Identitas</span>
+                {ktpPhotoUrl ? (
+                  <div className="aspect-[1.5/1] rounded-lg overflow-hidden border border-slate-100 bg-slate-100">
+                    <img src={ktpPhotoUrl} alt="KTP" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="aspect-[1.5/1] rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-medium">
+                    Tidak ada foto
+                  </div>
+                )}
+                <span className="text-[9px] font-mono text-slate-500 block truncate">{nik !== '-' ? `NIK: ${nik}` : 'Identitas Tamu'}</span>
+              </div>
+
+              {/* Foto Selfie / Wajah */}
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 block">Foto Wajah (Selfie)</span>
+                {selfiePhotoUrl ? (
+                  <div className="aspect-[1.5/1] rounded-lg overflow-hidden border border-slate-100 bg-slate-100">
+                    <img src={selfiePhotoUrl} alt="Selfie" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="aspect-[1.5/1] rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-medium">
+                    Tidak ada foto
+                  </div>
+                )}
+                <span className="text-[9px] font-mono text-slate-500 block truncate">{tenantName}</span>
+              </div>
+
+              {/* Bukti Bayar */}
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 block">Bukti Pembayaran</span>
+                {isProofValid ? (
+                  <div className="aspect-[1.5/1] rounded-lg overflow-hidden border border-slate-100 bg-slate-100">
+                    <img src={paymentProofUrl} alt="Bukti Bayar" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="aspect-[1.5/1] rounded-lg bg-amber-50/70 border border-amber-200 flex flex-col items-center justify-center text-[10px] text-amber-800 p-2">
+                    <span className="font-bold">Tunai Resepsionis</span>
+                    <span className="text-[9px] text-slate-500">Diterima langsung</span>
+                  </div>
+                )}
+                <span className="text-[9px] font-mono text-slate-500 block truncate">{paymentMethodDisplay}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Confirmation & Footer */}
         <div className="pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 text-xs text-slate-500">
