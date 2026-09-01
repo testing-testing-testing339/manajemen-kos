@@ -59,7 +59,7 @@ export default async function PenghuniPage() {
   // Fetch check-in requests to get phone number if tenant.phone is empty
   const { data: checkInRequests } = await supabase
     .from('check_in_requests')
-    .select('assigned_room_id, phone, email, full_name, rental_duration, rental_days, created_at')
+    .select('assigned_room_id, phone, email, full_name, rental_duration, rental_days, created_at, selected_room_type')
     .order('created_at', { ascending: false })
 
   let tenantsData = (rawTenantsData || []).map(t => {
@@ -68,12 +68,23 @@ export default async function PenghuniPage() {
       c.full_name?.toLowerCase().trim() === t.full_name?.toLowerCase().trim()
     )
 
+    let cirDuration = cir?.rental_duration
+    if (cir?.selected_room_type) {
+      try {
+        const parsed = typeof cir.selected_room_type === 'string' ? JSON.parse(cir.selected_room_type) : cir.selected_room_type
+        if (parsed?.rental_duration) {
+          cirDuration = parsed.rental_duration
+        }
+      } catch (e) {}
+    }
+    const effectiveDuration = (t.rental_duration && t.rental_duration !== 'daily') ? t.rental_duration : (cirDuration || t.rental_duration || 'daily')
+
     const checkInDate = t.check_in_date || (cir?.created_at ? getWIBDateString(cir.created_at) : null)
     let paymentDueDate = t.payment_due_date
     if (!paymentDueDate && checkInDate) {
       paymentDueDate = calculateCheckoutDueDate(
         cir?.created_at || checkInDate,
-        t.rental_duration || cir?.rental_duration || 'daily',
+        effectiveDuration,
         cir?.rental_days || t.rental_count || 1,
         (cir as any)?.rental_weeks || 1,
         (cir as any)?.rental_months || 1
@@ -86,7 +97,7 @@ export default async function PenghuniPage() {
       email: t.email || cir?.email || '-',
       check_in_date: checkInDate,
       payment_due_date: paymentDueDate,
-      rental_duration: t.rental_duration || cir?.rental_duration || 'daily',
+      rental_duration: effectiveDuration,
       rental_count: t.rental_count || cir?.rental_days || 1,
       deposit_amount: t.deposit_amount !== undefined && t.deposit_amount !== null ? t.deposit_amount : 0
     }

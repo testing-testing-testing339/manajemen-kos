@@ -58,16 +58,29 @@ export default function CheckInList({
 
   // Helper function to format rental duration
   const formatRentalDuration = (checkIn: any) => {
-    if (checkIn.rental_duration === 'transit_morning' || checkIn.rental_duration === 'transit') {
-      return 'Sesi Pagi (s/d 12:00 WIB)'
-    } else if (checkIn.rental_duration === 'daily') {
-      return `${checkIn.rental_days || 1} hari`
-    } else if (checkIn.rental_duration === 'weekly') {
-      return `${checkIn.rental_weeks || Math.ceil((checkIn.rental_days || 7) / 7)} minggu`
-    } else if (checkIn.rental_duration === 'monthly' || checkIn.rental_duration === '6months') {
-      return `${checkIn.rental_months || (checkIn.rental_duration === '6months' ? 6 : Math.ceil((checkIn.rental_days || 30) / 30))} bulan`
+    if (!checkIn) return '-'
+    let dur = checkIn.rental_duration
+    if (checkIn.selected_room_type) {
+      try {
+        const parsed = typeof checkIn.selected_room_type === 'string'
+          ? JSON.parse(checkIn.selected_room_type)
+          : checkIn.selected_room_type
+        if (parsed?.rental_duration) {
+          dur = parsed.rental_duration
+        }
+      } catch (e) {}
     }
-    return '-'
+
+    if (dur === 'transit_morning' || dur === 'transit') {
+      return 'Sesi Pagi (s/d 12:00 WIB)'
+    } else if (dur === 'weekly') {
+      return `${checkIn.rental_weeks || Math.ceil((checkIn.rental_days || 7) / 7)} minggu`
+    } else if (dur === 'monthly' || dur === '6months') {
+      return `${checkIn.rental_months || (checkIn.rental_duration === '6months' ? 6 : Math.ceil((checkIn.rental_days || 30) / 30))} bulan`
+    } else if (dur === 'daily') {
+      return `${checkIn.rental_days || 1} hari`
+    }
+    return `${checkIn.rental_days || 1} hari`
   }
 
   // Helper function to get room info with branch

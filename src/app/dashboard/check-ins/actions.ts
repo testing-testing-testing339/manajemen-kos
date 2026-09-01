@@ -257,7 +257,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
     // Create tenant record
     const { data: checkInData } = await supabase
       .from('check_in_requests')
-      .select('full_name, phone, email, id_card_number, id_card_photo_url, total_amount, deposit_amount, payment_method, payment_destination, payment_proof_url, rental_duration, rental_days, rental_weeks, rental_months')
+      .select('full_name, phone, email, id_card_number, id_card_photo_url, total_amount, deposit_amount, payment_method, payment_destination, payment_proof_url, selected_room_type, rental_duration, rental_days, rental_weeks, rental_months')
       .eq('id', check_in_id)
       .single()
 
@@ -273,10 +273,23 @@ export async function assignRoom(prevState: any, formData: FormData) {
         ? new Date(checkInRequest.created_at)
         : new Date()
       
+      // Extract effective duration from selected_room_type if available
+      let effectiveDuration = checkInData.rental_duration || 'daily'
+      if (checkInData.selected_room_type) {
+        try {
+          const parsed = typeof checkInData.selected_room_type === 'string'
+            ? JSON.parse(checkInData.selected_room_type)
+            : checkInData.selected_room_type
+          if (parsed?.rental_duration) {
+            effectiveDuration = parsed.rental_duration
+          }
+        } catch (e) {}
+      }
+
       // Calculate payment due date based on rental_duration and WIB cutoff time (12:00 WIB)
       const paymentDueDateStr = calculateCheckoutDueDate(
         checkInDate,
-        checkInData.rental_duration || 'daily',
+        effectiveDuration,
         checkInData.rental_days || 1,
         checkInData.rental_weeks || 1,
         checkInData.rental_months || 1
@@ -291,11 +304,11 @@ export async function assignRoom(prevState: any, formData: FormData) {
       const actualPaymentMethod = isCash ? 'cash' : 'transfer'
 
       // Create tenant record
-      const rentalCount = checkInData.rental_duration === 'monthly'
+      const rentalCount = effectiveDuration === 'monthly'
         ? (checkInData.rental_months || (checkInData.rental_days ? Math.round(checkInData.rental_days / 30) : 1))
-        : (checkInData.rental_duration === 'weekly'
+        : (effectiveDuration === 'weekly'
           ? (checkInData.rental_weeks || (checkInData.rental_days ? Math.round(checkInData.rental_days / 7) : 1))
-          : (checkInData.rental_days || 1))
+          : (effectiveDuration === 'transit_morning' ? 1 : (checkInData.rental_days || 1)))
 
       const tenantInsertPayload: any = {
         room_id: room_id,
@@ -306,7 +319,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
         deposit_amount: checkInData.deposit_amount !== undefined && checkInData.deposit_amount !== null
           ? parseFloat(checkInData.deposit_amount)
           : 0,
-        rental_duration: checkInData.rental_duration || 'daily',
+        rental_duration: effectiveDuration,
         rental_count: rentalCount,
         electricity_meter_start: 0
       }
