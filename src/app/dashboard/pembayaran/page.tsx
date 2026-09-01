@@ -209,7 +209,7 @@ export default async function PembayaranPage() {
       
       let checkInRequestsQuery = supabase
         .from('check_in_requests')
-        .select('id, full_name, phone, payment_proof_url, id_card_photo_url, selfie_photo_url, total_amount, deposit_amount, payment_method, payment_destination, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, rooms(room_number, floors(branches(name)))')
+        .select('id, full_name, phone, payment_proof_url, id_card_photo_url, selfie_photo_url, total_amount, deposit_amount, payment_method, payment_destination, assigned_room_id, assigned_at, created_at, id_card_number, rental_duration, rental_days, selected_room_type, rooms(room_number, floors(branches(name)))')
         .order('created_at', { ascending: false })
       
       if (userRole === 'staff' && userBranchId) {

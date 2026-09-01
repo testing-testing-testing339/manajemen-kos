@@ -1223,13 +1223,19 @@ export default function PaymentList({
                   ) : (
                     <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
                       <span className="text-slate-500">
-                        {selectedPayment.check_in_request?.rental_duration === 'transit_morning'
-                          ? 'Sewa Sesi Pagi (s/d 12:00):'
-                          : selectedPayment.check_in_request?.rental_duration === 'weekly'
-                          ? 'Sewa Mingguan:'
-                          : selectedPayment.check_in_request?.rental_duration === 'monthly'
-                          ? 'Sewa Bulanan:'
-                          : 'Sewa Kamar:'}
+                        {(() => {
+                          let dType = checkInRequest?.rental_duration || tenant?.rental_duration
+                          if (checkInRequest?.selected_room_type) {
+                            try {
+                              const p = typeof checkInRequest.selected_room_type === 'string' ? JSON.parse(checkInRequest.selected_room_type) : checkInRequest.selected_room_type
+                              if (p?.rental_duration) dType = p.rental_duration
+                            } catch (e) {}
+                          }
+                          if (dType === 'transit_morning' || dType === 'transit') return 'Sewa Sesi Pagi (s/d 12:00):'
+                          if (dType === 'weekly') return 'Sewa Mingguan:'
+                          if (dType === 'monthly') return 'Sewa Bulanan:'
+                          return 'Sewa Kamar:'
+                        })()}
                       </span>
                       <span className="font-mono font-extrabold text-indigo-600 text-sm">
                         {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentAmount)}

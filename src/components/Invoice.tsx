@@ -28,16 +28,39 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
   }
   
   // Get rental duration
+  let durationType = checkInRequest?.rental_duration || tenant?.rental_duration || 'daily'
+  
+  if (checkInRequest?.selected_room_type) {
+    try {
+      const parsed = typeof checkInRequest.selected_room_type === 'string'
+        ? JSON.parse(checkInRequest.selected_room_type)
+        : checkInRequest.selected_room_type
+      if (parsed?.rental_duration) {
+        durationType = parsed.rental_duration
+      }
+    } catch (e) {}
+  }
+
   let rentalDurationStr = '-'
-  if (checkInRequest?.rental_duration === 'daily') {
-    rentalDurationStr = `${checkInRequest.rental_days || 1} Hari (Harian)`
-  } else if (checkInRequest?.rental_duration === 'weekly') {
-    rentalDurationStr = `${checkInRequest.rental_weeks || 1} Minggu (Mingguan)`
-  } else if (checkInRequest?.rental_duration === 'monthly') {
-    rentalDurationStr = `${checkInRequest.rental_months || 1} Bulan (Bulanan)`
+  if (durationType === 'transit_morning' || durationType === 'transit') {
+    rentalDurationStr = 'Sesi Pagi (s/d 12:00 WIB)'
+  } else if (durationType === 'weekly') {
+    rentalDurationStr = `${checkInRequest?.rental_weeks || tenant?.rental_count || 1} Minggu (Mingguan)`
+  } else if (durationType === 'monthly') {
+    rentalDurationStr = `${checkInRequest?.rental_months || tenant?.rental_count || 1} Bulan (Bulanan)`
+  } else if (durationType === 'daily') {
+    rentalDurationStr = `${checkInRequest?.rental_days || tenant?.rental_count || 1} Hari (Harian)`
   } else if (tenant?.rental_duration) {
     rentalDurationStr = tenant.rental_duration
   }
+
+  const durationSubText = durationType === 'transit_morning' || durationType === 'transit'
+    ? 'Tarif Sesi Pagi • Wajib Checkout Jam 12:00 Siang'
+    : durationType === 'weekly'
+    ? 'Tarif Mingguan Rp 500.000 / minggu'
+    : durationType === 'monthly'
+    ? 'Tarif Bulanan'
+    : 'Tarif Flat Rp 100.000 / malam'
   
   // Get NIK
   const nik = checkInRequest?.id_card_number || tenant?.id_card_number || '-'
@@ -479,7 +502,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
                 <tr>
                   <td>
                     <div class="item-title">Sewa Kamar ${roomNumberStr !== '-' ? `Kamar ${roomNumberStr}` : ''} (${roomTypeStr})</div>
-                    <div class="item-sub">Graha Aisyah Menteng • Tarif Flat Rp 100.000 / malam</div>
+                    <div class="item-sub">Graha Aisyah Menteng • ${durationSubText}</div>
                     ${payment.notes ? `<div class="item-sub" style="color: #4f46e5; margin-top: 4px;">Catatan: ${payment.notes}</div>` : ''}
                   </td>
                   <td style="text-align: center; font-weight: 700;">${rentalDurationStr}</td>
@@ -724,7 +747,7 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
                     Sewa Kamar {roomNumberStr !== '-' ? `Kamar ${roomNumberStr}` : ''} ({roomTypeStr})
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Graha Aisyah Menteng • Tarif Flat Rp 100.000 / malam
+                    Graha Aisyah Menteng • {durationSubText}
                   </p>
                   {payment.notes && (
                     <p className="text-[11px] text-indigo-600 font-medium mt-1">
