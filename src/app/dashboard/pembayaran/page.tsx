@@ -293,36 +293,23 @@ export default async function PembayaranPage() {
 
         let matchedCheckIn: any = null
 
-        // Try match check-in request if available
+        // Strictly match check-in request if available by verified room_id or exact full_name
         if (checkInRequests && checkInRequests.length > 0) {
-          // 1. Try match by tenant's room_id or tenant's full_name
+          // 1. Try match by tenant's room_id or tenant's exact full_name
           if (tenant) {
             matchedCheckIn = checkInRequests.find((cir: any) => 
               (!usedCheckInIds.has(cir.id)) && (
-                (cir.assigned_room_id && tenant.rooms && cir.assigned_room_id === tenant.room_id) ||
+                (cir.assigned_room_id && tenant.room_id && cir.assigned_room_id === tenant.room_id) ||
                 (cir.full_name && tenant.full_name && cir.full_name.toLowerCase().trim() === tenant.full_name.toLowerCase().trim())
               )
             )
           }
 
-          // 2. Try match by extracted name
+          // 2. Try match by extracted name from notes (for check-out settlements)
           if (!matchedCheckIn && extractedName) {
             matchedCheckIn = checkInRequests.find((cir: any) => 
               cir.full_name && cir.full_name.toLowerCase().trim() === extractedName?.toLowerCase().trim()
             )
-          }
-
-          // 3. For initial check-in payments without tenant, try match by amount
-          if (!matchedCheckIn && !isCheckoutPenaltyOrClaim) {
-            const paymentAmount = parseFloat(payment.amount)
-            matchedCheckIn = checkInRequests.find((cir: any) => 
-              !usedCheckInIds.has(cir.id) && Math.abs(parseFloat(cir.total_amount) - paymentAmount) < 0.01
-            )
-          }
-
-          // 4. Fallback for unlinked payments
-          if (!matchedCheckIn && !isCheckoutPenaltyOrClaim) {
-            matchedCheckIn = checkInRequests.find((cir: any) => !usedCheckInIds.has(cir.id))
           }
         }
 
@@ -330,16 +317,16 @@ export default async function PembayaranPage() {
           usedCheckInIds.add(matchedCheckIn.id)
         }
 
-        // Construct synthetic tenant data if missing
-        if (!tenant && (extractedName || matchedCheckIn)) {
+        // Construct synthetic tenant data only if missing and notes has extractedName
+        if (!tenant && extractedName) {
           tenant = {
             id: payment.tenant_id,
-            full_name: extractedName || matchedCheckIn?.full_name || 'Tamu Checkout',
+            full_name: extractedName,
             rooms: {
-              room_number: extractedRoom || matchedCheckIn?.rooms?.room_number || '-',
+              room_number: extractedRoom || '-',
               floors: {
                 branches: {
-                  name: matchedCheckIn?.rooms?.floors?.branches?.name || 'Graha Aisyah Menteng'
+                  name: 'Graha Aisyah Menteng'
                 }
               }
             }
