@@ -1405,29 +1405,6 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     </div>
                   </div>
 
-                  {/* Quick Select Buttons */}
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase tracking-wider">
-                      Pilihan Cepat:
-                    </span>
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                      {[1, 2, 3, 4, 5, 6, 7, 10, 14].map(d => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setDailyDays(d)}
-                          className={`flex-1 min-w-[42px] py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            dailyDays === d
-                              ? 'bg-indigo-600 text-white shadow-md'
-                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                          }`}
-                        >
-                          {d} Harian
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Time-based Rate Banner */}
                   <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${
                     dailyRateInfo.isMorningTransit 
@@ -1498,29 +1475,6 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       >
                         +
                       </button>
-                    </div>
-                  </div>
-
-                  {/* Quick Select Chips */}
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase tracking-wider">
-                      Pilihan Cepat:
-                    </span>
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                      {[1, 2, 3, 4, 6, 8].map(w => (
-                        <button
-                          key={w}
-                          type="button"
-                          onClick={() => setWeeklyWeeks(w)}
-                          className={`flex-1 min-w-[48px] py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            weeklyWeeks === w
-                              ? 'bg-indigo-600 text-white shadow-md'
-                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                          }`}
-                        >
-                          {w} Mgg
-                        </button>
-                      ))}
                     </div>
                   </div>
                 </div>
@@ -1617,29 +1571,6 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                         >
                           +
                         </button>
-                      </div>
-                    </div>
-
-                    {/* Quick Select Chips */}
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 block mb-1.5 uppercase tracking-wider">
-                        Pilihan Cepat:
-                      </span>
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                        {[1, 2, 3, 4, 5, 6, 9, 12].map(m => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => setMonthlyMonths(m)}
-                            className={`flex-1 min-w-[48px] py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                              monthlyMonths === m
-                                ? 'bg-indigo-600 text-white shadow-md'
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                            }`}
-                          >
-                            {m} Bln
-                          </button>
-                        ))}
                       </div>
                     </div>
                   </div>
