@@ -199,6 +199,24 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
     }
   }
 
+  // Titles & Labels for Invoice vs Penalty Receipt vs Claim
+  let invoiceTitleDisplay = 'INVOICE PEMBAYARAN'
+  let invoiceStatusDisplay = 'LUNAS / TERVERIFIKASI'
+  let invoiceItemTitle = `Sewa Kamar ${roomNumberStr !== '-' ? `Kamar ${roomNumberStr}` : ''} (${roomTypeStr})`
+  let invoiceItemSub = `Graha Aisyah Menteng • ${durationSubText}`
+
+  if (isCheckoutSettlement) {
+    invoiceTitleDisplay = 'KUITANSI PELUNASAN DENDA CHECK-OUT'
+    invoiceStatusDisplay = 'DENDA CHECK-OUT / LUNAS'
+    invoiceItemTitle = `Pelunasan Denda Keterlambatan Check-Out (Overstay) Kamar ${roomNumberStr}`
+    invoiceItemSub = `Graha Aisyah Menteng • Pelunasan Denda / Biaya Tambahan Check-Out`
+  } else if (isDepositClaim) {
+    invoiceTitleDisplay = 'KUITANSI KLAIM DEPOSIT GANTI RUGI'
+    invoiceStatusDisplay = 'KLAIM DEPOSIT / LUNAS'
+    invoiceItemTitle = `Klaim / Pemotongan Uang Deposit Kamar ${roomNumberStr}`
+    invoiceItemSub = `Graha Aisyah Menteng • Pemotongan Uang Jaminan untuk Denda / Kerusakan`
+  }
+
   // Isolated high-quality print & PDF handler (No modal clipping, no white space gap)
   const handlePrint = () => {
     const htmlContent = `
@@ -207,11 +225,8 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <meta name="color-scheme" content="light">
-          <title>Invoice - ${invoiceNumber}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
-            
             * {
               margin: 0;
               padding: 0;
@@ -220,113 +235,101 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
               print-color-adjust: exact !important;
             }
 
-            @page {
-              size: A4 portrait;
-              margin: 8mm 8mm 8mm 8mm;
+            body {
+              font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background-color: #ffffff;
+              color: #0f172a;
+              line-height: 1.35;
+              padding: 0;
+              margin: 0;
+              font-size: 11px;
             }
 
-            html, body {
-              background-color: #ffffff !important;
-              color: #0f172a !important;
-              font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              font-size: 11px;
-              line-height: 1.35;
-              margin: 0;
-              padding: 0;
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm;
             }
 
             .invoice-wrapper {
-              max-width: 100%;
+              width: 100%;
+              max-width: 780px;
               margin: 0 auto;
               background: #ffffff;
-              padding: 4px;
+              border: 1.5px solid #cbd5e1;
+              border-radius: 12px;
+              padding: 16px 20px;
             }
 
             .header-table {
               width: 100%;
-              border-collapse: collapse;
               border-bottom: 2px solid #0f172a;
               padding-bottom: 10px;
               margin-bottom: 12px;
             }
 
-            .header-table td {
-              vertical-align: top;
-            }
-
             .brand-title {
-              font-size: 20px;
+              font-size: 16px;
               font-weight: 900;
-              color: #0f172a;
               letter-spacing: -0.5px;
-              text-transform: uppercase;
+              color: ${isCheckoutSettlement ? '#e11d48' : '#0f172a'};
             }
 
             .brand-subtitle {
-              font-size: 10.5px;
-              color: #64748b;
-              font-weight: 600;
-              margin-top: 2px;
-              max-width: 480px;
+              font-size: 9.5px;
+              color: #475569;
+              margin-top: 1px;
+              max-width: 440px;
             }
 
             .status-badge {
               display: inline-block;
-              background: #ecfdf5 !important;
-              color: #047857 !important;
-              border: 1.5px solid #6ee7b7;
-              font-size: 9.5px;
+              background: ${isCheckoutSettlement ? '#ffe4e6' : '#ecfdf5'};
+              color: ${isCheckoutSettlement ? '#9f1239' : '#065f46'};
+              border: 1px solid ${isCheckoutSettlement ? '#f43f5e' : '#10b981'};
+              font-size: 9px;
               font-weight: 800;
-              padding: 4px 10px;
-              border-radius: 9999px;
+              padding: 3px 8px;
+              border-radius: 6px;
               text-transform: uppercase;
-              letter-spacing: 0.5px;
-              text-align: right;
             }
 
             .invoice-id {
               font-family: 'JetBrains Mono', monospace;
               font-size: 11px;
-              font-weight: 700;
-              color: #475569;
-              margin-top: 4px;
-              text-align: right;
+              font-weight: 800;
+              color: #1e293b;
+              margin-top: 3px;
             }
 
             .info-grid {
               width: 100%;
-              border-collapse: separate;
-              border-spacing: 10px 0;
-              margin-left: -10px;
-              margin-right: -10px;
               margin-bottom: 12px;
             }
 
             .info-card {
-              width: 50%;
-              background: #f8fafc !important;
+              background: #f8fafc;
               border: 1px solid #e2e8f0;
-              border-radius: 10px;
-              padding: 10px 12px;
+              border-radius: 8px;
+              padding: 8px 12px;
               vertical-align: top;
+              width: 50%;
             }
 
             .card-heading {
               font-size: 9.5px;
               font-weight: 800;
-              color: #4f46e5;
               text-transform: uppercase;
-              letter-spacing: 0.5px;
-              margin-bottom: 6px;
+              color: #4338ca;
               border-bottom: 1px solid #e2e8f0;
-              padding-bottom: 3px;
+              padding-bottom: 4px;
+              margin-bottom: 6px;
             }
 
             .data-row {
               display: flex;
               justify-content: space-between;
-              margin-bottom: 4px;
-              font-size: 10.5px;
+              font-size: 10px;
+              margin-bottom: 3px;
             }
 
             .data-label {
@@ -334,18 +337,15 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
             }
 
             .data-val {
-              color: #0f172a;
               font-weight: 700;
+              color: #0f172a;
               text-align: right;
             }
 
             .items-table {
               width: 100%;
               border-collapse: collapse;
-              margin-bottom: 12px;
-              border-radius: 8px;
-              overflow: hidden;
-              border: 1px solid #cbd5e1;
+              margin-bottom: 10px;
             }
 
             .items-table th {
@@ -354,9 +354,7 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
               font-size: 9.5px;
               font-weight: 800;
               text-transform: uppercase;
-              letter-spacing: 0.5px;
-              padding: 7px 10px;
-              text-align: left;
+              padding: 6px 10px;
             }
 
             .items-table td {
@@ -367,206 +365,75 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
 
             .item-title {
               font-weight: 800;
-              font-size: 11.5px;
               color: #0f172a;
+              font-size: 11.5px;
             }
 
             .item-sub {
               font-size: 9.5px;
               color: #64748b;
-              margin-top: 1.5px;
             }
 
             .summary-box {
               background: #f8fafc !important;
               border: 1px solid #cbd5e1;
-              border-radius: 10px;
-              padding: 10px 14px;
-              margin-bottom: 10px;
-            }
-
-            .summary-row {
-              display: flex;
-              justify-content: space-between;
-              font-size: 10.5px;
-              color: #475569;
-              margin-bottom: 3px;
-            }
-
-            .summary-total {
-              border-top: 1.5px dashed #94a3b8;
-              padding-top: 6px;
-              margin-top: 4px;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-            }
-
-            .total-title {
-              font-size: 11px;
-              font-weight: 800;
-              text-transform: uppercase;
-              color: #0f172a;
-            }
-
-            .total-amount {
-              font-family: 'JetBrains Mono', monospace;
-              font-size: 15px;
-              font-weight: 900;
-              color: #4f46e5;
-            }
-
-            .terbilang-card {
-              background: #ffffff !important;
-              border-left: 4px solid #4f46e5;
-              border: 1px solid #e2e8f0;
-              border-left-width: 4px;
-              border-radius: 6px;
-              padding: 6px 10px;
-              margin-bottom: 12px;
-            }
-
-            .terbilang-title {
-              font-size: 8.5px;
-              font-weight: 800;
-              color: #64748b;
-              text-transform: uppercase;
-            }
-
-            .terbilang-text {
-              font-size: 10.5px;
-              font-weight: 700;
-              color: #334155;
-              font-style: italic;
-              text-transform: capitalize;
-              margin-top: 1px;
-            }
-
-            .footer-table {
-              width: 100%;
-              border-top: 1px solid #e2e8f0;
-              padding-top: 8px;
-              font-size: 9.5px;
-              color: #64748b;
-            }
-
-            .seal-badge {
-              color: #047857;
-              font-weight: 800;
-              margin-bottom: 2px;
-            }
-
-            @media print {
-              html, body {
-                padding: 0 !important;
-                margin: 0 !important;
-              }
-              .invoice-wrapper {
-                padding: 0 !important;
-              }
+              border-radius: 8px;
+              padding: 10px;
             }
           </style>
         </head>
         <body>
           <div class="invoice-wrapper">
-            <!-- Top Header -->
             <table class="header-table">
               <tr>
                 <td>
-                  <div class="brand-title">INVOICE PEMBAYARAN</div>
+                  <div class="brand-title">${invoiceTitleDisplay}</div>
                   <div class="brand-subtitle">Graha Aisyah Menteng Management • Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226</div>
                 </td>
                 <td style="text-align: right;">
-                  <div class="status-badge">LUNAS / TERVERIFIKASI</div>
+                  <div class="status-badge">${invoiceStatusDisplay}</div>
                   <div class="invoice-id">${invoiceNumber}</div>
                 </td>
               </tr>
             </table>
 
-            <!-- 2-Column Info Grid -->
-            <table class="info-grid">
+            <table class="info-grid" cellpadding="6">
               <tr>
                 <td class="info-card">
-                  <div class="card-heading">Informasi Transaksi & Jaminan</div>
-                  <div class="data-row">
-                    <span class="data-label">No. Invoice:</span>
-                    <span class="data-val" style="font-family: monospace;">${invoiceNumber}</span>
-                  </div>
-                  <div class="data-row">
-                    <span class="data-label">Tanggal Terbit:</span>
-                    <span class="data-val">${createdAtStr}</span>
-                  </div>
-                  <div class="data-row">
-                    <span class="data-label">Metode Bayar:</span>
-                    <span class="data-val" style="color: #4f46e5;">${paymentMethodDisplay}</span>
-                  </div>
-                  <div class="data-row">
-                    <span class="data-label">Tanggal Transaksi:</span>
-                    <span class="data-val">${paymentDateStr}</span>
-                  </div>
-                  <div class="data-row">
-                    <span class="data-label">Jenis Jaminan / Deposit:</span>
-                    <span class="data-val" style="color: #b45309; font-weight: 800;">${guaranteeTypeDisplay}</span>
-                  </div>
+                  <div class="card-heading">Informasi Transaksi</div>
+                  <div class="data-row"><span class="data-label">Metode:</span><span class="data-val">${paymentMethodDisplay}</span></div>
+                  <div class="data-row"><span class="data-label">Tanggal:</span><span class="data-val">${paymentDateStr}</span></div>
                 </td>
-
                 <td class="info-card">
-                  <div class="card-heading" style="color: #7c3aed;">Diterbitkan Kepada & Jadwal Sewa</div>
-                  <div class="data-row">
-                    <span class="data-label">Nama Tamu:</span>
-                    <span class="data-val">${tenantName}</span>
-                  </div>
-                  <div class="data-row">
-                    <span class="data-label">Kamar:</span>
-                    <span class="data-val" style="color: #4f46e5;">Kamar ${roomNumberStr} (${roomTypeStr})</span>
-                  </div>
-                  <div class="data-row">
-                    <span class="data-label">Durasi Sewa:</span>
-                    <span class="data-val">${rentalDurationStr}</span>
-                  </div>
-                  <div class="data-row">
-                    <span class="data-label">Jadwal Check-In:</span>
-                    <span class="data-val" style="color: #047857;">${checkInScheduleStr}</span>
-                  </div>
-                  <div class="data-row">
-                    <span class="data-label">Jadwal Check-Out:</span>
-                    <span class="data-val" style="color: #b91c1c;">${checkOutScheduleStr}</span>
-                  </div>
-                  ${nik !== '-' ? `
-                  <div class="data-row">
-                    <span class="data-label">NIK:</span>
-                    <span class="data-val" style="font-family: monospace;">${nik}</span>
-                  </div>` : ''}
+                  <div class="card-heading">Detail Tamu</div>
+                  <div class="data-row"><span class="data-label">Nama:</span><span class="data-val">${tenantName}</span></div>
+                  <div class="data-row"><span class="data-label">Kamar:</span><span class="data-val">${roomNumberStr}</span></div>
                 </td>
               </tr>
             </table>
 
-            <!-- Items Table -->
             <table class="items-table">
               <thead>
                 <tr>
-                  <th>Deskripsi Pembayaran</th>
-                  <th style="text-align: center; width: 140px;">Durasi</th>
+                  <th style="text-align: left;">Deskripsi Pembayaran</th>
+                  <th style="text-align: center; width: 140px;">Kategori</th>
                   <th style="text-align: right; width: 160px;">Jumlah (IDR)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td>
-                    <div class="item-title">Sewa Kamar ${roomNumberStr !== '-' ? `Kamar ${roomNumberStr}` : ''} (${roomTypeStr})</div>
-                    <div class="item-sub">Graha Aisyah Menteng • ${durationSubText}</div>
-                    ${payment.notes ? `<div class="item-sub" style="color: #4f46e5; margin-top: 3px;">Catatan: ${payment.notes}</div>` : ''}
+                    <div class="item-title">${invoiceItemTitle}</div>
+                    <div class="item-sub">${invoiceItemSub}</div>
+                    ${payment.notes ? `<div class="item-sub" style="color: #e11d48; font-weight: 700; margin-top: 3px;">Catatan: ${payment.notes}</div>` : ''}
                   </td>
-                  <td style="text-align: center; font-weight: 700;">${rentalDurationStr}</td>
+                  <td style="text-align: center; font-weight: 700;">${isCheckoutSettlement ? 'Denda Check-Out' : isDepositClaim ? 'Klaim Deposit' : rentalDurationStr}</td>
                   <td style="text-align: right; font-weight: 800; font-family: monospace; font-size: 13px;">${formattedAmount}</td>
                 </tr>
               </tbody>
             </table>
 
-            <!-- Total Calculation -->
             <div class="summary-box">
-              <div class="summary-row">
-                <span>Subtotal Tagihan:</span>
                 <span style="font-family: monospace; font-weight: 700;">${formattedAmount}</span>
               </div>
               <div class="summary-row">
@@ -787,12 +654,16 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 sm:pb-6 border-b-2 border-slate-900 gap-3 sm:gap-4">
           <div className="flex items-start sm:items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-md flex-shrink-0">
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl text-white flex items-center justify-center shadow-md flex-shrink-0 ${
+              isCheckoutSettlement ? 'bg-rose-600' : isDepositClaim ? 'bg-purple-600' : 'bg-gradient-to-br from-indigo-600 to-purple-600'
+            }`}>
               <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 uppercase leading-snug">
-                INVOICE PEMBAYARAN
+              <h1 className={`text-lg sm:text-2xl font-black tracking-tight uppercase leading-snug ${
+                isCheckoutSettlement ? 'text-rose-600' : 'text-slate-900'
+              }`}>
+                {invoiceTitleDisplay}
               </h1>
               <p className="text-[11px] sm:text-xs font-semibold text-slate-500 leading-tight mt-0.5">
                 Graha Aisyah Menteng Management • Jl. Menteng VII No.77, Medan Tenggara, Kec. Medan Denai, Kota Medan, Sumatera Utara 20226
@@ -801,9 +672,15 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
           </div>
 
           <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-700 text-[10px] sm:text-xs font-black tracking-wider uppercase shadow-xs">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>LUNAS / TERVERIFIKASI</span>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs font-black tracking-wider uppercase shadow-xs ${
+              isCheckoutSettlement
+                ? 'bg-rose-50 border border-rose-300 text-rose-700'
+                : isDepositClaim
+                ? 'bg-purple-50 border border-purple-300 text-purple-700'
+                : 'bg-emerald-50 border border-emerald-300 text-emerald-700'
+            }`}>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{invoiceStatusDisplay}</span>
             </div>
             <p className="text-[11px] font-mono text-slate-500 font-bold">
               {invoiceNumber}
@@ -874,7 +751,7 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
                 <span className="text-slate-500 whitespace-nowrap">Check-Out:</span>
                 <span className="font-bold text-rose-700 text-right text-[11px]">{checkOutScheduleStr}</span>
               </div>
-              {nik !== '-' && (
+              ${nik !== '-' && (
                 <div className="flex justify-between items-center gap-2 pt-0.5 border-t border-slate-200/60">
                   <span className="text-slate-500 whitespace-nowrap">NIK:</span>
                   <span className="font-mono text-slate-700 text-right">{nik}</span>
@@ -890,7 +767,7 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
             <thead>
               <tr className="bg-slate-900 text-white text-[11px] font-extrabold uppercase tracking-wider">
                 <th className="py-3 px-4 whitespace-nowrap">Deskripsi Pembayaran</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">Durasi</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Kategori</th>
                 <th className="py-3 px-4 text-right whitespace-nowrap">Jumlah (IDR)</th>
               </tr>
             </thead>
@@ -898,19 +775,19 @@ _Graha Aisyah Menteng — Hunian Nyaman, Strategis, & Terpercaya_`
               <tr className="bg-white">
                 <td className="py-3.5 px-4 min-w-[240px]">
                   <p className="font-extrabold text-slate-900 text-sm">
-                    Sewa Kamar {roomNumberStr !== '-' ? `Kamar ${roomNumberStr}` : ''} ({roomTypeStr})
+                    {invoiceItemTitle}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Graha Aisyah Menteng • {durationSubText}
+                    {invoiceItemSub}
                   </p>
                   {payment.notes && (
-                    <p className="text-[11px] text-indigo-600 font-medium mt-1">
+                    <p className={`text-[11px] font-semibold mt-1 ${isCheckoutSettlement ? 'text-rose-600' : 'text-indigo-600'}`}>
                       Catatan: {payment.notes}
                     </p>
                   )}
                 </td>
                 <td className="py-3.5 px-4 text-center font-semibold text-slate-700 whitespace-nowrap">
-                  {rentalDurationStr}
+                  {isCheckoutSettlement ? 'Denda Check-Out' : isDepositClaim ? 'Klaim Deposit' : rentalDurationStr}
                 </td>
                 <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 text-sm whitespace-nowrap">
                   {formattedAmount}
