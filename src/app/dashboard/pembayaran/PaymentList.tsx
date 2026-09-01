@@ -170,10 +170,7 @@ export default function PaymentList({
         // Claimed deposit / Penalty is revenue to kos!
         rent = amount
       } else {
-        let deposit = parseFloat(p.check_in_request?.deposit_amount || p.deposit_amount || 0)
-        if (deposit === 0 && amount >= 200000) {
-          deposit = 100000
-        }
+        const deposit = parseFloat(p.check_in_request?.deposit_amount || p.deposit_amount || 0)
         rent = (deposit > 0 && amount > deposit) ? (amount - deposit) : amount
       }
       
@@ -965,10 +962,7 @@ export default function PaymentList({
                               )
                             }
 
-                            let depositAmount = parseFloat(payment.check_in_request?.deposit_amount || payment.deposit_amount || 0)
-                            if (depositAmount === 0 && totalAmount >= 200000) {
-                              depositAmount = 100000
-                            }
+                            const depositAmount = parseFloat(payment.check_in_request?.deposit_amount || payment.deposit_amount || 0)
                             const rentAmount = (depositAmount > 0 && totalAmount > depositAmount) ? (totalAmount - depositAmount) : totalAmount
                             
                             return (
@@ -1170,10 +1164,7 @@ export default function PaymentList({
           const isCheckoutSettlement = selectedPayment.notes?.includes('[Pelunasan Check-Out]')
 
           const totalAmount = parseFloat(selectedPayment.amount) || 0
-          let depositAmount = parseFloat(checkInRequest?.deposit_amount || selectedPayment.deposit_amount || 0)
-          if (depositAmount === 0 && totalAmount >= 200000 && !isDepositClaim && !isCheckoutSettlement) {
-            depositAmount = 100000
-          }
+          const depositAmount = parseFloat(checkInRequest?.deposit_amount || selectedPayment.deposit_amount || 0)
           const rentAmount = (depositAmount > 0 && totalAmount > depositAmount && !isDepositClaim && !isCheckoutSettlement) ? (totalAmount - depositAmount) : totalAmount
 
           return (
