@@ -1222,7 +1222,15 @@ export default function PaymentList({
                     </div>
                   ) : (
                     <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
-                      <span className="text-slate-500">Sewa Kamar:</span>
+                      <span className="text-slate-500">
+                        {selectedPayment.check_in_request?.rental_duration === 'transit_morning'
+                          ? 'Sewa Sesi Pagi (s/d 12:00):'
+                          : selectedPayment.check_in_request?.rental_duration === 'weekly'
+                          ? 'Sewa Mingguan:'
+                          : selectedPayment.check_in_request?.rental_duration === 'monthly'
+                          ? 'Sewa Bulanan:'
+                          : 'Sewa Kamar:'}
+                      </span>
                       <span className="font-mono font-extrabold text-indigo-600 text-sm">
                         {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentAmount)}
                       </span>

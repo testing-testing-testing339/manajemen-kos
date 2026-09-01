@@ -58,7 +58,7 @@ interface CheckInFormProps {
 }
 
 type RoomCategory = 'vip' | 'non_vip'
-type DurationType = 'daily' | 'weekly' | 'monthly'
+type DurationType = 'transit_morning' | 'daily' | 'weekly' | 'monthly'
 type MonthlyPackage = 'ac' | 'non_ac'
 type PaymentMethod = 'qris' | 'cash'
 type GuaranteeType = 'deposit' | 'ktp'
@@ -169,6 +169,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   }, [])
 
   // Pricing Constants (Ketentuan Graha Aisyah Menteng)
+  const PRICE_TRANSIT_MORNING = 100000 // Rp 100.000 (Sesi Pagi s/d 12:00 Siang)
   const BASE_PRICE_PER_DAY = dailyRateInfo.pricePerDay
   const BASE_PRICE_PER_WEEK = 500000 // Rp 500.000 / minggu
   const BASE_PRICE_PER_MONTH_AC = 1350000 // Rp 1.350.000 / bulan (Kamar AC / Berfasilitas)
@@ -177,6 +178,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
   // Calculated Totals
   const rentSubtotal = 
+    durationType === 'transit_morning' ? PRICE_TRANSIT_MORNING :
     durationType === 'daily' ? BASE_PRICE_PER_DAY * dailyDays :
     durationType === 'weekly' ? BASE_PRICE_PER_WEEK * weeklyWeeks :
     (monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC : BASE_PRICE_PER_MONTH_AC) * monthlyMonths
@@ -420,7 +422,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       submitData.append('id_card_number', sanitizeString(formData.id_card_number || '-'))
       submitData.append('room_category', roomCategory)
       submitData.append('rental_duration', durationType)
-      submitData.append('rental_days', durationType === 'daily' ? dailyDays.toString() : (durationType === 'weekly' ? (weeklyWeeks * 7).toString() : (monthlyMonths * 30).toString()))
+      submitData.append('rental_days', durationType === 'transit_morning' ? '1' : (durationType === 'daily' ? dailyDays.toString() : (durationType === 'weekly' ? (weeklyWeeks * 7).toString() : (monthlyMonths * 30).toString())))
       submitData.append('rental_weeks', weeklyWeeks.toString())
       submitData.append('rental_months', monthlyMonths.toString())
       submitData.append('deposit_amount', DEPOSIT_AMOUNT.toString())
@@ -434,14 +436,15 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       const roomTypeInfo = {
         category: roomCategory,
         name: isVip ? 'Kamar VIP Belakang Warkop' : 'Kamar Standard',
+        rental_duration: durationType,
         monthly_package: durationType === 'monthly' ? monthlyPackage : undefined,
-        price_per_day: BASE_PRICE_PER_DAY,
+        price_per_day: durationType === 'transit_morning' ? PRICE_TRANSIT_MORNING : BASE_PRICE_PER_DAY,
         price_per_week: BASE_PRICE_PER_WEEK,
         price_per_month: monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC : BASE_PRICE_PER_MONTH_AC,
         facilities: isVip
           ? ['Parkiran Lebih Luas', 'Kloset Duduk', 'Kamar Mandi Dalam', 'Single Bed', 'AC', 'Lemari Pakaian', 'Meja']
           : ['Kamar Mandi Dalam', 'Single Bed', monthlyPackage === 'non_ac' ? 'Non-AC' : 'AC', 'Lemari Pakaian', 'Meja Belajar'],
-        notes: durationType !== 'daily' ? 'No include token PLN, handuk, sprei, dan selimut' : undefined
+        notes: durationType === 'transit_morning' ? 'Sewa Sesi Pagi (Wajib checkout jam 12:00 siang hari ini)' : (durationType !== 'daily' ? 'No include token PLN, handuk, sprei, dan selimut' : undefined)
       }
       submitData.append('selected_room_type', JSON.stringify(roomTypeInfo))
 
@@ -508,7 +511,13 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div>
               <p className="text-slate-400">Durasi Sewa:</p>
               <p className="font-semibold text-slate-200">
-                {durationType === 'daily' ? `${dailyDays} Hari (Harian)` : durationType === 'weekly' ? `${weeklyWeeks} Minggu (Mingguan)` : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC' : 'AC'})`}
+                {durationType === 'transit_morning' 
+                  ? 'Sesi Pagi (Wajib Checkout Jam 12:00 Siang)' 
+                  : durationType === 'daily' 
+                  ? `${dailyDays} Hari (Harian)` 
+                  : durationType === 'weekly' 
+                  ? `${weeklyWeeks} Minggu (Mingguan)` 
+                  : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC' : 'AC'})`}
               </p>
             </div>
             <div>
@@ -1318,44 +1327,86 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
               2. Pilih Durasi Sewa *
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
-                onClick={() => setDurationType('daily')}
-                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                  durationType === 'daily'
-                    ? 'bg-indigo-600 text-white shadow-md'
+                onClick={() => setDurationType('transit_morning')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                  durationType === 'transit_morning'
+                    ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-400/30'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
-                Harian ({dailyRateInfo.pricePerDay === 150000 ? 'Rp 150rb' : 'Rp 100rb'})
+                <span>Sesi Pagi</span>
+                <span className="text-[10px] font-normal opacity-90">Rp 100rb (s/d 12:00)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDurationType('daily')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                  durationType === 'daily'
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/30'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
+                }`}
+              >
+                <span>Harian</span>
+                <span className="text-[10px] font-normal opacity-90">Menginap</span>
               </button>
               <button
                 type="button"
                 onClick={() => setDurationType('weekly')}
-                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                   durationType === 'weekly'
-                    ? 'bg-indigo-600 text-white shadow-md'
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/30'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
-                Mingguan (Rp 500rb)
+                <span>Mingguan</span>
+                <span className="text-[10px] font-normal opacity-90">Rp 500rb / mgg</span>
               </button>
               <button
                 type="button"
                 onClick={() => setDurationType('monthly')}
-                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                   durationType === 'monthly'
-                    ? 'bg-indigo-600 text-white shadow-md'
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/30'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
-                Bulanan (Mulai 650rb)
+                <span>Bulanan</span>
+                <span className="text-[10px] font-normal opacity-90">Mulai 650rb</span>
               </button>
             </div>
 
             {/* Sub-inputs for duration */}
             <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-4">
+              {durationType === 'transit_morning' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-amber-400" />
+                        <span>Paket Sesi Pagi / Transit (Beberapa Jam)</span>
+                      </p>
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        Biaya Flat: <strong className="text-white font-mono">Rp 100.000</strong>
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded-lg border border-amber-500/30 shrink-0">
+                      Wajib Checkout 12:00 Siang
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-slate-950/70 rounded-xl border border-amber-500/20 text-[11px] text-slate-300 space-y-1">
+                    <p className="font-bold text-amber-200">Ketentuan Sewa Sesi Pagi:</p>
+                    <ul className="list-disc list-inside space-y-0.5 text-slate-300 text-[11px]">
+                      <li>Ditujukan untuk tamu yang masuk dini hari atau pagi hari (misal jam 01:00, 04:00, 08:00 WIB).</li>
+                      <li><strong>Wajib check-out pada jam 12:00 siang hari ini juga</strong>.</li>
+                      <li>Jika check-out melewati jam 12:00 siang, berlaku denda perpanjangan sesuai aturan kost.</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
               {durationType === 'daily' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between flex-wrap gap-2">

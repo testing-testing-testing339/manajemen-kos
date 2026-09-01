@@ -236,13 +236,13 @@ export async function POST(request: Request) {
       .insert(basePayload)
 
     if (insertError) {
-      // If DB constraint check_in_requests_rental_duration_check fails because 'weekly' is not in older DB constraint enum:
+      // If DB constraint check_in_requests_rental_duration_check fails because 'transit_morning' / 'weekly' is not in older DB constraint enum:
       if (insertError.message?.includes('rental_duration') || insertError.message?.includes('check constraint')) {
         console.warn('DB rental_duration constraint triggered, retrying with fallback value daily:', insertError.message)
         const fallbackPayload = {
           ...basePayload,
           rental_duration: 'daily', // fallback so older PostgreSQL check constraint accepts it
-          rental_days: rental_duration === 'weekly' ? (rental_weeks ? parseInt(rental_weeks) * 7 : 7) : (rental_duration === 'monthly' ? (rental_months ? parseInt(rental_months) * 30 : 30) : (rental_days ? parseInt(rental_days) : 1))
+          rental_days: rental_duration === 'transit_morning' ? 1 : (rental_duration === 'weekly' ? (rental_weeks ? parseInt(rental_weeks) * 7 : 7) : (rental_duration === 'monthly' ? (rental_months ? parseInt(rental_months) * 30 : 30) : (rental_days ? parseInt(rental_days) : 1)))
         }
         const { error: retryError } = await supabase
           .from('check_in_requests')

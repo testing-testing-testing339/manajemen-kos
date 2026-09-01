@@ -98,6 +98,11 @@ export function calculateCheckoutDueDate(
 
   const validCheckIn = (!checkInDate || isNaN(checkInDate.getTime())) ? new Date() : checkInDate
 
+  // If Sesi Pagi / Transit Pagi: strictly check-out on the SAME day at 12:00 noon WIB
+  if (rentalDuration === 'transit_morning' || rentalDuration === 'transit' || rentalDuration === 'morning') {
+    return getWIBDateString(validCheckIn)
+  }
+
   // Get hour in Asia/Jakarta timezone
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Jakarta',
@@ -128,5 +133,22 @@ export function calculateCheckoutDueDate(
 
   return getWIBDateString(dueDate)
 }
+
+/**
+ * Returns formatted user-friendly label for rental duration
+ */
+export function formatRentalDurationLabel(rentalDuration?: string, rentalCount: number = 1): string {
+  if (rentalDuration === 'transit_morning' || rentalDuration === 'transit' || rentalDuration === 'morning') {
+    return 'Sesi Pagi (s/d 12:00 WIB)'
+  }
+  if (rentalDuration === 'weekly') {
+    return `${rentalCount} Minggu`
+  }
+  if (rentalDuration === 'monthly') {
+    return `${rentalCount} Bulan`
+  }
+  return `${rentalCount} Hari (Harian)`
+}
+
 
 

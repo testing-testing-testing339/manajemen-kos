@@ -741,9 +741,10 @@ export default function PropertiList({
                   </div>
                   <p className="font-extrabold text-slate-900 text-sm">{tenant.full_name}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-slate-600 pt-1">
+                    <p><strong className="text-slate-800">Paket Sewa:</strong> {tenant.rental_duration === 'transit_morning' ? 'Sesi Pagi (s/d 12:00 WIB)' : tenant.rental_duration === 'weekly' ? `${tenant.rental_count || 1} Minggu` : tenant.rental_duration === 'monthly' ? `${tenant.rental_count || 1} Bulan` : `${tenant.rental_count || 1} Hari`}</p>
                     <p><strong className="text-slate-800">Kontak:</strong> {tenant.phone || '-'}</p>
                     <p><strong className="text-slate-800">Check-in:</strong> {tenant.check_in_date ? new Date(tenant.check_in_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</p>
-                    <p><strong className="text-slate-800">Checkout / Tempo:</strong> {tenant.payment_due_date ? new Date(tenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</p>
+                    <p><strong className="text-slate-800">Checkout / Tempo:</strong> {tenant.payment_due_date ? new Date(tenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'} {tenant.rental_duration === 'transit_morning' ? '(12:00 Siang)' : ''}</p>
                     <p><strong className="text-slate-800">Jaminan:</strong> {Number(tenant.deposit_amount || 0) > 0 ? `Deposit Rp ${Number(tenant.deposit_amount).toLocaleString('id-ID')}` : 'Titip KTP Fisik'}</p>
                   </div>
                 </div>

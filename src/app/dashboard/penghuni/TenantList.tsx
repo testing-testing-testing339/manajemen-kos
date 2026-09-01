@@ -409,9 +409,28 @@ export default function TenantList({
         </p>
       </div>,
 
-      <span key={`checkin-${tenant.id}`} className="text-xs text-slate-600 font-medium">
-        {tenant.check_in_date ? new Date(tenant.check_in_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-      </span>,
+      <div key={`checkin-${tenant.id}`} className="space-y-1">
+        <span className="text-xs text-slate-700 font-bold block">
+          {tenant.check_in_date ? new Date(tenant.check_in_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+        </span>
+        {tenant.rental_duration === 'transit_morning' ? (
+          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+            Sesi Pagi (s/d 12:00)
+          </span>
+        ) : tenant.rental_duration === 'weekly' ? (
+          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+            {tenant.rental_count || 1} Minggu
+          </span>
+        ) : tenant.rental_duration === 'monthly' ? (
+          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+            {tenant.rental_count || 1} Bulan
+          </span>
+        ) : (
+          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+            {tenant.rental_count || 1} Hari
+          </span>
+        )}
+      </div>,
 
       <div key={`due-${tenant.id}`}>
         {dueDate ? (
@@ -950,6 +969,12 @@ export default function TenantList({
 
             {/* Tanggal & Jam Checkout & Perhitungan Denda */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+              {checkoutTenant.rental_duration === 'transit_morning' && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs flex items-center gap-2 text-amber-800 font-semibold">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Tamu <strong>Sesi Pagi (Short Stay)</strong> • Wajib Check-out pukul 12:00 siang ini.</span>
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Batas Selesai Sewa (Normal):</span>

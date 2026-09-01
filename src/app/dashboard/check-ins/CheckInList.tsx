@@ -58,7 +58,9 @@ export default function CheckInList({
 
   // Helper function to format rental duration
   const formatRentalDuration = (checkIn: any) => {
-    if (checkIn.rental_duration === 'daily') {
+    if (checkIn.rental_duration === 'transit_morning' || checkIn.rental_duration === 'transit') {
+      return 'Sesi Pagi (s/d 12:00 WIB)'
+    } else if (checkIn.rental_duration === 'daily') {
       return `${checkIn.rental_days || 1} hari`
     } else if (checkIn.rental_duration === 'weekly') {
       return `${checkIn.rental_weeks || Math.ceil((checkIn.rental_days || 7) / 7)} minggu`

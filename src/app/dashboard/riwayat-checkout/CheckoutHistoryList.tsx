@@ -214,6 +214,11 @@ export default function CheckoutHistoryList({
         <p className="text-slate-500 text-[11px]">
           Batas: {item.due_date ? new Date(item.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
         </p>
+        {item.check_in_date && item.due_date && item.check_in_date === item.due_date && (
+          <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            Sesi Pagi (s/d 12:00)
+          </span>
+        )}
       </div>,
 
       // 4. Checkout Time & Status
