@@ -464,7 +464,7 @@ export default function CheckoutHistoryList({
       ========================================================================= */}
       <Modal isOpen={!!selectedReceipt} onClose={() => setSelectedReceipt(null)} size="md">
         {selectedReceipt && (
-          <div className="space-y-4 py-1">
+          <div className="printable-receipt space-y-4 py-2 bg-white">
             {/* Header Nota */}
             <div className="text-center pb-3 border-b border-slate-100 space-y-1">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center mx-auto shadow-md shadow-indigo-500/20 mb-2">
