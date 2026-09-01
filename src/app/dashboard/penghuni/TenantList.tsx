@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { processCheckout } from './actions'
+import { processCheckout, moveTenantRoom } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
@@ -34,7 +34,10 @@ import {
   Printer,
   Building,
   Phone,
-  CreditCard
+  CreditCard,
+  ArrowRightLeft,
+  Check,
+  ArrowRight
 } from 'lucide-react'
 
 interface TenantListProps {
@@ -80,7 +83,25 @@ export default function TenantList({
   const [historyRoomType, setHistoryRoomType] = useState('all')
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null)
 
+  // Move Room states
+  const [moveTenant, setMoveTenant] = useState<any | null>(null)
+  const [selectedTargetRoomId, setSelectedTargetRoomId] = useState<string>('')
+  const [moveNotes, setMoveNotes] = useState<string>('')
+  const [moveSuccessToast, setMoveSuccessToast] = useState<string>('')
+
   const [checkoutState, checkoutAction] = useActionState(processCheckout, null)
+  const [moveState, moveAction] = useActionState(moveTenantRoom, null)
+
+  // Available rooms filtered for the tenant's current branch (excluding current room)
+  const availableRoomsForTenant = useMemo(() => {
+    if (!moveTenant) return []
+    const currentBranchId = moveTenant.rooms?.floors?.branch_id
+    return initialAvailableRooms.filter(r => {
+      if (r.id === moveTenant.room_id) return false
+      if (currentBranchId && r.floors?.branch_id && r.floors.branch_id !== currentBranchId) return false
+      return true
+    })
+  }, [moveTenant, initialAvailableRooms])
 
   useEffect(() => {
     setTenants(initialTenants)
@@ -106,6 +127,25 @@ export default function TenantList({
       router.refresh()
     }
   }, [checkoutState, router])
+
+  useEffect(() => {
+    if (moveState?.success) {
+      setMoveSuccessToast(moveState.message || 'Pindah kamar berhasil!')
+      setMoveTenant(null)
+      setSelectedTargetRoomId('')
+      setMoveNotes('')
+      router.refresh()
+      const timer = setTimeout(() => setMoveSuccessToast(''), 7000)
+      return () => clearTimeout(timer)
+    }
+  }, [moveState, router])
+
+  useEffect(() => {
+    if (moveTenant) {
+      setSelectedTargetRoomId('')
+      setMoveNotes('')
+    }
+  }, [moveTenant])
 
   // Set default current date and time when checkout modal opens
   useEffect(() => {
@@ -470,15 +510,27 @@ export default function TenantList({
         )}
       </div>,
 
-      <button
-        key={`action-${tenant.id}`}
-        type="button"
-        onClick={() => setCheckoutTenant(tenant)}
-        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 transition-all duration-150 cursor-pointer shadow-xs"
-      >
-        <LogOut className="w-3.5 h-3.5" />
-        <span>Proses Check-out</span>
-      </button>
+      <div key={`action-${tenant.id}`} className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setMoveTenant(tenant)}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-indigo-700 hover:text-white bg-indigo-50 hover:bg-indigo-600 border border-indigo-200 hover:border-indigo-600 transition-all duration-150 cursor-pointer shadow-2xs"
+          title="Pindah Kamar Tamu"
+        >
+          <ArrowRightLeft className="w-3.5 h-3.5" />
+          <span>Pindah</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCheckoutTenant(tenant)}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 transition-all duration-150 cursor-pointer shadow-2xs"
+          title="Proses Check-out Tamu"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Check-out</span>
+        </button>
+      </div>
     ]
   })
 
@@ -673,6 +725,22 @@ export default function TenantList({
       ========================================================================= */}
       {activeTab === 'active' && (
         <div className="space-y-6">
+          {/* Move Room Success Toast */}
+          {moveSuccessToast && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-emerald-800 text-xs font-bold animate-in fade-in shadow-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{moveSuccessToast}</span>
+              </div>
+              <button 
+                onClick={() => setMoveSuccessToast('')}
+                className="text-emerald-600 hover:text-emerald-900 text-xs font-bold cursor-pointer px-2 py-0.5"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Active KPI Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -1371,6 +1439,188 @@ export default function TenantList({
               </button>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* =========================================================================
+          MODAL PINDAH KAMAR DENGAN SINKRONISASI MENYELURUH
+      ========================================================================= */}
+      <Modal isOpen={!!moveTenant} onClose={() => setMoveTenant(null)} size="lg">
+        {moveTenant && (
+          <form action={moveAction} className="space-y-4 py-1">
+            <input type="hidden" name="tenant_id" value={moveTenant.id} />
+            <input type="hidden" name="target_room_id" value={selectedTargetRoomId} />
+
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <ArrowRightLeft className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Pindah Kamar Penghuni</h3>
+                <p className="text-xs text-slate-500">
+                  Pindahkan tamu ke kamar kosong lain dengan sinkronisasi data otomatis
+                </p>
+              </div>
+            </div>
+
+            {moveState?.error && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-700 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                <p className="font-semibold">{moveState.error}</p>
+              </div>
+            )}
+
+            {/* Info Tamu & Kamar Saat Ini */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Data Tamu Saat Ini</span>
+                <span className="text-xs font-bold text-indigo-700 bg-indigo-100/70 px-2.5 py-0.5 rounded-full">
+                  Penghuni Aktif
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <p className="text-slate-400 font-medium">Nama Penghuni:</p>
+                  <p className="font-extrabold text-slate-900 text-sm mt-0.5">{moveTenant.full_name}</p>
+                  {moveTenant.phone && moveTenant.phone !== '-' && (
+                    <p className="text-slate-500 text-[11px] font-mono mt-0.5 flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-slate-400" />
+                      {moveTenant.phone}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-slate-400 font-medium">Kamar Saat Ini (Asal):</p>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 mt-0.5 shadow-2xs">
+                    <DoorClosed className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="font-bold text-slate-900">Kamar {moveTenant.rooms?.room_number || '-'}</span>
+                    <span className="text-slate-500 font-normal">({moveTenant.rooms?.floors?.name || 'Lantai'})</span>
+                    {((moveTenant.rooms?.floors?.name || '').toLowerCase().includes('vip') || moveTenant.rooms?.room_type === 'vip') && (
+                      <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 text-[10px] font-extrabold rounded">
+                        VIP
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pilihan Kamar Tujuan */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Pilih Kamar Tujuan (Kamar Kosong) *
+                </label>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  {availableRoomsForTenant.length} Kamar Tersedia
+                </span>
+              </div>
+
+              {availableRoomsForTenant.length === 0 ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-1 text-xs text-amber-800">
+                  <AlertTriangle className="w-5 h-5 mx-auto text-amber-600" />
+                  <p className="font-bold">Tidak Ada Kamar Kosong</p>
+                  <p className="text-[11px] text-amber-700">Semua kamar di cabang ini sedang terisi. Tamu belum dapat dipindahkan saat ini.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto p-1 border border-slate-100 rounded-2xl bg-slate-50/50">
+                  {availableRoomsForTenant.map((r: any) => {
+                    const isVipRoom = r.room_type === 'vip' || (r.floors?.name || '').toLowerCase().includes('vip')
+                    const isSelected = selectedTargetRoomId === r.id
+                    return (
+                      <div
+                        key={r.id}
+                        onClick={() => setSelectedTargetRoomId(r.id)}
+                        className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-indigo-600 bg-indigo-50 shadow-xs ring-2 ring-indigo-500/20'
+                            : 'border-slate-200 hover:border-indigo-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <DoorClosed className={`w-4 h-4 ${isSelected ? 'text-indigo-600' : 'text-slate-500'}`} />
+                            <span className="font-extrabold text-slate-900 text-xs">
+                              Kamar {r.room_number}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              isVipRoom ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {isVipRoom ? 'VIP' : 'Standard'}
+                            </span>
+                            {isSelected && (
+                              <div className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">
+                                <Check className="w-2.5 h-2.5" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 space-y-0.5">
+                          <p className="font-medium">{r.floors?.name || 'Graha Aisyah'}</p>
+                          {r.price && (
+                            <p className="font-bold text-indigo-700 font-mono">
+                              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(r.price)} / bln
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Alasan / Catatan Pindah Kamar */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                Alasan / Catatan Pindah Kamar (Opsional):
+              </label>
+              <textarea
+                name="notes"
+                rows={2}
+                value={moveNotes}
+                onChange={(e) => setMoveNotes(e.target.value)}
+                placeholder="Contoh: Permintaan tamu pindah ke lantai 1, kendala AC kamar sebelumnya, upgrade kamar..."
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Impact Explanation Box */}
+            <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-xs space-y-1.5 text-indigo-950">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-800">
+                <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Otomatisasi & Sinkronisasi Sistem:</span>
+              </div>
+              <ul className="text-[11px] text-indigo-900/90 space-y-1 list-disc list-inside pl-1">
+                <li>Kamar lama (Kamar {moveTenant.rooms?.room_number || '-'}) otomatis menjadi <strong>Tersedia / Kosong</strong>.</li>
+                <li>Kamar tujuan yang dipilih otomatis menjadi <strong>Terisi</strong>.</li>
+                <li>Data penghuni, riwayat check-in, dan tagihan langsung terhubung ke kamar baru.</li>
+              </ul>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setMoveTenant(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 cursor-pointer transition-colors"
+              >
+                Batal
+              </button>
+              <SubmitButton
+                variant="primary"
+                disabled={!selectedTargetRoomId || availableRoomsForTenant.length === 0}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                loadingText="Memindahkan Kamar..."
+              >
+                Konfirmasi Pindah Kamar
+              </SubmitButton>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

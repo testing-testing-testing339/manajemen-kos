@@ -238,3 +238,161 @@ export async function processCheckout(prevState: any, formData: FormData) {
 export async function deleteTenant(prevState: any, formData: FormData) {
   return processCheckout(prevState, formData)
 }
+
+export async function moveTenantRoom(prevState: any, formData: FormData) {
+  const tenant_id = formData.get('tenant_id') as string
+  const target_room_id = formData.get('target_room_id') as string
+  const transfer_notes = (formData.get('notes') as string) || ''
+  const transfer_date = (formData.get('transfer_date') as string) || getWIBDateString()
+
+  if (!tenant_id || !target_room_id) {
+    return { error: 'Data penghuni dan kamar tujuan wajib dipilih' }
+  }
+
+  const cookieStore = await cookies()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const adminClient = serviceRoleKey 
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    : supabase
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Anda harus login untuk melakukan aksi pindah kamar' }
+  }
+
+  // 1. Get current tenant details
+  const { data: tenant, error: tenantErr } = await adminClient
+    .from('tenants')
+    .select('*, rooms(id, room_number, room_type, price, floor_id, floors(id, name, branch_id, branches(id, name)))')
+    .eq('id', tenant_id)
+    .single()
+
+  if (tenantErr || !tenant) {
+    return { error: 'Data penghuni tidak ditemukan' }
+  }
+
+  const oldRoomId = tenant.room_id
+  if (oldRoomId === target_room_id) {
+    return { error: 'Kamar tujuan sama dengan kamar saat ini' }
+  }
+
+  // 2. Get target room details and verify it is available
+  const { data: targetRoom, error: targetRoomErr } = await adminClient
+    .from('rooms')
+    .select('*, floors(id, name, branch_id, branches(id, name))')
+    .eq('id', target_room_id)
+    .single()
+
+  if (targetRoomErr || !targetRoom) {
+    return { error: 'Kamar tujuan tidak ditemukan di sistem' }
+  }
+
+  if (targetRoom.is_occupied) {
+    return { error: `Kamar ${targetRoom.room_number} saat ini sedang terisi oleh penghuni lain` }
+  }
+
+  const oldRoomNumber = (tenant.rooms as any)?.room_number || '-'
+  const newRoomNumber = targetRoom.room_number || '-'
+  const oldRoomType = (tenant.rooms as any)?.room_type === 'vip' ? 'VIP' : 'Standard'
+  const newRoomType = targetRoom.room_type === 'vip' ? 'VIP' : 'Standard'
+
+  // Get admin profile name
+  let staffName = 'Resepsionis'
+  const { data: userProfile } = await adminClient.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
+  staffName = userProfile?.full_name || user.email || 'Resepsionis'
+
+  // 3. Update tenant's room_id
+  const { error: updateTenantErr } = await adminClient
+    .from('tenants')
+    .update({ 
+      room_id: target_room_id
+    })
+    .eq('id', tenant_id)
+
+  if (updateTenantErr) {
+    return { error: 'Gagal memperbarui kamar penghuni: ' + updateTenantErr.message }
+  }
+
+  // 4. Update Old Room -> is_occupied = false (Kamar lama menjadi kosong/tersedia)
+  if (oldRoomId) {
+    await adminClient
+      .from('rooms')
+      .update({ is_occupied: false })
+      .eq('id', oldRoomId)
+  }
+
+  // 5. Update Target Room -> is_occupied = true (Kamar baru menjadi terisi)
+  await adminClient
+    .from('rooms')
+    .update({ is_occupied: true })
+    .eq('id', target_room_id)
+
+  // 6. Update Check-In Requests if linked to oldRoomId
+  if (oldRoomId) {
+    const { data: matchingCirs } = await adminClient
+      .from('check_in_requests')
+      .select('id, selected_room_type, room_category')
+      .eq('assigned_room_id', oldRoomId)
+      .eq('status', 'completed')
+
+    if (matchingCirs && matchingCirs.length > 0) {
+      for (const cir of matchingCirs) {
+        let updatedSelectedRoomType = cir.selected_room_type
+        if (typeof updatedSelectedRoomType === 'string') {
+          try {
+            const parsed = JSON.parse(updatedSelectedRoomType)
+            parsed.category = targetRoom.room_type === 'vip' ? 'vip' : 'non_vip'
+            parsed.name = targetRoom.room_type === 'vip' ? 'Kamar VIP Belakang Warkop' : 'Kamar Standard'
+            updatedSelectedRoomType = JSON.stringify(parsed)
+          } catch (e) {}
+        } else if (typeof updatedSelectedRoomType === 'object' && updatedSelectedRoomType !== null) {
+          updatedSelectedRoomType.category = targetRoom.room_type === 'vip' ? 'vip' : 'non_vip'
+          updatedSelectedRoomType.name = targetRoom.room_type === 'vip' ? 'Kamar VIP Belakang Warkop' : 'Kamar Standard'
+        }
+
+        await adminClient
+          .from('check_in_requests')
+          .update({
+            assigned_room_id: target_room_id,
+            room_category: targetRoom.room_type === 'vip' ? 'vip' : 'non_vip',
+            selected_room_type: updatedSelectedRoomType
+          })
+          .eq('id', cir.id)
+      }
+    }
+  }
+
+  // 7. Revalidate all relevant paths across the entire dashboard
+  revalidatePath('/dashboard/penghuni')
+  revalidatePath('/dashboard/kamar')
+  revalidatePath('/dashboard/pembayaran')
+  revalidatePath('/dashboard/properti')
+  revalidatePath('/dashboard/check-ins')
+  revalidatePath('/dashboard/pln')
+  revalidatePath('/dashboard')
+
+  return {
+    success: true,
+    message: `Berhasil memindahkan ${tenant.full_name} dari Kamar ${oldRoomNumber} (${oldRoomType}) ke Kamar ${newRoomNumber} (${newRoomType})!`
+  }
+}
