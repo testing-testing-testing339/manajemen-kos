@@ -69,8 +69,9 @@ export default function PaymentList({
   const [zoomImage, setZoomImage] = useState<{ url: string; title: string } | null>(null)
   
   // KPI Detail Modals
-  const [kpiModal, setKpiModal] = useState<'rent_revenue' | 'monthly_revenue' | 'deposits' | 'tenants_status' | null>(null)
+  const [kpiModal, setKpiModal] = useState<'rent_revenue' | 'monthly_revenue' | 'deposits' | 'tenants_status' | 'shift_reconciliation' | 'shift_rent' | 'shift_deposit' | null>(null)
   const [depositFilterTab, setDepositFilterTab] = useState<'all' | 'with_deposit' | 'id_card'>('all')
+  const [shiftModalFilter, setShiftModalFilter] = useState<'all' | 'rent' | 'deposit' | 'cash' | 'qris'>('all')
   
   // Filters for General History Tab
   const [searchQuery, setSearchQuery] = useState('')
@@ -351,7 +352,7 @@ export default function PaymentList({
     )
   }
 
-  // Filtered Payments for Shift & Daily Report
+  // Filtered Payments for Shift & Daily Report (Flexible Dates)
   const shiftPayments = useMemo(() => {
     return payments.filter((payment: any) => {
       // Exclude rejected
@@ -359,8 +360,15 @@ export default function PaymentList({
 
       // Match date
       const pDateStr = payment.payment_date || (payment.created_at ? getWIBDateString(payment.created_at) : '')
-      if (shiftDate && pDateStr !== shiftDate) {
-        return false
+      if (shiftDate && shiftDate !== 'all') {
+        if (shiftDate === 'month') {
+          const pDate = new Date(payment.created_at || payment.payment_date)
+          if (pDate.getMonth() !== currentMonth || pDate.getFullYear() !== currentYear) {
+            return false
+          }
+        } else if (pDateStr !== shiftDate) {
+          return false
+        }
       }
 
       // Match staff: Staff is strictly locked to their own account; Owner can filter
@@ -386,22 +394,23 @@ export default function PaymentList({
 
       return true
     })
-  }, [payments, shiftDate, isStaff, currentUser?.id, shiftStaffId, shiftMethod])
+  }, [payments, shiftDate, isStaff, currentUser?.id, shiftStaffId, shiftMethod, currentMonth, currentYear])
 
-  // Shift & Cash Totals with Deposit & Pure Rent (Laba Bersih) Breakdown
-  const shiftStats = useMemo(() => {
-    let totalCash = 0
-    let totalQris = 0
-    let countCash = 0
-    let countQris = 0
-    let totalNetRent = 0
-    let totalDeposit = 0
-    let totalCashRent = 0
-    let totalCashDeposit = 0
-    let totalQrisRent = 0
-    let totalQrisDeposit = 0
+  // Shift Transactions Detailed Breakdown (Per Guest)
+  const shiftBreakdown = useMemo(() => {
+    return shiftPayments.map((p: any) => {
+      const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
+      const checkInRequest = p.check_in_request
+      const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu'
+      const tenantPhone = tenant?.phone || checkInRequest?.phone || '-'
+      const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
+      const roomType = (tenant?.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip')) ? 'VIP Belakang Warkop' : 'Standard Room'
+      const confirmedByStaff = p.profiles?.full_name || 'Staf Resepsionis'
+      const paymentTime = new Date(p.created_at || p.payment_date).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
 
-    shiftPayments.forEach((p: any) => {
       const grossAmount = parseFloat(p.amount) || 0
       const isCash = (p.payment_method || '').toLowerCase().includes('cash') || 
         (p.payment_method || '').toLowerCase().includes('tunai') ||
@@ -420,7 +429,7 @@ export default function PaymentList({
         deposit = 0
         netRent = grossAmount
       } else {
-        const rawDeposit = parseFloat(p.check_in_request?.deposit_amount || p.deposit_amount || 0)
+        const rawDeposit = parseFloat(checkInRequest?.deposit_amount || p.deposit_amount || 0)
         if (rawDeposit > 0 && grossAmount > rawDeposit) {
           deposit = rawDeposit
           netRent = grossAmount - rawDeposit
@@ -430,20 +439,54 @@ export default function PaymentList({
         }
       }
 
-      if (isCash) {
-        totalCash += grossAmount
+      return {
+        id: p.id,
+        rawPayment: p,
+        tenantName,
+        tenantPhone,
+        roomNumber,
+        roomType,
+        confirmedByStaff,
+        paymentTime,
+        paymentDate: p.payment_date || p.created_at,
+        grossAmount,
+        netRent,
+        deposit,
+        isCash,
+        isClaimOrPenalty,
+        notes: p.notes
+      }
+    })
+  }, [shiftPayments, tenants])
+
+  // Shift & Cash Totals with Deposit & Pure Rent (Laba Bersih) Breakdown
+  const shiftStats = useMemo(() => {
+    let totalCash = 0
+    let totalQris = 0
+    let countCash = 0
+    let countQris = 0
+    let totalNetRent = 0
+    let totalDeposit = 0
+    let totalCashRent = 0
+    let totalCashDeposit = 0
+    let totalQrisRent = 0
+    let totalQrisDeposit = 0
+
+    shiftBreakdown.forEach((item: any) => {
+      if (item.isCash) {
+        totalCash += item.grossAmount
         countCash++
-        totalCashRent += netRent
-        totalCashDeposit += deposit
+        totalCashRent += item.netRent
+        totalCashDeposit += item.deposit
       } else {
-        totalQris += grossAmount
+        totalQris += item.grossAmount
         countQris++
-        totalQrisRent += netRent
-        totalQrisDeposit += deposit
+        totalQrisRent += item.netRent
+        totalQrisDeposit += item.deposit
       }
 
-      totalNetRent += netRent
-      totalDeposit += deposit
+      totalNetRent += item.netRent
+      totalDeposit += item.deposit
     })
 
     return {
@@ -460,7 +503,7 @@ export default function PaymentList({
       countCash,
       countQris
     }
-  }, [shiftPayments])
+  }, [shiftBreakdown, shiftPayments.length])
 
   // Copy Shift Report Handler with Detailed Net Profit & Deposit Breakdown
   const handleCopyShiftReport = () => {
@@ -470,12 +513,19 @@ export default function PaymentList({
           ? 'Semua Petugas' 
           : allStaff.find((s: any) => s.id === shiftStaffId)?.full_name || 'Petugas Shift')
     
-    const formattedDate = new Date(shiftDate).toLocaleDateString('id-ID', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    })
+    let formattedDate = ''
+    if (shiftDate === 'all') {
+      formattedDate = 'Semua Riwayat Tanggal'
+    } else if (shiftDate === 'month') {
+      formattedDate = `Bulan ${today.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`
+    } else {
+      formattedDate = new Date(shiftDate).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      })
+    }
 
     const formatIdr = (val: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val)
 
@@ -785,17 +835,35 @@ export default function PaymentList({
                     setShiftDate(yStr)
                   }}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    shiftDate !== getTodayStr() ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    shiftDate !== getTodayStr() && shiftDate !== 'month' && shiftDate !== 'all' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Kemarin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShiftDate('month')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    shiftDate === 'month' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Bulan Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShiftDate('all')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    shiftDate === 'all' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Semua Tanggal
                 </button>
               </div>
 
               {/* Date Picker */}
               <input
                 type="date"
-                value={shiftDate}
+                value={shiftDate === 'month' || shiftDate === 'all' ? '' : shiftDate}
                 onChange={(e) => setShiftDate(e.target.value)}
                 className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
@@ -854,15 +922,18 @@ export default function PaymentList({
             </div>
           </div>
 
-          {/* 5 Shift KPI Cards with Laba Bersih & Titipan Deposit */}
+          {/* 5 Shift KPI Cards with Laba Bersih & Titipan Deposit (Clickable for Detail) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
             {/* 1. Laba Bersih / Sewa Murni (Featured Emerald) */}
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex flex-col justify-between bg-gradient-to-br from-emerald-50 to-teal-50 shadow-2xs">
+            <div 
+              onClick={() => { setShiftModalFilter('rent'); setKpiModal('shift_reconciliation') }}
+              className="bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500 rounded-2xl p-4 flex flex-col justify-between bg-gradient-to-br from-emerald-50 to-teal-50 shadow-2xs cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-900">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-900 group-hover:text-emerald-700">
                   Laba Bersih (Sewa Murni)
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
                   <TrendingUp className="w-4 h-4" />
                 </div>
               </div>
@@ -870,19 +941,23 @@ export default function PaymentList({
                 <p className="text-xl sm:text-2xl font-black text-emerald-950 font-mono">
                   {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalNetRent)}
                 </p>
-                <p className="text-[11px] text-emerald-700 font-bold mt-0.5">
-                  Sewa + Pelunasan Denda
-                </p>
+                <div className="flex items-center justify-between mt-1 text-[11px]">
+                  <span className="text-emerald-700 font-bold">Sewa + Pelunasan Denda</span>
+                  <span className="text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Detail →</span>
+                </div>
               </div>
             </div>
 
             {/* 2. Titipan Deposit (Featured Purple/Indigo) */}
-            <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4 flex flex-col justify-between bg-gradient-to-br from-purple-50 to-indigo-50 shadow-2xs">
+            <div 
+              onClick={() => { setShiftModalFilter('deposit'); setKpiModal('shift_reconciliation') }}
+              className="bg-purple-500/10 border border-purple-500/30 hover:border-purple-500 rounded-2xl p-4 flex flex-col justify-between bg-gradient-to-br from-purple-50 to-indigo-50 shadow-2xs cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-900">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-900 group-hover:text-purple-700">
                   Titipan Deposit Masuk
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
                   <ShieldAlert className="w-4 h-4" />
                 </div>
               </div>
@@ -890,19 +965,47 @@ export default function PaymentList({
                 <p className="text-xl sm:text-2xl font-black text-purple-950 font-mono">
                   {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalDeposit)}
                 </p>
-                <p className="text-[11px] text-purple-700 font-bold mt-0.5">
-                  Uang Jaminan (Wajib Kembali)
-                </p>
+                <div className="flex items-center justify-between mt-1 text-[11px]">
+                  <span className="text-purple-700 font-bold">Uang Jaminan (Wajib Kembali)</span>
+                  <span className="text-purple-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Detail →</span>
+                </div>
               </div>
             </div>
 
-            {/* 3. Total Cash */}
-            <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 flex flex-col justify-between">
+            {/* 3. Total Keseluruhan (Pemasukan Kas Kotor) */}
+            <div 
+              onClick={() => { setShiftModalFilter('all'); setKpiModal('shift_reconciliation') }}
+              className="bg-slate-900 text-white rounded-2xl p-4 flex flex-col justify-between border border-slate-800 hover:border-indigo-500 shadow-sm cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 group-hover:text-indigo-300">
+                  Total Pemasukan Kas
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-white/10 text-emerald-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalGrand)}
+                </p>
+                <div className="flex items-center justify-between mt-1 text-[11px]">
+                  <span className="text-slate-300 font-semibold">{shiftStats.totalCount} Transaksi</span>
+                  <span className="text-indigo-300 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Lihat Rekonsiliasi →</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Total Cash */}
+            <div 
+              onClick={() => { setShiftModalFilter('cash'); setKpiModal('shift_reconciliation') }}
+              className="bg-amber-50/60 border border-amber-200/80 hover:border-amber-400 rounded-2xl p-4 flex flex-col justify-between cursor-pointer hover:shadow-sm hover:scale-[1.01] transition-all group"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800">
                   Penerimaan Tunai (Cash)
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-all">
                   <Banknote className="w-4 h-4" />
                 </div>
               </div>
@@ -916,13 +1019,16 @@ export default function PaymentList({
               </div>
             </div>
 
-            {/* 4. Total QRIS */}
-            <div className="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-4 flex flex-col justify-between">
+            {/* 5. Total QRIS */}
+            <div 
+              onClick={() => { setShiftModalFilter('qris'); setKpiModal('shift_reconciliation') }}
+              className="bg-indigo-50/60 border border-indigo-200/80 hover:border-indigo-400 rounded-2xl p-4 flex flex-col justify-between cursor-pointer hover:shadow-sm hover:scale-[1.01] transition-all group"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-800">
                   Penerimaan QRIS / TF
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
                   <CreditCard className="w-4 h-4" />
                 </div>
               </div>
@@ -932,26 +1038,6 @@ export default function PaymentList({
                 </p>
                 <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">
                   {shiftStats.countQris} Transaksi Digital
-                </p>
-              </div>
-            </div>
-
-            {/* 5. Grand Total */}
-            <div className="bg-slate-900 text-white rounded-2xl p-4 flex flex-col justify-between border border-slate-800">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                  Total Kas Masuk (Kotor)
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-white/10 text-emerald-400 flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <p className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
-                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalGrand)}
-                </p>
-                <p className="text-[11px] text-slate-300 font-semibold mt-0.5">
-                  {shiftStats.totalCount} Transaksi Selesai
                 </p>
               </div>
             </div>
@@ -2003,6 +2089,202 @@ export default function PaymentList({
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
             >
               Tutup
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* =========================================================================
+          KPI MODAL 5: REKONSILIASI KAS SHIFT / HARIAN RINCI (LABA vs DEPOSIT)
+      ========================================================================= */}
+      <Modal isOpen={kpiModal === 'shift_reconciliation' || kpiModal === 'shift_rent' || kpiModal === 'shift_deposit'} onClose={() => setKpiModal(null)} size="2xl">
+        <div className="space-y-4 py-1">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-black text-slate-900">
+                  Rekonsiliasi Kas Shift & Laba Bersih
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {shiftDate === 'all' ? 'Semua Tanggal' : shiftDate === 'month' ? 'Bulan Ini' : `Tanggal ${new Date(shiftDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Rincian pemisahan uang sewa murni (laba hak kos) dan titipan uang deposit tamu
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-slate-900 text-white font-extrabold text-xs rounded-full">
+              {shiftBreakdown.length} Transaksi
+            </span>
+          </div>
+
+          {/* 3 Summary Badges */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase block">Total Kas Diterima (Kotor)</span>
+              <p className="text-lg font-black font-mono text-emerald-400 mt-0.5">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalGrand)}
+              </p>
+              <span className="text-[10px] text-slate-400">{shiftStats.totalCount} Transaksi Selesai</span>
+            </div>
+
+            <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50">
+              <span className="text-[10px] font-extrabold text-emerald-900 uppercase block">Laba Bersih (Sewa Murni)</span>
+              <p className="text-lg font-black font-mono text-emerald-950 mt-0.5">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalNetRent)}
+              </p>
+              <span className="text-[10px] text-emerald-700 font-bold">✓ Hak Milik & Omset Kos</span>
+            </div>
+
+            <div className="bg-purple-500/10 border border-purple-500/30 p-3.5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50">
+              <span className="text-[10px] font-extrabold text-purple-900 uppercase block">Titipan Deposit Masuk</span>
+              <p className="text-lg font-black font-mono text-purple-950 mt-0.5">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalDeposit)}
+              </p>
+              <span className="text-[10px] text-purple-700 font-bold">⚠️ Titipan (Wajib Dikembalikan)</span>
+            </div>
+          </div>
+
+          {/* Filter Pills inside Modal */}
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-2">
+            <button
+              type="button"
+              onClick={() => setShiftModalFilter('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                shiftModalFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Semua Transaksi ({shiftBreakdown.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftModalFilter('rent')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                shiftModalFilter === 'rent'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+              }`}
+            >
+              Sewa Murni ({shiftBreakdown.filter(i => i.netRent > 0).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftModalFilter('deposit')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                shiftModalFilter === 'deposit'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+              }`}
+            >
+              Titipan Deposit ({shiftBreakdown.filter(i => i.deposit > 0).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftModalFilter('cash')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                shiftModalFilter === 'cash'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+              }`}
+            >
+              Tunai ({shiftBreakdown.filter(i => i.isCash).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftModalFilter('qris')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                shiftModalFilter === 'qris'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
+              }`}
+            >
+              QRIS / TF ({shiftBreakdown.filter(i => !i.isCash).length})
+            </button>
+          </div>
+
+          {/* Detailed Transaction Table */}
+          <div className="rounded-2xl border border-slate-200 overflow-x-auto max-h-[360px] scrollbar-thin">
+            <table className="w-full min-w-[700px] text-left border-collapse">
+              <thead className="sticky top-0 bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider z-10">
+                <tr>
+                  <th className="py-2.5 px-3">Waktu & Tamu</th>
+                  <th className="py-2.5 px-3">Kamar</th>
+                  <th className="py-2.5 px-3 text-right">Laba Bersih (Sewa)</th>
+                  <th className="py-2.5 px-3 text-right">Titipan Deposit</th>
+                  <th className="py-2.5 px-3 text-right">Total Dibayar</th>
+                  <th className="py-2.5 px-3 text-center">Metode</th>
+                  <th className="py-2.5 px-3">Petugas</th>
+                  <th className="py-2.5 px-3 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs bg-white">
+                {shiftBreakdown
+                  .filter(item => {
+                    if (shiftModalFilter === 'rent') return item.netRent > 0
+                    if (shiftModalFilter === 'deposit') return item.deposit > 0
+                    if (shiftModalFilter === 'cash') return item.isCash
+                    if (shiftModalFilter === 'qris') return !item.isCash
+                    return true
+                  })
+                  .map((item, idx) => (
+                    <tr key={item.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-slate-900">{item.tenantName}</div>
+                        <div className="font-mono text-[10px] text-slate-400">
+                          {item.paymentTime} WIB • {item.tenantPhone}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-xs">
+                          Kamar {item.roomNumber}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-700">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(item.netRent)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-purple-700">
+                        {item.deposit > 0 ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(item.deposit) : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(item.grossAmount)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          item.isCash ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                        }`}>
+                          {item.isCash ? 'Tunai' : 'QRIS'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] font-medium text-slate-600">
+                        {item.confirmedByStaff}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPayment(item.rawPayment)
+                            setIsDetailModalOpen(true)
+                          }}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          Kuitansi
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setKpiModal(null)}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Selesai / Tutup
             </button>
           </div>
         </div>
