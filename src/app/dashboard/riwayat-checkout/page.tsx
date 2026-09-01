@@ -64,6 +64,18 @@ export default async function RiwayatCheckoutPage() {
     console.warn('checkout_history table fetch:', err)
   }
 
+  // Fetch profiles for staff name mapping
+  const { data: allProfiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, role')
+  const profileMap = new Map((allProfiles || []).map((p: any) => [p.id, p.full_name || p.email]))
+
+  // Fetch payments to link checkout settlement/claims to the exact confirming staff
+  const { data: allPayments } = await supabase
+    .from('payments')
+    .select('id, amount, notes, confirmed_by, payment_method, created_at, tenant_id')
+    .order('created_at', { ascending: false })
+
   // Fallback: Dynamically reconstruct checkout history from check_in_requests & active tenants
   if (checkoutHistoryList.length === 0) {
     try {
@@ -100,6 +112,25 @@ export default async function RiwayatCheckoutPage() {
         checkoutHistoryList = checkedOutItems.map((c: any) => {
           const room = roomMap.get(c.assigned_room_id) as any
           const floor = room?.floors || {}
+
+          // Find exact staff who confirmed payment or assigned room
+          const cNameLower = (c.full_name || '').toLowerCase()
+          const matchedPayment = (allPayments || []).find((p: any) => {
+            const notesLower = (p.notes || '').toLowerCase()
+            return notesLower.includes(cNameLower) || (room?.room_number && notesLower.includes(`kamar: ${room.room_number}`))
+          })
+
+          let staffName = 'Staff Graha Aisyah'
+          if (matchedPayment?.confirmed_by && profileMap.has(matchedPayment.confirmed_by)) {
+            staffName = profileMap.get(matchedPayment.confirmed_by)!
+          } else if (c.assigned_by && profileMap.has(c.assigned_by)) {
+            staffName = profileMap.get(c.assigned_by)!
+          } else if (c.verified_by && profileMap.has(c.verified_by)) {
+            staffName = profileMap.get(c.verified_by)!
+          } else if (profile?.full_name) {
+            staffName = profile.full_name
+          }
+
           return {
             id: c.id,
             tenant_name: c.full_name,
@@ -117,8 +148,8 @@ export default async function RiwayatCheckoutPage() {
             claimed_deposit: 0,
             deposit_refund: c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0,
             additional_pay_needed: 0,
-            notes: 'Check-out selesai diproses',
-            processed_by: 'Resepsionis',
+            notes: matchedPayment?.notes || 'Check-out selesai diproses',
+            processed_by: staffName,
             created_at: c.updated_at || c.created_at
           }
         })
