@@ -444,7 +444,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         facilities: isVip
           ? ['Parkiran Lebih Luas', 'Kloset Duduk', 'Kamar Mandi Dalam', 'Single Bed', 'AC', 'Lemari Pakaian', 'Meja']
           : ['Kamar Mandi Dalam', 'Single Bed', monthlyPackage === 'non_ac' ? 'Non-AC' : 'AC', 'Lemari Pakaian', 'Meja Belajar'],
-        notes: durationType === 'transit_morning' ? 'Sewa Sesi Pagi (Wajib checkout jam 12:00 siang hari ini)' : (durationType !== 'daily' ? 'No include token PLN, handuk, sprei, dan selimut' : undefined)
+        notes: durationType === 'transit_morning' ? 'Sewa Sesi Pagi (Wajib checkout jam 12:00 siang hari ini)' : ((durationType === 'weekly' || durationType === 'monthly') ? 'No include token PLN, handuk, sprei, dan selimut' : undefined)
       }
       submitData.append('selected_room_type', JSON.stringify(roomTypeInfo))
 
@@ -1629,7 +1629,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               )}
 
               {/* Informative Notice Banner for Weekly and Monthly */}
-              {durationType !== 'daily' && (
+              {(durationType === 'weekly' || durationType === 'monthly') && (
                 <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs text-amber-200">
                   <div className="flex items-center gap-1.5 font-bold text-amber-300">
                     <Info className="w-4 h-4 text-amber-400 shrink-0" />
@@ -1660,7 +1660,9 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               {/* Rent item */}
               <div className="flex justify-between text-slate-300">
                 <span className="flex items-center gap-1">
-                  Biaya Sewa ({durationType === 'daily' 
+                  Biaya Sewa ({durationType === 'transit_morning' 
+                    ? 'Sesi Pagi (s/d 12:00 Siang)' 
+                    : durationType === 'daily' 
                     ? `${dailyDays} Malam (Harian)` 
                     : durationType === 'weekly' 
                       ? `${weeklyWeeks} Minggu (@ Rp 500rb)` 
