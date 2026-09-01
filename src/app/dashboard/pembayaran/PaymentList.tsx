@@ -388,41 +388,81 @@ export default function PaymentList({
     })
   }, [payments, shiftDate, isStaff, currentUser?.id, shiftStaffId, shiftMethod])
 
-  // Shift & Cash Totals
+  // Shift & Cash Totals with Deposit & Pure Rent (Laba Bersih) Breakdown
   const shiftStats = useMemo(() => {
     let totalCash = 0
     let totalQris = 0
     let countCash = 0
     let countQris = 0
+    let totalNetRent = 0
+    let totalDeposit = 0
+    let totalCashRent = 0
+    let totalCashDeposit = 0
+    let totalQrisRent = 0
+    let totalQrisDeposit = 0
 
     shiftPayments.forEach((p: any) => {
-      const amount = parseFloat(p.amount) || 0
+      const grossAmount = parseFloat(p.amount) || 0
       const isCash = (p.payment_method || '').toLowerCase().includes('cash') || 
         (p.payment_method || '').toLowerCase().includes('tunai') ||
         p.check_in_request?.payment_destination?.toLowerCase().includes('cash') ||
         p.check_in_request?.payment_destination?.toLowerCase().includes('resepsionis') ||
         p.notes?.toLowerCase().includes('tunai')
 
-      if (isCash) {
-        totalCash += amount
-        countCash++
+      const isClaimOrPenalty = p.payment_method === 'deposit_deduction' || 
+        p.notes?.includes('[Klaim Deposit]') || 
+        p.notes?.includes('[Pelunasan Check-Out]')
+
+      let deposit = 0
+      let netRent = 0
+
+      if (isClaimOrPenalty) {
+        deposit = 0
+        netRent = grossAmount
       } else {
-        totalQris += amount
-        countQris++
+        const rawDeposit = parseFloat(p.check_in_request?.deposit_amount || p.deposit_amount || 0)
+        if (rawDeposit > 0 && grossAmount > rawDeposit) {
+          deposit = rawDeposit
+          netRent = grossAmount - rawDeposit
+        } else {
+          deposit = 0
+          netRent = grossAmount
+        }
       }
+
+      if (isCash) {
+        totalCash += grossAmount
+        countCash++
+        totalCashRent += netRent
+        totalCashDeposit += deposit
+      } else {
+        totalQris += grossAmount
+        countQris++
+        totalQrisRent += netRent
+        totalQrisDeposit += deposit
+      }
+
+      totalNetRent += netRent
+      totalDeposit += deposit
     })
 
     return {
       totalCash,
       totalQris,
       totalGrand: totalCash + totalQris,
+      totalNetRent,
+      totalDeposit,
+      totalCashRent,
+      totalCashDeposit,
+      totalQrisRent,
+      totalQrisDeposit,
       totalCount: shiftPayments.length,
       countCash,
       countQris
     }
   }, [shiftPayments])
 
-  // Copy Shift Report Handler
+  // Copy Shift Report Handler with Detailed Net Profit & Deposit Breakdown
   const handleCopyShiftReport = () => {
     const staffName = isStaff
       ? (currentUser?.name || 'Petugas Shift')
@@ -444,15 +484,20 @@ export default function PaymentList({
     reportText += `Tanggal: ${formattedDate}\n`
     reportText += `Petugas: ${staffName}\n\n`
     reportText += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
-    reportText += `*RINGKASAN PEMASUKAN:*\n`
+    reportText += `*💰 TOTAL KAS MASUK (KOTOR):*\n`
     reportText += `• Penerimaan Tunai (Cash): ${formatIdr(shiftStats.totalCash)} (${shiftStats.countCash} transaksi)\n`
     reportText += `• Penerimaan QRIS / Transfer: ${formatIdr(shiftStats.totalQris)} (${shiftStats.countQris} transaksi)\n`
-    reportText += `• Total Pemasukan: ${formatIdr(shiftStats.totalGrand)}\n`
-    reportText += `• Total Transaksi: ${shiftStats.totalCount} transaksi\n`
+    reportText += `• *Total Kas Diterima:* ${formatIdr(shiftStats.totalGrand)} (${shiftStats.totalCount} transaksi)\n`
+    reportText += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+    reportText += `*📊 RINCIAN KOMPONEN & LABA BERSIH:*\n`
+    reportText += `• *Pendapatan Sewa Murni (Laba Bersih):* ${formatIdr(shiftStats.totalNetRent)}\n`
+    reportText += `  └ (Uang sewa kamar, pelunasan & denda hak milik kos)\n`
+    reportText += `• *Titipan Deposit Masuk:* ${formatIdr(shiftStats.totalDeposit)}\n`
+    reportText += `  └ (Uang jaminan tamu yang wajib dikembalikan saat checkout)\n`
     reportText += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`
     
     if (shiftPayments.length > 0) {
-      reportText += `*RINCIAN TRANSAKSI:*\n`
+      reportText += `*📝 RINCIAN TRANSAKSI:*\n`
       shiftPayments.forEach((p: any, idx: number) => {
         const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
         const checkInRequest = p.check_in_request
@@ -467,7 +512,40 @@ export default function PaymentList({
         const methodStr = isCash ? 'Tunai' : 'QRIS'
         const pStaff = p.profiles?.full_name || 'Resepsionis'
 
-        reportText += `${idx + 1}. [${pTime}] ${tenantName} (Kamar ${roomNum}) - ${methodStr}: ${formatIdr(parseFloat(p.amount))} [Petugas: ${pStaff}]\n`
+        const grossAmount = parseFloat(p.amount) || 0
+        const isClaimOrPenalty = p.payment_method === 'deposit_deduction' || 
+          p.notes?.includes('[Klaim Deposit]') || 
+          p.notes?.includes('[Pelunasan Check-Out]')
+        
+        let deposit = 0
+        let netRent = 0
+        if (isClaimOrPenalty) {
+          deposit = 0
+          netRent = grossAmount
+        } else {
+          const rawDeposit = parseFloat(checkInRequest?.deposit_amount || p.deposit_amount || 0)
+          if (rawDeposit > 0 && grossAmount > rawDeposit) {
+            deposit = rawDeposit
+            netRent = grossAmount - rawDeposit
+          } else {
+            deposit = 0
+            netRent = grossAmount
+          }
+        }
+
+        let detailTag = ''
+        if (deposit > 0) {
+          detailTag = ` [Sewa: ${formatIdr(netRent)} + Deposit: ${formatIdr(deposit)}]`
+        } else if (p.notes?.includes('[Pelunasan Check-Out]')) {
+          detailTag = ` [Pelunasan Denda]`
+        } else if (p.notes?.includes('[Klaim Deposit]')) {
+          detailTag = ` [Klaim Deposit Ganti Rugi]`
+        } else {
+          detailTag = ` [Sewa Murni]`
+        }
+
+        reportText += `${idx + 1}. [${pTime}] ${tenantName} (Kamar ${roomNum})\n`
+        reportText += `   └ ${methodStr}: ${formatIdr(grossAmount)}${detailTag} • Petugas: ${pStaff}\n`
       })
     } else {
       reportText += `(Tidak ada transaksi pada filter ini)\n`
@@ -776,9 +854,49 @@ export default function PaymentList({
             </div>
           </div>
 
-          {/* 4 Shift KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 1. Total Cash */}
+          {/* 5 Shift KPI Cards with Laba Bersih & Titipan Deposit */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {/* 1. Laba Bersih / Sewa Murni (Featured Emerald) */}
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex flex-col justify-between bg-gradient-to-br from-emerald-50 to-teal-50 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-900">
+                  Laba Bersih (Sewa Murni)
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className="text-xl sm:text-2xl font-black text-emerald-950 font-mono">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalNetRent)}
+                </p>
+                <p className="text-[11px] text-emerald-700 font-bold mt-0.5">
+                  Sewa + Pelunasan Denda
+                </p>
+              </div>
+            </div>
+
+            {/* 2. Titipan Deposit (Featured Purple/Indigo) */}
+            <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4 flex flex-col justify-between bg-gradient-to-br from-purple-50 to-indigo-50 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-900">
+                  Titipan Deposit Masuk
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className="text-xl sm:text-2xl font-black text-purple-950 font-mono">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalDeposit)}
+                </p>
+                <p className="text-[11px] text-purple-700 font-bold mt-0.5">
+                  Uang Jaminan (Wajib Kembali)
+                </p>
+              </div>
+            </div>
+
+            {/* 3. Total Cash */}
             <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800">
@@ -798,11 +916,11 @@ export default function PaymentList({
               </div>
             </div>
 
-            {/* 2. Total QRIS */}
+            {/* 4. Total QRIS */}
             <div className="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-800">
-                  Penerimaan QRIS / Transfer
+                  Penerimaan QRIS / TF
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
                   <CreditCard className="w-4 h-4" />
@@ -818,11 +936,11 @@ export default function PaymentList({
               </div>
             </div>
 
-            {/* 3. Grand Total */}
+            {/* 5. Grand Total */}
             <div className="bg-slate-900 text-white rounded-2xl p-4 flex flex-col justify-between border border-slate-800">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                  Total Pemasukan Kas
+                  Total Kas Masuk (Kotor)
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-white/10 text-emerald-400 flex items-center justify-center">
                   <TrendingUp className="w-4 h-4" />
@@ -833,27 +951,7 @@ export default function PaymentList({
                   {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(shiftStats.totalGrand)}
                 </p>
                 <p className="text-[11px] text-slate-300 font-semibold mt-0.5">
-                  Gabungan Cash + QRIS
-                </p>
-              </div>
-            </div>
-
-            {/* 4. Total Count */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-                  Total Transaksi
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center">
-                  <Users className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <p className="text-xl sm:text-2xl font-black text-slate-900">
-                  {shiftStats.totalCount} <span className="text-xs font-semibold text-slate-500">Tamu</span>
-                </p>
-                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                  Pada tanggal {new Date(shiftDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                  {shiftStats.totalCount} Transaksi Selesai
                 </p>
               </div>
             </div>
