@@ -189,6 +189,23 @@ export default async function PenghuniPage() {
             staffName = profile.full_name
           }
 
+          // Resolve actual checkout timestamp & time
+          const checkoutTimestamp = matchedPayment?.created_at || c.updated_at || c.created_at
+          const checkoutDateObj = new Date(checkoutTimestamp)
+          const checkoutTimeStr = checkoutDateObj.toLocaleTimeString('id-ID', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            timeZone: 'Asia/Jakarta' 
+          })
+
+          const isLateSettlement = matchedPayment?.notes?.includes('[Pelunasan Check-Out]')
+          const isDepositClaim = matchedPayment?.notes?.includes('[Klaim Deposit]')
+          const lateFeeAmount = isLateSettlement && matchedPayment?.amount ? (parseFloat(matchedPayment.amount) || 0) : 0
+          const claimedDepositAmount = isDepositClaim && matchedPayment?.amount ? (parseFloat(matchedPayment.amount) || 0) : 0
+
+          const initialDeposit = c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0
+          const depositRefund = Math.max(0, initialDeposit - claimedDepositAmount)
+
           return {
             id: c.id,
             tenant_name: c.full_name,
@@ -198,17 +215,17 @@ export default async function PenghuniPage() {
             room_type: room?.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room',
             check_in_date: c.created_at ? getWIBDateString(c.created_at) : null,
             due_date: null,
-            checkout_date: c.updated_at ? getWIBDateString(c.updated_at) : getWIBDateString(),
-            checkout_time: '12:00',
-            deposit_amount: c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0,
-            late_fee: 0,
+            checkout_date: checkoutTimestamp ? getWIBDateString(checkoutTimestamp) : getWIBDateString(),
+            checkout_time: checkoutTimeStr,
+            deposit_amount: initialDeposit,
+            late_fee: lateFeeAmount,
             damage_fee: 0,
-            claimed_deposit: 0,
-            deposit_refund: c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0,
-            additional_pay_needed: 0,
+            claimed_deposit: claimedDepositAmount,
+            deposit_refund: depositRefund,
+            additional_pay_needed: lateFeeAmount,
             notes: matchedPayment?.notes || 'Check-out selesai diproses',
             processed_by: staffName,
-            created_at: c.updated_at || c.created_at
+            created_at: checkoutTimestamp
           }
         })
       }
