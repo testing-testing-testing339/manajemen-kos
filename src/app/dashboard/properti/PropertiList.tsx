@@ -166,7 +166,7 @@ export default function PropertiList({
     const dasar = rooms.filter(r => r.floors?.name?.toLowerCase() === 'dasar' || r.floors?.name?.toLowerCase().includes('dasar')).length
     const lt2 = rooms.filter(r => r.floors?.name?.toLowerCase().includes('lt 2') || r.floors?.name?.toLowerCase().includes('lantai 2')).length
     const lt3 = rooms.filter(r => r.floors?.name?.toLowerCase().includes('lt 3') || r.floors?.name?.toLowerCase().includes('lantai 3')).length
-    const occupied = rooms.filter(r => r.is_occupied).length
+    const occupied = rooms.filter(r => r.is_occupied || Boolean(tenantMap.get(r.id))).length
     const available = total - occupied
     const issues = rooms.filter(r => Boolean(getRoomCondition(r.facilities, r.damage_notes))).length
 
@@ -330,7 +330,7 @@ export default function PropertiList({
       </div>,
 
       <div key={`status-${room.id}`}>
-        {room.is_occupied ? (
+        {(room.is_occupied || Boolean(tenant)) ? (
           <div className="space-y-0.5">
             <span className="px-2.5 py-0.5 bg-red-100 text-red-800 rounded-full text-[11px] font-bold inline-flex items-center gap-1 border border-red-200">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -568,8 +568,8 @@ export default function PropertiList({
           {floorsGrouped.map(([floorId, floorData]) => {
             const isVipSection = floorData.floorName.toLowerCase().includes('vip')
             const totalInFloor = floorData.rooms.length
-            const emptyInFloor = floorData.rooms.filter(r => !r.is_occupied).length
-            const occupiedInFloor = totalInFloor - emptyInFloor
+            const occupiedInFloor = floorData.rooms.filter(r => r.is_occupied || Boolean(tenantMap.get(r.id))).length
+            const emptyInFloor = totalInFloor - occupiedInFloor
 
             return (
               <div key={floorId} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
@@ -601,7 +601,7 @@ export default function PropertiList({
                   {floorData.rooms.map(room => {
                     const isVip = room.floors?.name?.toLowerCase().includes('vip') || room.room_type === 'vip'
                     const tenant = tenantMap.get(room.id)
-                    const isOccupied = room.is_occupied
+                    const isOccupied = room.is_occupied || Boolean(tenant)
                     const condition = getRoomCondition(room.facilities, room.damage_notes)
                     const tier = getFacilityTier(room.facilities)
 
