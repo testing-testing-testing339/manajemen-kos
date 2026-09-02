@@ -355,7 +355,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
             status: 'confirmed',
             confirmed_by: user.id,
             confirmed_at: new Date().toISOString(),
-            notes: isCash ? 'Pembayaran Tunai di Resepsionis' : 'Pembayaran QRIS GoPay Merchant'
+            notes: `${isCash ? 'Pembayaran Tunai di Resepsionis' : 'Pembayaran QRIS GoPay Merchant'} | Tamu: ${checkInData.full_name}`
           })
 
         if (paymentError) {

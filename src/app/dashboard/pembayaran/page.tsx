@@ -317,16 +317,21 @@ export default async function PembayaranPage() {
           usedCheckInIds.add(matchedCheckIn.id)
         }
 
-        // Construct synthetic tenant data only if missing and notes has extractedName
-        if (!tenant && extractedName) {
-          tenant = {
-            id: payment.tenant_id,
-            full_name: extractedName,
-            rooms: {
-              room_number: extractedRoom || '-',
-              floors: {
-                branches: {
-                  name: 'Graha Aisyah Menteng'
+        // Construct synthetic tenant data if missing
+        if (!tenant) {
+          const finalName = extractedName || matchedCheckIn?.full_name || null
+          const finalRoom = extractedRoom || matchedCheckIn?.rooms?.room_number || '-'
+          if (finalName) {
+            tenant = {
+              id: payment.tenant_id,
+              full_name: finalName,
+              phone: matchedCheckIn?.phone || '-',
+              rooms: {
+                room_number: finalRoom,
+                floors: {
+                  branches: {
+                    name: 'Graha Aisyah Menteng'
+                  }
                 }
               }
             }
