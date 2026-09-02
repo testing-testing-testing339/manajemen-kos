@@ -222,7 +222,7 @@ export default function TenantList({
       setCheckoutNotes('')
       setAdditionalPaymentMethod('cash')
 
-      const isTrans = Boolean(checkoutTenant.is_transition || checkoutTenant.rental_duration === 'transition')
+      const isTrans = Boolean(checkoutTenant.status === 'transition' || checkoutTenant.is_transition || checkoutTenant.rental_duration === 'transition')
       setIsWaiveLateFee(isTrans)
       setCustomLateFee(null)
       setSkipPaymentRecord(isTrans)
@@ -478,7 +478,7 @@ export default function TenantList({
     const dueDate = tenant.payment_due_date ? new Date(tenant.payment_due_date) : null
     const dueStatus = getDueStatus(tenant.payment_due_date)
 
-    const isTransition = Boolean(tenant.is_transition || tenant.rental_duration === 'transition')
+    const isTransition = Boolean(tenant.status === 'transition' || tenant.is_transition || tenant.rental_duration === 'transition')
 
     return [
       <div key={`name-${tenant.id}`} className="flex items-center gap-3">

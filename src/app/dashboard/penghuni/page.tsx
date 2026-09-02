@@ -91,7 +91,7 @@ export default async function PenghuniPage() {
       )
     }
 
-    const isTransition = Boolean(t.is_transition || t.rental_duration === 'transition')
+    const isTransition = Boolean(t.status === 'transition' || t.is_transition || t.rental_duration === 'transition')
 
     return {
       ...t,

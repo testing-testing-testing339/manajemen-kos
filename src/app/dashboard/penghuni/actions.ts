@@ -448,21 +448,15 @@ export async function toggleTenantTransition(prevState: any, formData: FormData)
     return { error: 'Akses Ditolak: Hanya Pemilik Kos (Owner) yang berwenang menandai atau mengubah status Tamu Transisi.' }
   }
 
-  // 1. Try updating is_transition column
-  let { error: updateError } = await adminClient
+  // Update status = 'transition' or 'active'
+  const { error: updateError } = await adminClient
     .from('tenants')
-    .update({ is_transition })
+    .update({ 
+      status: is_transition ? 'transition' : 'active'
+    })
     .eq('id', tenant_id)
 
-  // 2. If is_transition column doesn't exist yet, fallback gracefully to updating rental_duration
-  if (updateError && updateError.message?.includes('is_transition')) {
-    const fallbackDuration = is_transition ? 'transition' : 'daily'
-    const { error: fallbackErr } = await adminClient
-      .from('tenants')
-      .update({ rental_duration: fallbackDuration })
-      .eq('id', tenant_id)
-    if (fallbackErr) return { error: fallbackErr.message }
-  } else if (updateError) {
+  if (updateError) {
     return { error: updateError.message }
   }
 
