@@ -89,6 +89,12 @@ export default function PaymentList({
     return getWIBDateString()
   }
 
+  const getYesterdayStr = () => {
+    const y = new Date()
+    y.setDate(y.getDate() - 1)
+    return getWIBDateString(y)
+  }
+
   const [shiftDate, setShiftDate] = useState(getTodayStr())
   const [shiftStaffId, setShiftStaffId] = useState('all')
   const [shiftMethod, setShiftMethod] = useState('all')
@@ -1015,94 +1021,79 @@ export default function PaymentList({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Quick Date Segmented Control */}
-              <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setShiftDate(getTodayStr())}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    shiftDate === getTodayStr() ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Hari Ini
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const y = new Date()
-                    y.setDate(y.getDate() - 1)
-                    const yStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`
-                    setShiftDate(yStr)
+            {/* Toolbar 3 Menu Sederhana & Lengkap */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Menu 1: Periode & Tanggal */}
+              <div className="relative inline-flex items-center">
+                <select
+                  value={
+                    shiftDate === getTodayStr() 
+                      ? 'today' 
+                      : (shiftDate === getYesterdayStr() 
+                          ? 'yesterday' 
+                          : (shiftDate === 'month' 
+                              ? 'month' 
+                              : (shiftDate === 'all' ? 'all' : shiftDate)))
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === 'today') setShiftDate(getTodayStr())
+                    else if (val === 'yesterday') setShiftDate(getYesterdayStr())
+                    else if (val === 'month') setShiftDate('month')
+                    else if (val === 'all') setShiftDate('all')
+                    else setShiftDate(val)
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    shiftDate !== getTodayStr() && shiftDate !== 'month' && shiftDate !== 'all' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-2xs hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
-                  Kemarin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShiftDate('month')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    shiftDate === 'month' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Bulan Ini
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShiftDate('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    shiftDate === 'all' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Semua
-                </button>
+                  <option value="today">📅 Hari Ini ({new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })})</option>
+                  <option value="yesterday">📅 Kemarin ({(() => { const y = new Date(); y.setDate(y.getDate() - 1); return y.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) })()})</option>
+                  <option value="month">📅 Bulan Ini ({new Date().toLocaleDateString('id-ID', { month: 'long' })})</option>
+                  <option value="all">📅 Semua Waktu</option>
+                  {shiftDate !== getTodayStr() && shiftDate !== getYesterdayStr() && shiftDate !== 'month' && shiftDate !== 'all' && (
+                    <option value={shiftDate}>📅 Tanggal: {shiftDate}</option>
+                  )}
+                </select>
               </div>
 
-              {/* Date Picker Input */}
-              <input
-                type="date"
-                value={shiftDate === 'month' || shiftDate === 'all' ? '' : shiftDate}
-                onChange={(e) => setShiftDate(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                title="Pilih tanggal spesifik"
-              />
-
-              {/* Staff Selector (Only visible for Owner) */}
-              {!isStaff && (
-                <select
-                  value={shiftStaffId}
-                  onChange={(e) => setShiftStaffId(e.target.value)}
-                  className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                >
-                  <option value="all">Semua Petugas</option>
-                  {allStaff.map((s: any) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Method Filter */}
+              {/* Menu 2: Filter Kas & Petugas */}
               <select
-                value={shiftMethod}
-                onChange={(e) => setShiftMethod(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                value={
+                  shiftStaffId !== 'all' 
+                    ? `staff_${shiftStaffId}` 
+                    : shiftMethod
+                }
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val.startsWith('staff_')) {
+                    setShiftStaffId(val.replace('staff_', ''))
+                    setShiftMethod('all')
+                  } else {
+                    setShiftStaffId('all')
+                    setShiftMethod(val)
+                  }
+                }}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-2xs hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
-                <option value="all">Semua Metode</option>
-                <option value="cash">💵 Tunai</option>
-                <option value="transfer">💳 QRIS/TF</option>
+                <option value="all">💳 Semua Kas & Metode</option>
+                <option value="cash">💵 Kas Tunai (Fisik)</option>
+                <option value="transfer">📱 QRIS / Transfer</option>
+                {!isStaff && allStaff.length > 0 && (
+                  <optgroup label="Filter Petugas:">
+                    {allStaff.map((s: any) => (
+                      <option key={s.id} value={`staff_${s.id}`}>
+                        👤 {s.full_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
 
-              {/* Salin Rekap Shift Button */}
+              {/* Menu 3: Tombol Salin Rekap */}
               <button
                 type="button"
                 onClick={handleCopyShiftReport}
-                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                title="Salin laporan teks untuk WhatsApp"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+                title="Salin ringkasan laporan teks untuk WhatsApp"
               >
                 {copyFeedback ? (
                   <>
