@@ -178,7 +178,7 @@ export default async function PembayaranPage() {
         const tenantIds = paymentsWithTenantId.map((p: any) => p.tenant_id)
         let tenantsQuery = supabase
           .from('tenants')
-          .select('id, full_name, phone, id_card_number, id_card_photo_url, selfie_photo_url, rental_duration, rental_count, check_in_date, payment_due_date, rooms(room_number, floors(branches(name)))')
+          .select('*, rooms(room_number, floors(branches(name)))')
           .in('id', tenantIds)
         
         // Additional filtering for staff using cached data

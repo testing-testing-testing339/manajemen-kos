@@ -182,8 +182,14 @@ export default function PaymentList({
         // Claimed deposit / Penalty is revenue to kos!
         rent = amount
       } else {
-        const deposit = parseFloat(p.check_in_request?.deposit_amount || p.deposit_amount || 0)
-        rent = (deposit > 0 && amount > deposit) ? (amount - deposit) : amount
+        const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
+        const checkInRequest = p.check_in_request
+        const rawDeposit = parseFloat(
+          tenant?.deposit_amount !== undefined && tenant?.deposit_amount !== null
+            ? tenant.deposit_amount
+            : (checkInRequest?.deposit_amount || p.deposit_amount || 0)
+        )
+        rent = (rawDeposit > 0 && amount > rawDeposit) ? (amount - rawDeposit) : amount
       }
       
       totalRentRevenue += rent
@@ -222,7 +228,11 @@ export default function PaymentList({
           deposit = 0
           netRent = grossAmount
         } else {
-          const rawDeposit = parseFloat(checkInRequest?.deposit_amount || p.deposit_amount || 0)
+          const rawDeposit = parseFloat(
+            tenant?.deposit_amount !== undefined && tenant?.deposit_amount !== null
+              ? tenant.deposit_amount
+              : (checkInRequest?.deposit_amount || p.deposit_amount || 0)
+          )
           if (rawDeposit > 0 && grossAmount > rawDeposit) {
             deposit = rawDeposit
             netRent = grossAmount - rawDeposit
@@ -643,7 +653,11 @@ export default function PaymentList({
           deposit = 0
           netRent = grossAmount
         } else {
-          const rawDeposit = parseFloat(checkInRequest?.deposit_amount || p.deposit_amount || 0)
+          const rawDeposit = parseFloat(
+            tenant?.deposit_amount !== undefined && tenant?.deposit_amount !== null
+              ? tenant.deposit_amount
+              : (checkInRequest?.deposit_amount || p.deposit_amount || 0)
+          )
           if (rawDeposit > 0 && grossAmount > rawDeposit) {
             deposit = rawDeposit
             netRent = grossAmount - rawDeposit
