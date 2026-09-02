@@ -148,17 +148,18 @@ export default async function RiwayatCheckoutPage() {
           const initialDeposit = c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0
           const depositRefund = Math.max(0, initialDeposit - claimedDepositAmount)
 
-          const isKtpHeld = c.notes?.includes('[KTP DITAHAN')
+          const rawNotes = c.payment_destination?.includes('[KTP') ? c.payment_destination : (matchedPayment?.notes || c.payment_destination || 'Check-out selesai diproses')
+          const isKtpHeld = rawNotes.includes('[KTP DITAHAN')
           let ktpUnpaidAmount = 0
-          if (isKtpHeld && c.notes) {
-            const match = c.notes.match(/TUNGGAKAN Rp\s*([\d\.,]+)/i)
+          if (isKtpHeld) {
+            const match = rawNotes.match(/TUNGGAKAN Rp\s*([\d\.,]+)/i)
             if (match) {
               ktpUnpaidAmount = parseFloat(match[1].replace(/\./g, '')) || 0
             }
           }
 
-          const finalNotes = c.notes || matchedPayment?.notes || 'Check-out selesai diproses'
-          const finalAdditionalPay = isKtpHeld ? (ktpUnpaidAmount || 50000) : lateFeeAmount
+          const finalNotes = rawNotes
+          const finalAdditionalPay = isKtpHeld ? (ktpUnpaidAmount || 150000) : lateFeeAmount
 
           return {
             id: c.id,

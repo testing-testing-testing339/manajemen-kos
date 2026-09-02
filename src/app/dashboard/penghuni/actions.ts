@@ -307,18 +307,15 @@ export async function processCheckout(prevState: any, formData: FormData) {
     })
   }
 
-  // 4. Mark check-in request as checked_out
-  if (tenant.room_id) {
+  // 4. Update check-in request if KTP held
+  if (tenant.room_id && unpaid_ktp_held && actualExtraToPay > 0) {
+    const ktpTag = `[KTP DITAHAN - TUNGGAKAN Rp ${actualExtraToPay.toLocaleString('id-ID')}]`
     await adminClient
       .from('check_in_requests')
       .update({ 
-        status: 'checked_out',
-        notes: unpaid_ktp_held && actualExtraToPay > 0 
-          ? `[KTP DITAHAN - TUNGGAKAN Rp ${actualExtraToPay.toLocaleString('id-ID')}]`
-          : null
+        payment_destination: ktpTag
       })
       .eq('assigned_room_id', tenant.room_id)
-      .eq('status', 'completed')
   }
 
   // 5. Mark room as unoccupied
@@ -409,7 +406,7 @@ export async function settleUnpaidKtpPenalty(prevState: any, formData: FormData)
     await adminClient
       .from('check_in_requests')
       .update({ 
-        notes: `[KTP TELAH DISERAHKAN - LUNAS Rp ${amount.toLocaleString('id-ID')}]`
+        payment_destination: `[KTP TELAH DISERAHKAN - LUNAS Rp ${amount.toLocaleString('id-ID')}]`
       })
       .eq('id', check_in_id)
   }
