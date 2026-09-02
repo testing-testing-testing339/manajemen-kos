@@ -309,28 +309,28 @@ export default function TenantList({
     const minutes = parseInt(mStr) || 0
     const totalMinutes = hours * 60 + minutes
 
-    const checkoutStandardMinutes = 12 * 60 // 12:00 WIB
+    const checkoutGraceMinutes = 12 * 60 + 30 // 12:30 WIB (Toleransi batas check-out tanpa denda)
     const threePMMinutes = 15 * 60 // 15:00 WIB
     const fivePMMinutes = 17 * 60 // 17:00 WIB
 
     // 2. Check-out PADA tanggal jatuh tempo (diffDays === 0)
     if (diffDays === 0) {
-      if (totalMinutes <= checkoutStandardMinutes) {
+      if (totalMinutes <= checkoutGraceMinutes) {
         return { 
           lateFee: 0, 
-          lateStatusText: 'Tepat Waktu (≤ 12:00 WIB)', 
+          lateStatusText: 'Tepat Waktu (≤ 12:30 WIB)', 
           isLate: false 
         }
       } else if (totalMinutes <= threePMMinutes) {
         return { 
           lateFee: 50000, 
-          lateStatusText: `Telat (${checkoutTime} WIB, s/d 15:00 WIB)`, 
+          lateStatusText: `Telat (${checkoutTime} WIB, 12:31–15:00 WIB)`, 
           isLate: true 
         }
       } else if (totalMinutes <= fivePMMinutes) {
         return { 
           lateFee: 100000, 
-          lateStatusText: `Telat (${checkoutTime} WIB, 15:00–17:00 WIB)`, 
+          lateStatusText: `Telat (${checkoutTime} WIB, 15:01–17:00 WIB)`, 
           isLate: true 
         }
       } else {
@@ -344,15 +344,15 @@ export default function TenantList({
 
     // 3. Check-out SETELAH tanggal jatuh tempo (diffDays > 0)
     let fee = diffDays * 100000
-    if (totalMinutes > checkoutStandardMinutes) {
+    if (totalMinutes > checkoutGraceMinutes) {
       if (totalMinutes <= threePMMinutes) fee += 50000
       else fee += 100000
     }
 
-    return {
-      lateFee: fee,
-      lateStatusText: `Telat ${diffDays} Hari (${checkoutTime} WIB)`,
-      isLate: true
+    return { 
+      lateFee: fee, 
+      lateStatusText: `Telat ${diffDays} Hari (${checkoutTime} WIB)`, 
+      isLate: true 
     }
   }, [checkoutTenant, checkoutDate, checkoutTime])
 
@@ -1278,7 +1278,7 @@ export default function TenantList({
               {checkoutTenant.rental_duration === 'transit_morning' && (
                 <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs flex items-center gap-2 text-amber-800 font-semibold">
                   <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Tamu <strong>Sesi Pagi (Short Stay)</strong> • Wajib Check-out pukul 12:00 siang ini.</span>
+                  <span>Tamu <strong>Sesi Pagi (Short Stay)</strong> • Batas check-out pukul 12:00 (Toleransi s/d 12:30 WIB).</span>
                 </div>
               )}
 
@@ -1290,7 +1290,7 @@ export default function TenantList({
                       <span>
                         {checkoutTenant.payment_due_date 
                           ? new Date(checkoutTenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) 
-                          : '-'} • 12:00 WIB
+                          : '-'} • 12:00 (Toleransi 12:30 WIB)
                       </span>
                     </p>
                   </div>
