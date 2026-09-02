@@ -220,6 +220,19 @@ export default async function PenghuniPage() {
           const initialDeposit = c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0
           const depositRefund = Math.max(0, initialDeposit - claimedDepositAmount)
 
+          const rawNotes = c.payment_destination?.includes('[KTP') ? c.payment_destination : (matchedPayment?.notes || c.payment_destination || 'Check-out selesai diproses')
+          const isKtpHeld = rawNotes.includes('[KTP DITAHAN')
+          let ktpUnpaidAmount = 0
+          if (isKtpHeld) {
+            const match = rawNotes.match(/TUNGGAKAN Rp\s*([\d\.,]+)/i)
+            if (match) {
+              ktpUnpaidAmount = parseFloat(match[1].replace(/\./g, '')) || 0
+            }
+          }
+
+          const finalNotes = rawNotes
+          const finalAdditionalPay = isKtpHeld ? (ktpUnpaidAmount || 150000) : lateFeeAmount
+
           return {
             id: c.id,
             tenant_name: c.full_name,
@@ -232,12 +245,12 @@ export default async function PenghuniPage() {
             checkout_date: checkoutTimestamp ? getWIBDateString(checkoutTimestamp) : getWIBDateString(),
             checkout_time: checkoutTimeStr,
             deposit_amount: initialDeposit,
-            late_fee: lateFeeAmount,
+            late_fee: isKtpHeld ? ktpUnpaidAmount : lateFeeAmount,
             damage_fee: 0,
             claimed_deposit: claimedDepositAmount,
             deposit_refund: depositRefund,
-            additional_pay_needed: lateFeeAmount,
-            notes: matchedPayment?.notes || 'Check-out selesai diproses',
+            additional_pay_needed: finalAdditionalPay,
+            notes: finalNotes,
             processed_by: staffName,
             created_at: checkoutTimestamp
           }
