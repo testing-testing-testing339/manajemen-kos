@@ -1328,16 +1328,16 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xs mx-auto">
+              <div className="max-w-xs mx-auto w-full">
                 {cameraActive === 'selfie' ? (
-                  <>
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => capturePhoto('selfie')}
                       className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer"
                     >
                       <Camera className="w-4 h-4" />
-                      Ambil Foto Wajah
+                      <span>Ambil Foto</span>
                     </button>
                     <button
                       type="button"
@@ -1346,36 +1346,17 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     >
                       Tutup Kamera
                     </button>
-                  </>
+                  </div>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => startCamera('selfie')}
-                      disabled={cameraLoading}
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg cursor-pointer"
-                    >
-                      <Camera className="w-4 h-4" />
-                      {cameraLoading ? 'Membuka Kamera...' : 'Buka Kamera Depan'}
-                    </button>
-
-                    <label 
-                      htmlFor="selfie_photo_input"
-                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-pointer text-center" 
-                      title="Buka kamera depan bawaan HP jika live stream tidak aktif"
-                    >
-                      <Camera className="w-4 h-4 text-indigo-400" />
-                      <span>Kamera Depan HP</span>
-                      <input
-                        id="selfie_photo_input"
-                        type="file"
-                        accept="image/*"
-                        capture="user"
-                        className="sr-only"
-                        onChange={(e) => handleFileUpload(e, 'selfie_photo')}
-                      />
-                    </label>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => startCamera('selfie')}
+                    disabled={cameraLoading}
+                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 cursor-pointer transition-all"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>{cameraLoading ? 'Membuka Kamera...' : 'Nyalakan Kamera Depan'}</span>
+                  </button>
                 )}
               </div>
             </div>
