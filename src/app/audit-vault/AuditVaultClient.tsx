@@ -47,6 +47,7 @@ interface AuditVaultClientProps {
   rooms: any[]
   floors: any[]
   branches: any[]
+  damages?: any[]
 }
 
 export default function AuditVaultClient({
@@ -57,7 +58,8 @@ export default function AuditVaultClient({
   profiles,
   rooms,
   floors,
-  branches
+  branches,
+  damages = []
 }: AuditVaultClientProps) {
   // Master Password Gate State
   const [isUnlocked, setIsUnlocked] = useState(false)
@@ -73,6 +75,7 @@ export default function AuditVaultClient({
 
   // Audit Logs State
   const [selectedStaffId, setSelectedStaffId] = useState<string>('all')
+  const [selectedActivityType, setSelectedActivityType] = useState<string>('all')
 
   // Latency State
   const [latency, setLatency] = useState(initialLatency)
@@ -294,56 +297,189 @@ export default function AuditVaultClient({
     })
   }, [profiles, checkIns, payments])
 
-  // Combined Audit Timeline Feed
+  // Combined Comprehensive Audit Timeline Feed (ALL Activities)
   const auditTimeline = useMemo(() => {
     const events: any[] = []
+    const activeNames = new Set(tenants.map(t => (t.full_name || '').toLowerCase().trim()))
 
-    // 1. Payment events
+    // 1. Check-out events (From checked_out status and completed CIR no longer in active tenants)
+    checkIns.forEach(c => {
+      const cNameLower = (c.full_name || '').toLowerCase().trim()
+      const isCheckedOut = c.status === 'checked_out' || (c.status === 'completed' && !activeNames.has(cNameLower))
+      
+      if (isCheckedOut) {
+        const matchedPayment = payments.find(p => (p.notes || '').toLowerCase().includes(cNameLower))
+        const staffId = matchedPayment?.confirmed_by || c.assigned_by
+        const staff = staffId ? profileMap.get(staffId) : null
+
+        const checkoutTimestamp = (c.status === 'checked_out' ? c.updated_at : null) || matchedPayment?.created_at || c.updated_at || c.created_at
+        const roomNumber = c.rooms?.room_number || '-'
+        const floorName = c.rooms?.floors?.name || '-'
+
+        events.push({
+          type: 'checkout',
+          category: 'checkout',
+          guestName: c.full_name,
+          roomNumber,
+          timestamp: checkoutTimestamp,
+          staffName: staff?.full_name || staff?.email || 'Staf Resepsionis',
+          staffRole: staff?.role || 'staff',
+          title: `🚪 Tamu Selesai Check-out: ${c.full_name}`,
+          description: `Kamar ${roomNumber} (${floorName}) • Selesai masa sewa & kamar kembali berstatus Kosong`,
+          amount: 0,
+          staffId: staffId || 'system'
+        })
+      }
+    })
+
+    // 2. Payment events (Rent, Claims, Settlements)
     payments.forEach(pay => {
       const staff = profileMap.get(pay.confirmed_by)
+      const isCheckoutSettlement = pay.notes?.includes('[Pelunasan Check-Out]') 
+      const isDepositClaim = pay.notes?.includes('[Klaim Deposit]')
+
+      let extractedGuestName = null
+      let extractedRoomNumber = null
+      if (pay.notes) {
+        const nameMatch = pay.notes.match(/Tamu:\s*([^|]+)/i)
+        if (nameMatch) extractedGuestName = nameMatch[1].trim()
+        const roomMatch = pay.notes.match(/Kamar:\s*([^|]+)/i)
+        if (roomMatch) extractedRoomNumber = roomMatch[1].trim()
+      }
+
+      const tenant = pay.tenants || tenants.find((t: any) => t.id === pay.tenant_id)
+      const guestName = tenant?.full_name || extractedGuestName || 'Tamu'
+      const roomNumber = tenant?.rooms?.room_number || extractedRoomNumber || '-'
+
       events.push({
-        type: pay.notes?.includes('[Pelunasan Check-Out]') 
-          ? 'checkout_settlement'
-          : pay.notes?.includes('[Klaim Deposit]')
-          ? 'deposit_claim'
+        type: isCheckoutSettlement 
+          ? 'checkout_settlement' 
+          : isDepositClaim 
+          ? 'deposit_claim' 
           : 'payment_verified',
+        category: isCheckoutSettlement || isDepositClaim ? 'checkout' : 'payment',
+        guestName,
+        roomNumber,
         timestamp: pay.created_at || pay.payment_date,
-        staffName: staff?.full_name || 'Staff',
+        staffName: staff?.full_name || staff?.email || 'Staf Resepsionis',
         staffRole: staff?.role || 'staff',
-        title: pay.notes?.includes('[Pelunasan Check-Out]')
-          ? `Pelunasan Denda Check-out: ${formatRupiah(parseFloat(pay.amount))}`
-          : pay.notes?.includes('[Klaim Deposit]')
-          ? `Klaim Deposit Selesai: ${formatRupiah(parseFloat(pay.amount))}`
-          : `Verifikasi Pembayaran Sewa: ${formatRupiah(parseFloat(pay.amount))}`,
-        description: pay.notes || `Metode: ${pay.payment_method?.toUpperCase()}`,
+        title: isCheckoutSettlement
+          ? `🚪 Pelunasan Denda Check-out: ${formatRupiah(parseFloat(pay.amount))}`
+          : isDepositClaim
+          ? `🛡️ Klaim Deposit Ganti Rugi: ${formatRupiah(parseFloat(pay.amount))}`
+          : `💳 Verifikasi Pembayaran: ${formatRupiah(parseFloat(pay.amount))}`,
+        description: `${guestName} (Kamar ${roomNumber}) • ${pay.notes || `Metode: ${(pay.payment_method || '').toUpperCase()}`}`,
         amount: parseFloat(pay.amount) || 0,
-        staffId: pay.confirmed_by
+        staffId: pay.confirmed_by || 'staff'
       })
     })
 
-    // 2. Check-in assignments
+    // 3. Check-in assignments & approvals
     checkIns.forEach(c => {
-      if (c.assigned_by) {
+      if (c.assigned_by || c.assigned_at) {
         const staff = profileMap.get(c.assigned_by)
         events.push({
           type: 'check_in_assigned',
+          category: 'checkin',
+          guestName: c.full_name,
+          roomNumber: c.rooms?.room_number || '-',
           timestamp: c.assigned_at || c.updated_at || c.created_at,
-          staffName: staff?.full_name || 'Staff',
+          staffName: staff?.full_name || staff?.email || 'Staf Resepsionis',
           staffRole: staff?.role || 'staff',
-          title: `Assign Kamar Tamu: ${c.full_name}`,
-          description: `Kamar ${c.rooms?.room_number || '-'} (${c.rental_duration || 'daily'}) • Total Tagihan: ${formatRupiah(parseFloat(c.total_amount || 0))}`,
+          title: `🔑 Persetujuan & Penempatan Kamar: ${c.full_name}`,
+          description: `Kamar ${c.rooms?.room_number || '-'} (${c.rooms?.floors?.name || '-'}) • Durasi: ${c.rental_duration || 'daily'} • Tagihan: ${formatRupiah(parseFloat(c.total_amount || 0))}`,
           amount: parseFloat(c.total_amount || 0),
           staffId: c.assigned_by
         })
       }
     })
 
-    // Sort descending
+    // 4. Check-in online submissions (Guest self-service)
+    checkIns.forEach(c => {
+      events.push({
+        type: 'check_in_submitted',
+        category: 'checkin',
+        guestName: c.full_name,
+        roomNumber: c.rooms?.room_number || '-',
+        timestamp: c.created_at,
+        staffName: 'Tamu Mandiri (Online/QR)',
+        staffRole: 'guest',
+        title: `📥 Pengajuan Check-In Online: ${c.full_name}`,
+        description: `Kamar ${c.rooms?.room_number || '-'} • Metode Bayar: ${c.payment_destination || 'Resepsionis'} • No HP: ${c.phone || '-'}`,
+        amount: parseFloat(c.total_amount || 0),
+        staffId: 'guest'
+      })
+    })
+
+    // 5. OTA Bookings & Transition Guests
+    tenants.forEach(t => {
+      const isOta = t.status === 'ota' || t.id_card_url?.startsWith('ota:')
+      const isTransition = t.status === 'transition' || t.rental_duration === 'transition' || t.is_transition
+      const roomNumber = t.rooms?.room_number || '-'
+      const floorName = t.rooms?.floors?.name || '-'
+
+      if (isOta) {
+        events.push({
+          type: 'ota_booking',
+          category: 'ota',
+          guestName: t.full_name,
+          roomNumber,
+          timestamp: t.created_at,
+          staffName: 'Staf Resepsionis',
+          staffRole: 'staff',
+          title: `🏷️ Pendaftaran Tamu OTA: ${t.full_name}`,
+          description: `Kamar ${roomNumber} (${floorName}) • Keterisian Kamar Pihak Luar (Sewa s/d ${t.payment_due_date || '-'})`,
+          amount: 0,
+          staffId: 'staff'
+        })
+      } else if (isTransition) {
+        events.push({
+          type: 'transition_guest',
+          category: 'ota',
+          guestName: t.full_name,
+          roomNumber,
+          timestamp: t.created_at,
+          staffName: 'Staf / Owner',
+          staffRole: 'owner',
+          title: `🔄 Pendaftaran Tamu Transisi: ${t.full_name}`,
+          description: `Kamar ${roomNumber} (${floorName}) • Tamu Transisi Manual (Batas s/d ${t.payment_due_date || '-'})`,
+          amount: 0,
+          staffId: 'owner'
+        })
+      }
+    })
+
+    // 6. Property Damage logs
+    damages.forEach((d: any) => {
+      events.push({
+        type: 'property_damage',
+        category: 'damage',
+        guestName: 'Fasilitas Kamar',
+        roomNumber: d.rooms?.room_number || '-',
+        timestamp: d.created_at,
+        staffName: 'Laporan Kerusakan',
+        staffRole: 'system',
+        title: `⚠️ Kerusakan Dilaporkan: ${d.title || d.description || 'Fasilitas Rusak'}`,
+        description: `Kamar ${d.rooms?.room_number || '-'} (${d.rooms?.floors?.name || '-'}) • Biaya Estimasi: ${formatRupiah(parseFloat(d.repair_cost || 0))}`,
+        amount: parseFloat(d.repair_cost || 0),
+        staffId: 'system'
+      })
+    })
+
+    // Sort strictly descending by timestamp
     events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
-    if (selectedStaffId === 'all') return events
-    return events.filter(e => e.staffId === selectedStaffId)
-  }, [payments, checkIns, profileMap, selectedStaffId])
+    return events
+  }, [payments, checkIns, tenants, damages, profileMap])
+
+  // Filtered timeline based on staff and category
+  const filteredTimeline = useMemo(() => {
+    return auditTimeline.filter(e => {
+      if (selectedStaffId !== 'all' && e.staffId !== selectedStaffId) return false
+      if (selectedActivityType !== 'all' && e.category !== selectedActivityType) return false
+      return true
+    })
+  }, [auditTimeline, selectedStaffId, selectedActivityType])
 
   // If locked, render the Master Developer Password Screen
   if (!isUnlocked) {
@@ -732,13 +868,16 @@ export default function AuditVaultClient({
 
           {/* Timeline Stream */}
           <div className="bg-slate-900 p-5 sm:p-6 rounded-3xl border border-slate-800 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
-                <h3 className="font-extrabold text-white text-base">
-                  Jejak Audit Aktivitas Petugas
+                <h3 className="font-extrabold text-white text-base flex items-center gap-2">
+                  <span>Jejak Audit Seluruh Aktivitas Sistem</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-indigo-950 text-indigo-300 border border-indigo-800">
+                    {filteredTimeline.length} Log
+                  </span>
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Kronologi seluruh tindakan check-in, verifikasi kas/bayar, dan check-out
+                  Kronologi lengkap: Check-Out tamu, Persetujuan Check-In, Mutasi Kas/QRIS, Tamu OTA, dan Laporan Kerusakan.
                 </p>
               </div>
 
@@ -746,37 +885,94 @@ export default function AuditVaultClient({
                 <button
                   type="button"
                   onClick={() => setSelectedStaffId('all')}
-                  className="text-xs font-bold text-indigo-300 bg-indigo-950 px-3 py-1 rounded-lg border border-indigo-800 hover:bg-indigo-900 transition-colors"
+                  className="text-xs font-bold text-indigo-300 bg-indigo-950 px-3 py-1 rounded-lg border border-indigo-800 hover:bg-indigo-900 transition-colors cursor-pointer w-fit"
                 >
                   Tampilkan Semua Akun
                 </button>
               )}
             </div>
 
-            <div className="space-y-3">
-              {auditTimeline.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-8">Belum ada jejak aktivitas tercatat.</p>
-              ) : (
-                auditTimeline.map((ev, idx) => (
-                  <div key={idx} className="flex items-start gap-3.5 p-3 rounded-2xl bg-slate-950 border border-slate-800/80 text-xs">
-                    <div className="w-8 h-8 rounded-xl bg-slate-900 border border-slate-800 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      {ev.type.includes('payment') ? <Receipt className="w-4 h-4 text-emerald-400" /> : <UserCheck className="w-4 h-4 text-indigo-400" />}
-                    </div>
+            {/* Activity Category Filters */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 pb-2">
+              {[
+                { id: 'all', label: 'Semua Aktivitas', icon: '🌐' },
+                { id: 'checkout', label: '🚪 Check-Out Selesai', icon: '🚪' },
+                { id: 'checkin', label: '🔑 Check-In & Kamar', icon: '🔑' },
+                { id: 'payment', label: '💳 Pembayaran Kas & QRIS', icon: '💳' },
+                { id: 'ota', label: '🏷️ Tamu OTA & Transisi', icon: '🏷️' },
+                { id: 'damage', label: '⚠️ Kerusakan Fasilitas', icon: '⚠️' },
+              ].map(cat => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedActivityType(cat.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedActivityType === cat.id
+                      ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-400/30'
+                      : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                  }`}
+                >
+                  <span>{cat.label}</span>
+                </button>
+              ))}
+            </div>
 
-                    <div className="flex-1 min-w-0 space-y-0.5">
-                      <div className="flex flex-wrap items-center justify-between gap-1">
-                        <span className="font-extrabold text-white text-xs">{ev.title}</span>
-                        <span className="font-mono text-[10px] text-slate-500">
-                          {new Date(ev.timestamp).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })} WIB
-                        </span>
+            <div className="space-y-3">
+              {filteredTimeline.length === 0 ? (
+                <div className="py-12 text-center bg-slate-950 rounded-2xl border border-slate-800">
+                  <Activity className="w-8 h-8 text-slate-600 mx-auto mb-1.5" />
+                  <p className="text-xs text-slate-400 font-bold">Belum ada jejak aktivitas untuk filter ini.</p>
+                </div>
+              ) : (
+                filteredTimeline.map((ev, idx) => {
+                  let badgeBg = 'bg-indigo-950 text-indigo-400 border-indigo-800'
+                  let icon = <Activity className="w-4 h-4 text-indigo-400" />
+
+                  if (ev.category === 'checkout') {
+                    badgeBg = 'bg-rose-950/80 text-rose-300 border-rose-800/60'
+                    icon = <UserX className="w-4 h-4 text-rose-400" />
+                  } else if (ev.category === 'payment') {
+                    badgeBg = 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                    icon = <Receipt className="w-4 h-4 text-emerald-400" />
+                  } else if (ev.category === 'ota') {
+                    badgeBg = 'bg-amber-950/80 text-amber-300 border-amber-800/60'
+                    icon = <Building2 className="w-4 h-4 text-amber-400" />
+                  } else if (ev.category === 'checkin') {
+                    badgeBg = 'bg-blue-950/80 text-blue-300 border-blue-800/60'
+                    icon = <UserCheck className="w-4 h-4 text-blue-400" />
+                  } else if (ev.category === 'damage') {
+                    badgeBg = 'bg-purple-950/80 text-purple-300 border-purple-800/60'
+                    icon = <AlertTriangle className="w-4 h-4 text-purple-400" />
+                  }
+
+                  return (
+                    <div key={idx} className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 text-xs hover:border-slate-700 transition-colors">
+                      <div className={`w-9 h-9 rounded-xl border flex items-center justify-center flex-shrink-0 mt-0.5 ${badgeBg}`}>
+                        {icon}
                       </div>
-                      <p className="text-[11px] text-slate-400 truncate">{ev.description}</p>
-                      <p className="text-[10px] text-indigo-400 font-bold">
-                        Petugas: <strong className="text-slate-200">{ev.staffName}</strong> ({ev.staffRole})
-                      </p>
+
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center justify-between gap-1.5">
+                          <span className="font-extrabold text-white text-xs">{ev.title}</span>
+                          <span className="font-mono text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                            {new Date(ev.timestamp).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })} WIB
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300">{ev.description}</p>
+                        <div className="flex items-center gap-3 pt-0.5 text-[10px]">
+                          <span className="text-indigo-400 font-bold">
+                            Pelaksana: <strong className="text-slate-200">{ev.staffName}</strong> ({ev.staffRole})
+                          </span>
+                          {ev.roomNumber && ev.roomNumber !== '-' && (
+                            <span className="text-slate-400 font-mono">
+                              Unit: Kamar {ev.roomNumber}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
           </div>
@@ -935,7 +1131,7 @@ export default function AuditVaultClient({
               {/* Transaction History for this Guest */}
               <div className="space-y-2">
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                  3. Riwayat Seluruh Transaksi & Pembayaran ({selectedGuest.payments.length})
+                  3. Riwayat Transaksi & Pembayaran ({selectedGuest.payments.length})
                 </span>
                 <div className="space-y-2">
                   {selectedGuest.payments.length === 0 ? (
@@ -965,6 +1161,53 @@ export default function AuditVaultClient({
                       )
                     })
                   )}
+                </div>
+              </div>
+
+              {/* Section 4: Visual Forensic Timeline for this Specific Guest */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  4. Rekam Jejak Forensik Tamu (Kronologi Lengkap)
+                </span>
+                <div className="space-y-2.5 bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                  {(() => {
+                    const guestEvents = auditTimeline.filter(e => {
+                      const gNameLower = (selectedGuest.full_name || '').toLowerCase().trim()
+                      return (
+                        (e.guestName && e.guestName.toLowerCase().trim() === gNameLower) ||
+                        (e.description && e.description.toLowerCase().includes(gNameLower)) ||
+                        (e.title && e.title.toLowerCase().includes(gNameLower))
+                      )
+                    })
+
+                    if (guestEvents.length === 0) {
+                      return (
+                        <p className="text-xs text-slate-500 text-center py-2">
+                          Data kronologi otomatis disinkronkan saat tamu check-in / check-out.
+                        </p>
+                      )
+                    }
+
+                    return guestEvents.map((gev, gIdx) => (
+                      <div key={gIdx} className="flex items-start gap-3 text-xs">
+                        <div className="w-6 h-6 rounded-full bg-slate-900 border border-slate-700 text-indigo-400 flex items-center justify-center flex-shrink-0 text-[10px] font-bold mt-0.5">
+                          {gIdx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800 space-y-0.5">
+                          <div className="flex items-center justify-between gap-1">
+                            <strong className="text-white text-xs">{gev.title}</strong>
+                            <span className="text-[10px] font-mono text-slate-400">
+                              {new Date(gev.timestamp).toLocaleString('id-ID')} WIB
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">{gev.description}</p>
+                          <p className="text-[10px] text-indigo-400 font-bold">
+                            Pelaksana: <span className="text-slate-300">{gev.staffName}</span>
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  })()}
                 </div>
               </div>
             </div>

@@ -47,6 +47,7 @@ export default async function AuditVaultPage() {
     checkInsRes,
     paymentsRes,
     profilesRes,
+    damagesRes,
   ] = await Promise.all([
     adminClient.from('tenants').select('*, rooms(room_number, room_type, floors(name, branches(name)))').order('created_at', { ascending: false }),
     adminClient.from('rooms').select('*, floors(name, branches(name))').order('room_number', { ascending: true }),
@@ -55,6 +56,7 @@ export default async function AuditVaultPage() {
     adminClient.from('check_in_requests').select('*, rooms(room_number, room_type, floors(name, branches(name)))').order('created_at', { ascending: false }),
     adminClient.from('payments').select('*, tenants(full_name, rooms(room_number))').order('created_at', { ascending: false }),
     adminClient.from('profiles').select('*').order('role', { ascending: false }),
+    adminClient.from('property_damages').select('*, rooms(room_number, floors(name))').order('created_at', { ascending: false }),
   ])
 
   const latencyMs = Date.now() - startTime
@@ -70,6 +72,7 @@ export default async function AuditVaultPage() {
         rooms={roomsRes.data || []}
         floors={floorsRes.data || []}
         branches={branchesRes.data || []}
+        damages={damagesRes.data || []}
       />
     </div>
   )
