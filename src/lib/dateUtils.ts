@@ -78,12 +78,12 @@ export function getDailyRentalRate(date: Date | string | number = new Date()): {
 /**
  * Calculates payment / checkout due date (YYYY-MM-DD) based on check-in timestamp:
  * Ketentuan Check-Out (Batas 12:00 Siang WIB):
- * - Check-in sebelum 12:00 WIB (misal 01:00 dini hari, 06:00 pagi, 10:00 pagi):
- *   Sewa 1 hari (daily 1) check-out pada HARI YANG SAMA jam 12:00 siang (tanggal tidak bertambah).
- *   Sewa N hari check-out pada tanggal + (N - 1) hari jam 12:00 siang.
- * - Check-in setelah 12:00 WIB (misal 14:00 siang, 16:00 sore, 20:00 malam):
- *   Sewa 1 hari (daily 1) check-out pada BESOKNYA jam 12:00 siang (tanggal + 1 hari).
- *   Sewa N hari check-out pada tanggal + N hari jam 12:00 siang.
+ * - Sewa Harian (Daily 1 Hari): Tamu menginap 1 malam (termasuk Early Check-in pagi maupun normal),
+ *   sehingga batas check-out adalah BESOKNYA (tanggal masuk + 1) pukul 12:00 siang WIB.
+ * - Sewa Harian (N Hari): Batas check-out adalah tanggal masuk + N hari pukul 12:00 siang WIB.
+ * - Sesi Pagi / Transit Pagi (transit_morning): HANYA jika memilih paket transit pagi, check-out pada HARI YANG SAMA pukul 12:00 siang WIB.
+ * - Sewa Mingguan: Tanggal masuk + (N * 7) hari.
+ * - Sewa Bulanan: Tanggal masuk + N bulan.
  */
 export function calculateCheckoutDueDate(
   checkInDateInput: Date | string | number = new Date(),
@@ -103,22 +103,13 @@ export function calculateCheckoutDueDate(
     return getWIBDateString(validCheckIn)
   }
 
-  // Get hour in Asia/Jakarta timezone
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Jakarta',
-    hour: 'numeric',
-    hour12: false
-  })
-  const hourWIB = parseInt(formatter.format(validCheckIn), 10)
-
   const checkInDateStr = getWIBDateString(validCheckIn)
   const [year, month, day] = checkInDateStr.split('-').map(Number)
   const dueDate = new Date(year, month - 1, day)
 
   if (rentalDuration === 'daily') {
     const days = parseInt(String(rentalDays)) || 1
-    const daysToAdd = hourWIB < 12 ? Math.max(0, days - 1) : days
-    dueDate.setDate(dueDate.getDate() + daysToAdd)
+    dueDate.setDate(dueDate.getDate() + days)
   } else if (rentalDuration === 'weekly') {
     const weeks = parseInt(String(rentalWeeks)) || (rentalDays ? Math.round(rentalDays / 7) : 1)
     dueDate.setDate(dueDate.getDate() + (weeks * 7))
@@ -127,8 +118,7 @@ export function calculateCheckoutDueDate(
     dueDate.setMonth(dueDate.getMonth() + months)
   } else {
     const days = parseInt(String(rentalDays)) || 1
-    const daysToAdd = hourWIB < 12 ? Math.max(0, days - 1) : days
-    dueDate.setDate(dueDate.getDate() + daysToAdd)
+    dueDate.setDate(dueDate.getDate() + days)
   }
 
   return getWIBDateString(dueDate)
