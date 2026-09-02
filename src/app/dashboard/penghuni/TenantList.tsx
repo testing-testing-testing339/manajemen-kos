@@ -75,6 +75,7 @@ export default function TenantList({
   const [isWaiveLateFee, setIsWaiveLateFee] = useState<boolean>(false)
   const [customLateFee, setCustomLateFee] = useState<number | null>(null)
   const [skipPaymentRecord, setSkipPaymentRecord] = useState<boolean>(false)
+  const [isKtpHeldUnpaid, setIsKtpHeldUnpaid] = useState<boolean>(false)
   
   // Active Tenants Filter States
   const [searchQuery, setSearchQuery] = useState('')
@@ -257,6 +258,7 @@ export default function TenantList({
       setIsWaiveLateFee(isTrans)
       setCustomLateFee(null)
       setSkipPaymentRecord(isTrans)
+      setIsKtpHeldUnpaid(false)
     }
   }, [checkoutTenant])
 
@@ -1424,6 +1426,35 @@ export default function TenantList({
               )}
 
               {additionalPayNeeded > 0 && (
+                <div className={`mt-3 p-3.5 rounded-2xl border transition-all ${
+                  isKtpHeldUnpaid 
+                    ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-500/20 shadow-xs' 
+                    : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="unpaid_ktp_held"
+                      value="true"
+                      checked={isKtpHeldUnpaid}
+                      onChange={(e) => setIsKtpHeldUnpaid(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                    <div className="text-xs space-y-0.5">
+                      <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                        <span className="text-rose-600">🚫</span>
+                        Tamu Tidak / Belum Bayar Denda (Tahan KTP Asli & Catat Blacklist)
+                      </span>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Centang opsi ini jika tamu menolak membayar/tidak ada uang dan merelakan KTP fisiknya ditinggal.
+                        <strong> Kamar langsung dikosongkan</strong> dan denda <strong>TIDAK masuk kas shift staf</strong> (staf aman dari selisih kas).
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {additionalPayNeeded > 0 && !isKtpHeldUnpaid && (
                 <div className="mt-2 space-y-2 pt-2 border-t border-red-200">
                   <div className="bg-red-50 p-2.5 rounded-xl border border-red-200">
                     <p className="text-xs text-red-700 font-bold flex items-center justify-between">

@@ -222,9 +222,10 @@ export async function processCheckout(prevState: any, formData: FormData) {
     processedByName = userProfile?.full_name || user.email || 'Resepsionis'
   }
 
+  const unpaid_ktp_held = (formData.get('unpaid_ktp_held') as string) === 'true'
   const isOtaTenant = Boolean(tenant.status === 'ota' || tenant.id_card_url?.startsWith('ota:') || tenant.id_card_url?.startsWith('ota-'))
   const isTransitionTenant = Boolean(tenant.is_transition || tenant.rental_duration === 'transition' || (formData.get('skip_payment_record') as string) === 'true' || isOtaTenant)
-  const skip_payment_record = isTransitionTenant || isOtaTenant
+  const skip_payment_record = isTransitionTenant || isOtaTenant || unpaid_ktp_held
   const effectiveLateFee = (isTransitionTenant || isOtaTenant) ? 0 : late_fee
 
   const tenantDeposit = tenant.deposit_amount !== undefined && tenant.deposit_amount !== null ? parseFloat(tenant.deposit_amount) : 0
@@ -235,6 +236,17 @@ export async function processCheckout(prevState: any, formData: FormData) {
 
   const todayStr = getWIBDateString()
   const timestampStr = new Date().toISOString()
+
+  let finalCheckoutNotes = checkout_notes
+  if (unpaid_ktp_held && actualExtraToPay > 0) {
+    finalCheckoutNotes = finalCheckoutNotes 
+      ? `${finalCheckoutNotes} [KTP DITAHAN - TUNGGAKAN Rp ${actualExtraToPay.toLocaleString('id-ID')}]`
+      : `[KTP DITAHAN - TUNGGAKAN Rp ${actualExtraToPay.toLocaleString('id-ID')}]`
+  } else if (isOtaTenant) {
+    finalCheckoutNotes = finalCheckoutNotes ? `${finalCheckoutNotes} [Tamu OTA (RedDoorz/Agoda)]` : '[Tamu OTA (RedDoorz/Agoda)]'
+  } else if (isTransitionTenant) {
+    finalCheckoutNotes = finalCheckoutNotes ? `${finalCheckoutNotes} [Tamu Transisi (Manual)]` : '[Tamu Transisi (Manual)]'
+  }
 
   // 1. Catat ke tabel checkout_history
   try {
@@ -254,9 +266,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
       claimed_deposit: actualClaimedDeposit,
       deposit_refund: actualRefund,
       additional_pay_needed: actualExtraToPay,
-      notes: checkout_notes 
-        ? (isOtaTenant ? `${checkout_notes} [Tamu OTA (RedDoorz/Agoda)]` : (isTransitionTenant ? `${checkout_notes} [Tamu Transisi (Manual)]` : checkout_notes)) 
-        : (isOtaTenant ? '[Tamu OTA (RedDoorz/Agoda)]' : (isTransitionTenant ? '[Tamu Transisi (Manual)]' : null)),
+      notes: finalCheckoutNotes || null,
       processed_by: processedByName,
       created_at: timestampStr
     })
@@ -301,7 +311,12 @@ export async function processCheckout(prevState: any, formData: FormData) {
   if (tenant.room_id) {
     await adminClient
       .from('check_in_requests')
-      .update({ status: 'checked_out' })
+      .update({ 
+        status: 'checked_out',
+        notes: unpaid_ktp_held && actualExtraToPay > 0 
+          ? `[KTP DITAHAN - TUNGGAKAN Rp ${actualExtraToPay.toLocaleString('id-ID')}]`
+          : null
+      })
       .eq('assigned_room_id', tenant.room_id)
       .eq('status', 'completed')
   }
@@ -324,10 +339,90 @@ export async function processCheckout(prevState: any, formData: FormData) {
   revalidatePath('/dashboard/properti')
   revalidatePath('/dashboard/pembayaran')
   revalidatePath('/dashboard')
+  revalidatePath('/audit-vault')
+
+  const returnMessage = unpaid_ktp_held && actualExtraToPay > 0
+    ? `Check-out selesai untuk ${tenant.full_name}. Kamar dikosongkan & KTP Asli Ditahan (Tunggakan Rp ${actualExtraToPay.toLocaleString('id-ID')} dicatat di sistem).`
+    : `Check-out selesai untuk ${tenant.full_name}. Deposit dikembalikan: Rp ${actualRefund.toLocaleString('id-ID')}`
 
   return { 
     success: true, 
-    message: `Check-out selesai untuk ${tenant.full_name}. Deposit dikembalikan: Rp ${actualRefund.toLocaleString('id-ID')}` 
+    message: returnMessage 
+  }
+}
+
+export async function settleUnpaidKtpPenalty(prevState: any, formData: FormData) {
+  const check_in_id = formData.get('check_in_id') as string
+  const guest_name = formData.get('guest_name') as string
+  const room_number = formData.get('room_number') as string
+  const amount = parseFloat(formData.get('amount') as string) || 0
+  const payment_method = (formData.get('payment_method') as string) || 'cash'
+  const notes = (formData.get('notes') as string) || ''
+
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const adminClient = serviceRoleKey 
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    : supabase
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const todayStr = getWIBDateString()
+  const timestampStr = new Date().toISOString()
+
+  // 1. Insert payment record into payments table
+  const paymentNotes = `[Pelunasan Tunggakan KTP Ditahan] Tamu: ${guest_name} | Kamar: ${room_number} | KTP Fisik Asli Telah Diserahkan Kembali${notes ? ` | Catatan: ${notes}` : ''}`
+  
+  const { error: payError } = await adminClient.from('payments').insert({
+    tenant_id: null,
+    amount,
+    payment_date: todayStr,
+    payment_method,
+    status: 'confirmed',
+    confirmed_by: user?.id || null,
+    confirmed_at: timestampStr,
+    notes: paymentNotes
+  })
+
+  if (payError) return { error: payError.message }
+
+  // 2. Update check_in_requests to mark KTP returned
+  if (check_in_id) {
+    await adminClient
+      .from('check_in_requests')
+      .update({ 
+        notes: `[KTP TELAH DISERAHKAN - LUNAS Rp ${amount.toLocaleString('id-ID')}]`
+      })
+      .eq('id', check_in_id)
+  }
+
+  revalidatePath('/dashboard/riwayat-checkout')
+  revalidatePath('/dashboard/pembayaran')
+  revalidatePath('/dashboard/penghuni')
+  revalidatePath('/dashboard/check-ins')
+  revalidatePath('/audit-vault')
+
+  return { 
+    success: true, 
+    message: `Pelunasan tunggakan Rp ${amount.toLocaleString('id-ID')} untuk ${guest_name} berhasil! KTP fisik telah diserahkan dan uang masuk ke kas shift.` 
   }
 }
 

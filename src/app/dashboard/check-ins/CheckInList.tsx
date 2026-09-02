@@ -93,24 +93,39 @@ export default function CheckInList({
   }
 
   const headers = ['Nama', 'No. Telepon', 'Kamar Dipilih', 'Durasi Sewa', 'Total', 'Status', 'Tanggal', 'Aksi']
-  const rows = checkIns.map(checkIn => [
-    checkIn.full_name,
-    checkIn.phone,
-    getRoomInfo(checkIn),
-    formatRentalDuration(checkIn),
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(checkIn.total_amount)),
-    getStatusBadge(checkIn.status),
-    new Date(checkIn.created_at).toLocaleDateString('id-ID'),
-    <div key={checkIn.id} className="flex gap-2">
-      <button
-        onClick={() => {
-          setSelectedCheckIn(checkIn)
-          setIsDetailModalOpen(true)
-        }}
-        className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium"
-      >
-        Detail
-      </button>
+  const rows = checkIns.map(checkIn => {
+    const hasKtpHeld = checkIns.some(c => 
+      c.id !== checkIn.id && 
+      ((c.id_card_number && c.id_card_number === checkIn.id_card_number) || (c.phone && c.phone === checkIn.phone)) &&
+      c.notes?.includes('[KTP DITAHAN') && 
+      !c.notes?.includes('[KTP TELAH DISERAHKAN')
+    ) || (checkIn.notes?.includes('[KTP DITAHAN') && !checkIn.notes?.includes('[KTP TELAH DISERAHKAN'))
+
+    return [
+      <div>
+        <p className="font-bold text-slate-900">{checkIn.full_name}</p>
+        {hasKtpHeld && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 mt-0.5 animate-pulse">
+            🚫 KTP DITAHAN / TUNGGAKAN
+          </span>
+        )}
+      </div>,
+      checkIn.phone,
+      getRoomInfo(checkIn),
+      formatRentalDuration(checkIn),
+      new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(parseFloat(checkIn.total_amount)),
+      getStatusBadge(checkIn.status),
+      new Date(checkIn.created_at).toLocaleDateString('id-ID'),
+      <div key={checkIn.id} className="flex gap-2">
+        <button
+          onClick={() => {
+            setSelectedCheckIn(checkIn)
+            setIsDetailModalOpen(true)
+          }}
+          className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium cursor-pointer"
+        >
+          Detail
+        </button>
       {checkIn.status === 'pending' && (userRole === 'owner' || (userRole === 'staff' && checkIn.branch_id === userBranchId)) && (
         <>
           <form action={approveAction}>
@@ -147,7 +162,8 @@ export default function CheckInList({
         </button>
       )}
     </div>
-  ])
+    ]
+  })
 
   return (
     <div className="space-y-6">
@@ -185,15 +201,35 @@ export default function CheckInList({
 
       {/* Detail Modal */}
       <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)}>
-        {selectedCheckIn && (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Detail Check-in</h2>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Nama Lengkap</p>
-                <p className="font-semibold">{selectedCheckIn.full_name}</p>
-              </div>
+        {selectedCheckIn && (() => {
+          const hasKtpHeld = checkIns.some(c => 
+            c.id !== selectedCheckIn.id && 
+            ((c.id_card_number && c.id_card_number === selectedCheckIn.id_card_number) || (c.phone && c.phone === selectedCheckIn.phone)) &&
+            c.notes?.includes('[KTP DITAHAN') && 
+            !c.notes?.includes('[KTP TELAH DISERAHKAN')
+          ) || (selectedCheckIn.notes?.includes('[KTP DITAHAN') && !selectedCheckIn.notes?.includes('[KTP TELAH DISERAHKAN'))
+
+          return (
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Detail Check-in</h2>
+
+              {hasKtpHeld && (
+                <div className="p-3.5 bg-rose-50 border-2 border-rose-400 rounded-2xl text-xs text-rose-950 space-y-1 animate-in fade-in">
+                  <p className="font-black text-rose-800 flex items-center gap-1.5 text-sm">
+                    <span>⚠️ PERINGATAN: KTP DITAHAN / TUNGGAKAN DENDA</span>
+                  </p>
+                  <p className="text-[11px] text-rose-800 leading-relaxed">
+                    Tamu ini tercatat memiliki denda/kerusakan yang belum diselesaikan pada masa inap sebelumnya dan <strong>KTP fisik aslinya masih ditahan di resepsionis</strong>.
+                    Pastikan tunggakan diselesaikan terlebih dahulu sebelum menyetujui penempatan kamar baru.
+                  </p>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Nama Lengkap</p>
+                  <p className="font-semibold">{selectedCheckIn.full_name}</p>
+                </div>
               <div>
                 <p className="text-sm text-gray-600">No. Telepon</p>
                 <p className="font-semibold">{selectedCheckIn.phone}</p>
@@ -249,7 +285,7 @@ export default function CheckInList({
               Tutup
             </button>
           </div>
-        )}
+        )})()}
       </Modal>
 
       {/* Assign Room Modal */}
