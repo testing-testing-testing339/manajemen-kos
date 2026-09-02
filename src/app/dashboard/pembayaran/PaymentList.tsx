@@ -213,16 +213,41 @@ export default function PaymentList({
     return { totalTenants, paidTenants, overdueTenants, totalRentRevenue, totalDeposit: totalActiveDeposit, monthlyRentRevenue, pendingCount }
   }, [tenants, payments, paidTenantIds, currentMonth, currentYear, today])
 
+  // Helper to extract clean Tenant Name and Room Number with all fallback strategies
+  const getPaymentGuestInfo = (payment: any) => {
+    const tenant = payment?.tenants || tenants.find((t: any) => t.id === payment?.tenant_id)
+    const checkInRequest = payment?.check_in_request
+
+    let extractedNameFromNotes = null
+    let extractedRoomFromNotes = null
+    if (payment?.notes) {
+      const nameMatch = payment.notes.match(/Tamu:\s*([^|]+)/i)
+      if (nameMatch) extractedNameFromNotes = nameMatch[1].trim()
+      const roomMatch = payment.notes.match(/Kamar:\s*([^|]+)/i)
+      if (roomMatch) extractedRoomFromNotes = roomMatch[1].trim()
+    }
+
+    const tenantName = tenant?.full_name || extractedNameFromNotes || checkInRequest?.full_name || 'Tamu Kos'
+    const roomNumber = tenant?.rooms?.room_number || extractedRoomFromNotes || checkInRequest?.rooms?.room_number || '-'
+    const tenantPhone = tenant?.phone || checkInRequest?.phone || '-'
+    const roomType = (tenant?.rooms?.room_type === 'vip' || String(roomNumber).toLowerCase().includes('vip')) ? 'VIP' : 'Standard'
+
+    return {
+      tenant,
+      checkInRequest,
+      tenantName,
+      roomNumber,
+      tenantPhone,
+      roomType
+    }
+  }
+
   // Revenue Breakdown for KPI Modals (Clean Net Rent calculation)
   const revenueBreakdown = useMemo(() => {
     return payments
       .filter((p: any) => p.status === undefined || p.status === null || p.status === 'confirmed')
       .map((p: any) => {
-        const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
-        const checkInRequest = p.check_in_request
-        const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu Checkout'
-        const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
-        const roomType = (tenant?.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip')) ? 'VIP' : 'Standard'
+        const { tenant, checkInRequest, tenantName, roomNumber, roomType } = getPaymentGuestInfo(p)
         
         const isClaimOrPenalty = p.payment_method === 'deposit_deduction' || 
           p.notes?.includes('[Klaim Deposit]') || 
@@ -389,10 +414,7 @@ export default function PaymentList({
   // Filtered Payments History
   const filteredPayments = useMemo(() => {
     return payments.filter((payment: any) => {
-      const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
-      const checkInRequest = payment.check_in_request
-      const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu Checkout'
-      const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || ''
+      const { tenantName, roomNumber } = getPaymentGuestInfo(payment)
       const invoiceCode = `INV-${payment.id?.substring(0, 8)}`
 
       const isCash = (payment.payment_method || '').toLowerCase().includes('cash') || 
@@ -565,21 +587,7 @@ export default function PaymentList({
   // Shift Transactions Detailed Breakdown (Per Guest)
   const shiftBreakdown = useMemo(() => {
     return shiftPayments.map((p: any) => {
-      const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
-      const checkInRequest = p.check_in_request
-
-      let extractedNameFromNotes = null
-      let extractedRoomFromNotes = null
-      if (p.notes) {
-        const nameMatch = p.notes.match(/Tamu:\s*([^|]+)/i)
-        if (nameMatch) extractedNameFromNotes = nameMatch[1].trim()
-        const roomMatch = p.notes.match(/Kamar:\s*([^|]+)/i)
-        if (roomMatch) extractedRoomFromNotes = roomMatch[1].trim()
-      }
-
-      const tenantName = tenant?.full_name || extractedNameFromNotes || checkInRequest?.full_name || 'Tamu'
-      const tenantPhone = tenant?.phone || checkInRequest?.phone || '-'
-      const roomNumber = tenant?.rooms?.room_number || extractedRoomFromNotes || checkInRequest?.rooms?.room_number || '-'
+      const { tenant, checkInRequest, tenantName, roomNumber, tenantPhone } = getPaymentGuestInfo(p)
       const roomType = (tenant?.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip') || roomNumber.toString() === '1') ? 'VIP Belakang Warkop' : 'Standard Room'
       const confirmedByStaff = p.profiles?.full_name || 'Staf Resepsionis'
       const paymentTime = new Date(p.created_at || p.payment_date).toLocaleTimeString('id-ID', {
@@ -729,10 +737,7 @@ export default function PaymentList({
     if (shiftPayments.length > 0) {
       reportText += `*📝 RINCIAN TRANSAKSI:*\n`
       shiftPayments.forEach((p: any, idx: number) => {
-        const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
-        const checkInRequest = p.check_in_request
-        const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu'
-        const roomNum = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
+        const { tenant, checkInRequest, tenantName, roomNumber: roomNum } = getPaymentGuestInfo(p)
         const pTime = new Date(p.created_at || p.payment_date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
         const isCash = (p.payment_method || '').toLowerCase().includes('cash') || 
           (p.payment_method || '').toLowerCase().includes('tunai') ||
@@ -1265,11 +1270,7 @@ export default function PaymentList({
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {shiftPayments.map((payment: any) => {
-                      const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
-                      const checkInRequest = payment.check_in_request
-                      const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu'
-                      const tenantPhone = tenant?.phone || checkInRequest?.phone || '-'
-                      const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
+                      const { tenantName, tenantPhone, roomNumber } = getPaymentGuestInfo(payment)
                       const confirmedByStaff = payment.profiles?.full_name || 'Staf Resepsionis'
                       const paymentTime = new Date(payment.created_at || payment.payment_date).toLocaleTimeString('id-ID', {
                         hour: '2-digit',
@@ -1419,11 +1420,7 @@ export default function PaymentList({
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-800">
                   {filteredPayments.map((payment: any) => {
-                    const tenant = payment.tenants || tenants.find((t: any) => t.id === payment.tenant_id)
-                    const checkInRequest = payment.check_in_request
-                    const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu Checkout'
-                    const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
-                    const roomType = tenant?.rooms?.room_type === 'vip' ? 'VIP' : 'Standard'
+                    const { tenant, checkInRequest, tenantName, roomNumber } = getPaymentGuestInfo(payment)
                     const isConfirmed = payment.status === undefined || payment.status === null || payment.status === 'confirmed'
 
                     return (
@@ -1674,11 +1671,7 @@ export default function PaymentList({
       ========================================================================= */}
       <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} size="lg">
         {selectedPayment && (() => {
-          const tenant = selectedPayment.tenants || tenants.find((t: any) => t.id === selectedPayment.tenant_id)
-          const checkInRequest = selectedPayment.check_in_request
-          const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu Checkout'
-          const roomNumber = tenant?.rooms?.room_number || checkInRequest?.rooms?.room_number || '-'
-          const roomType = (tenant?.rooms?.room_type === 'vip' || roomNumber.toString().includes('vip')) ? 'VIP' : 'Non-VIP / Standard'
+          const { tenant, checkInRequest, tenantName, roomNumber, roomType } = getPaymentGuestInfo(selectedPayment)
           const proofUrl = selectedPayment.payment_proof_url || checkInRequest?.payment_proof_url
           
           const isCash = (selectedPayment.payment_method || '').toLowerCase().includes('cash') || 

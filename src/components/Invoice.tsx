@@ -13,19 +13,21 @@ interface InvoiceProps {
 export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }: InvoiceProps) {
   const invoiceRef = useRef<HTMLDivElement>(null)
 
+  let extractedNameFromNotes = null
+  let extractedRoomFromNotes = null
+  if (payment?.notes) {
+    const nameMatch = payment.notes.match(/Tamu:\s*([^|]+)/i)
+    if (nameMatch) extractedNameFromNotes = nameMatch[1].trim()
+    const roomMatch = payment.notes.match(/Kamar:\s*([^|]+)/i)
+    if (roomMatch) extractedRoomFromNotes = roomMatch[1].trim()
+  }
+
   // Get tenant name
-  const tenantName = tenant?.full_name || checkInRequest?.full_name || 'Tamu / Penghuni'
+  const tenantName = tenant?.full_name || extractedNameFromNotes || checkInRequest?.full_name || 'Tamu / Penghuni'
   
   // Get room info
-  let roomNumberStr = '-'
-  let roomTypeStr = 'Non-VIP / Standard'
-  if (tenant?.rooms) {
-    roomNumberStr = tenant.rooms.room_number?.toString() || '-'
-    roomTypeStr = (tenant.rooms.room_type === 'vip' || roomNumberStr.toLowerCase().includes('vip')) ? 'VIP' : 'Non-VIP / Standard'
-  } else if (checkInRequest?.rooms) {
-    roomNumberStr = checkInRequest.rooms.room_number?.toString() || '-'
-    roomTypeStr = (checkInRequest.rooms.room_type === 'vip' || roomNumberStr.toLowerCase().includes('vip')) ? 'VIP' : 'Non-VIP / Standard'
-  }
+  let roomNumberStr = tenant?.rooms?.room_number?.toString() || extractedRoomFromNotes || checkInRequest?.rooms?.room_number?.toString() || '-'
+  let roomTypeStr = (tenant?.rooms?.room_type === 'vip' || roomNumberStr.toLowerCase().includes('vip')) ? 'VIP' : 'Non-VIP / Standard'
   
   // Get rental duration
   let durationType = checkInRequest?.rental_duration || tenant?.rental_duration || 'daily'
