@@ -39,7 +39,9 @@ import {
   User,
   CalendarDays,
   Share2,
-  Trash2
+  Trash2,
+  BarChart3,
+  PieChart
 } from 'lucide-react'
 
 type TabType = 'shift_report' | 'history' | 'tenants_status' | 'pending_confirmation'
@@ -264,6 +266,98 @@ export default function PaymentList({
         }
       })
   }, [payments, tenants])
+
+  // 7-day Daily Revenue Trend Data (Past 7 days)
+  const last7DaysTrend = useMemo(() => {
+    const days: { dateStr: string; label: string; rent: number; gross: number; isToday: boolean }[] = []
+    const todayObj = new Date()
+    let total7Days = 0
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(todayObj)
+      d.setDate(todayObj.getDate() - i)
+      const dateStr = getWIBDateString(d)
+      const dayName = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' })
+      const isToday = i === 0
+
+      let rent = 0
+      let gross = 0
+
+      payments.forEach((p: any) => {
+        if (p.status === 'rejected') return
+        const pDate = p.payment_date || (p.created_at ? getWIBDateString(p.created_at) : '')
+        if (pDate === dateStr) {
+          const amt = parseFloat(p.amount) || 0
+          gross += amt
+          const isClaimOrPenalty = p.payment_method === 'deposit_deduction' || p.notes?.includes('[Klaim Deposit]') || p.notes?.includes('[Pelunasan Check-Out]')
+          if (isClaimOrPenalty) {
+            rent += amt
+          } else {
+            const tenant = p.tenants || tenants.find((t: any) => t.id === p.tenant_id)
+            const rawDep = parseFloat(tenant?.deposit_amount !== undefined && tenant?.deposit_amount !== null ? tenant.deposit_amount : (p.check_in_request?.deposit_amount || p.deposit_amount || 0))
+            rent += (rawDep > 0 && amt > rawDep) ? (amt - rawDep) : amt
+          }
+        }
+      })
+
+      total7Days += gross
+      days.push({ dateStr, label: dayName, rent, gross, isToday })
+    }
+
+    const maxGross = Math.max(...days.map(d => d.gross), 100000)
+    return { days, maxGross, total7Days }
+  }, [payments, tenants])
+
+  // Payment Methods Distribution (All confirmed payments)
+  const paymentMethodStats = useMemo(() => {
+    let cashGross = 0
+    let qrisGross = 0
+    let cashCount = 0
+    let qrisCount = 0
+
+    payments.forEach((p: any) => {
+      if (p.status === 'rejected') return
+      const isCash = (p.payment_method || '').toLowerCase().includes('cash') || 
+        (p.payment_method || '').toLowerCase().includes('tunai') ||
+        p.check_in_request?.payment_destination?.toLowerCase().includes('cash') ||
+        p.check_in_request?.payment_destination?.toLowerCase().includes('resepsionis') ||
+        p.notes?.toLowerCase().includes('tunai')
+      const amt = parseFloat(p.amount) || 0
+      if (isCash) {
+        cashGross += amt
+        cashCount++
+      } else {
+        qrisGross += amt
+        qrisCount++
+      }
+    })
+
+    const total = cashGross + qrisGross || 1
+    const cashPercent = Math.round((cashGross / total) * 100)
+    const qrisPercent = 100 - cashPercent
+
+    return { cashGross, qrisGross, cashCount, qrisCount, totalGross: cashGross + qrisGross, cashPercent, qrisPercent }
+  }, [payments])
+
+  // Tenant Types Distribution
+  const tenantTypeStats = useMemo(() => {
+    let monthly = 0
+    let weekly = 0
+    let daily = 0
+    let transition = 0
+    tenants.forEach((t: any) => {
+      if (t.status === 'transition' || t.is_transition) {
+        transition++
+      } else if (t.rental_duration === 'monthly') {
+        monthly++
+      } else if (t.rental_duration === 'weekly') {
+        weekly++
+      } else {
+        daily++
+      }
+    })
+    return { monthly, weekly, daily, transition, total: tenants.length }
+  }, [tenants])
 
   // Active Deposits List from Active Tenants
   const activeDepositsList = useMemo(() => {
@@ -712,112 +806,135 @@ export default function PaymentList({
         </div>
       </div>
 
-      {/* Modern Luxury Stats Cards (Interactive Clickable) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Pendapatan Sewa Murni */}
-        <div 
-          onClick={() => setKpiModal('rent_revenue')}
-          className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-3xl p-5 text-white shadow-sm border border-slate-800 flex flex-col justify-between cursor-pointer hover:shadow-lg hover:border-indigo-500/50 hover:scale-[1.01] transition-all group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-indigo-300 transition-colors">Pendapatan Sewa Murni</span>
-            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
-              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.totalRentRevenue)}
-            </p>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Eksklusif Uang Deposit</span>
-              </p>
-              <span className="text-[10px] text-indigo-300 font-bold opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
-                Rincian <ChevronRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Pendapatan Bulan Ini */}
-        <div 
-          onClick={() => setKpiModal('monthly_revenue')}
-          className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:shadow-lg hover:border-indigo-300 hover:scale-[1.01] transition-all group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-indigo-600 transition-colors">Pendapatan Bulan Ini</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
-              <Calendar className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-indigo-600">
-              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.monthlyRentRevenue)}
-            </p>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-[11px] text-slate-400">
-                Periode {today.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
-              </p>
-              <span className="text-[10px] text-indigo-600 font-bold opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
-                Rincian <ChevronRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Titipan Deposit (Refundable) */}
-        <div 
-          onClick={() => setKpiModal('deposits')}
-          className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:shadow-lg hover:border-amber-300 hover:scale-[1.01] transition-all group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-amber-600 transition-colors">Titipan Uang Deposit</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all">
-              <Banknote className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-600">
-              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.totalDeposit)}
-            </p>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-[11px] text-slate-400">Dikembalikan saat checkout</p>
-              <span className="text-[10px] text-amber-600 font-bold opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
-                Lihat Penghuni <ChevronRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Kepatuhan Bayar Penghuni */}
-        <div 
-          onClick={() => setKpiModal('tenants_status')}
-          className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:shadow-lg hover:border-emerald-300 hover:scale-[1.01] transition-all group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-emerald-600 transition-colors">Penghuni Aktif</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-baseline justify-between">
-              <div className="flex items-baseline gap-2">
-                <p className="text-2xl sm:text-3xl font-black text-slate-900">
-                  {stats.paidTenants}
-                  <span className="text-sm font-bold text-slate-400"> / {stats.totalTenants}</span>
-                </p>
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  {stats.totalTenants > 0 ? Math.round((stats.paidTenants / stats.totalTenants) * 100) : 100}%
-                </span>
+      {/* Modern Visual Analytics & Statistics Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Chart 1: Tren Pemasukan 7 Hari Terakhir */}
+        <div className="lg:col-span-2 bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
+                <BarChart3 className="w-4 h-4" />
               </div>
-              <span className="text-[10px] text-emerald-600 font-bold opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
-                Daftar <ChevronRight className="w-3 h-3" />
-              </span>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Grafik Pemasukan Kas (7 Hari Terakhir)</h3>
+                <p className="text-[11px] text-slate-500">Histori arus kas masuk harian</p>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Status tagihan sewa lunas</p>
+            <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 w-fit">
+              Total 7 Hari: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(last7DaysTrend.total7Days)}
+            </span>
+          </div>
+
+          {/* Bar Chart Visualization */}
+          <div className="pt-4 grid grid-cols-7 gap-1.5 sm:gap-3 items-end h-36">
+            {last7DaysTrend.days.map((d) => {
+              const heightPercent = last7DaysTrend.maxGross > 0 ? Math.max(12, Math.round((d.gross / last7DaysTrend.maxGross) * 100)) : 12
+              return (
+                <div key={d.dateStr} className="flex flex-col items-center gap-1.5 h-full justify-end group relative">
+                  {/* Tooltip on hover */}
+                  <div className="absolute -top-9 bg-slate-900 text-white text-[10px] font-bold py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-10">
+                    {d.label}: Rp {d.gross.toLocaleString('id-ID')}
+                  </div>
+                  
+                  {/* Nominal label */}
+                  <span className={`text-[9px] font-extrabold truncate max-w-full ${
+                    d.isToday ? 'text-indigo-600' : (d.gross > 0 ? 'text-slate-700' : 'text-slate-300')
+                  }`}>
+                    {d.gross > 0 ? `${(d.gross / 1000).toLocaleString('id-ID')}k` : '0'}
+                  </span>
+
+                  {/* Histogram Bar */}
+                  <div className="w-full bg-slate-100 rounded-xl flex items-end overflow-hidden h-20 p-0.5">
+                    <div 
+                      style={{ height: `${d.gross > 0 ? heightPercent : 8}%` }}
+                      className={`w-full rounded-lg transition-all duration-300 ${
+                        d.isToday 
+                          ? 'bg-gradient-to-t from-indigo-600 to-indigo-500 shadow-xs' 
+                          : (d.gross > 0 ? 'bg-gradient-to-t from-slate-700 to-slate-500 group-hover:from-indigo-500 group-hover:to-indigo-400' : 'bg-slate-200')
+                      }`}
+                    />
+                  </div>
+
+                  {/* Day Date Label */}
+                  <span className={`text-[10px] truncate max-w-full font-bold ${d.isToday ? 'text-indigo-600 font-black' : 'text-slate-500'}`}>
+                    {d.isToday ? 'Hari Ini' : d.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Card 2: Komposisi Metode Pembayaran & Tamu */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-3">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                  <PieChart className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Metode Pembayaran</h3>
+                  <p className="text-[11px] text-slate-500">Perbandingan Kas</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Split Distribution Bar */}
+            <div className="mt-3 space-y-2">
+              <div className="h-3.5 w-full bg-slate-100 rounded-full flex overflow-hidden p-0.5">
+                <div 
+                  style={{ width: `${paymentMethodStats.cashPercent}%` }} 
+                  className="bg-amber-500 rounded-l-full transition-all duration-500" 
+                  title={`Tunai: ${paymentMethodStats.cashPercent}%`}
+                />
+                <div 
+                  style={{ width: `${paymentMethodStats.qrisPercent}%` }} 
+                  className="bg-indigo-600 rounded-r-full transition-all duration-500" 
+                  title={`QRIS/Transfer: ${paymentMethodStats.qrisPercent}%`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div className="p-2.5 bg-amber-50/80 border border-amber-200/70 rounded-2xl">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                    <span>Tunai ({paymentMethodStats.cashPercent}%)</span>
+                  </div>
+                  <p className="text-xs font-black text-amber-950 mt-1">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(paymentMethodStats.cashGross)}
+                  </p>
+                  <span className="text-[10px] text-amber-700">{paymentMethodStats.cashCount} Transaksi</span>
+                </div>
+
+                <div className="p-2.5 bg-indigo-50/80 border border-indigo-200/70 rounded-2xl">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-900">
+                    <span className="w-2 h-2 rounded-full bg-indigo-600 inline-block" />
+                    <span>QRIS ({paymentMethodStats.qrisPercent}%)</span>
+                  </div>
+                  <p className="text-xs font-black text-indigo-950 mt-1">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(paymentMethodStats.qrisGross)}
+                  </p>
+                  <span className="text-[10px] text-indigo-600">{paymentMethodStats.qrisCount} Transaksi</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Stats: Okupansi & Tipe Sewa */}
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-medium">Tamu Aktif:</span>
+              <span className="font-extrabold text-slate-800">{tenantTypeStats.total} Tamu</span>
+            </div>
+            <div className="flex items-center gap-1 text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">{tenantTypeStats.monthly} Bln</span>
+              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">{tenantTypeStats.weekly} Mgg</span>
+              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">{tenantTypeStats.daily} Hrn</span>
+              {tenantTypeStats.transition > 0 && (
+                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">⚡ {tenantTypeStats.transition} Transisi</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
