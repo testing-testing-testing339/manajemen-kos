@@ -1016,13 +1016,13 @@ export default function PaymentList({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* Quick Date Selectors */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              {/* Quick Date Segmented Control */}
+              <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl">
                 <button
                   type="button"
                   onClick={() => setShiftDate(getTodayStr())}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    shiftDate === getTodayStr() ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    shiftDate === getTodayStr() ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Hari Ini
@@ -1035,8 +1035,8 @@ export default function PaymentList({
                     const yStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`
                     setShiftDate(yStr)
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    shiftDate !== getTodayStr() && shiftDate !== 'month' && shiftDate !== 'all' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    shiftDate !== getTodayStr() && shiftDate !== 'month' && shiftDate !== 'all' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Kemarin
@@ -1044,8 +1044,8 @@ export default function PaymentList({
                 <button
                   type="button"
                   onClick={() => setShiftDate('month')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    shiftDate === 'month' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    shiftDate === 'month' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Bulan Ini
@@ -1053,70 +1053,66 @@ export default function PaymentList({
                 <button
                   type="button"
                   onClick={() => setShiftDate('all')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    shiftDate === 'all' ? 'bg-white text-indigo-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    shiftDate === 'all' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Semua Tanggal
+                  Semua
                 </button>
               </div>
 
-              {/* Date Picker */}
+              {/* Date Picker Input */}
               <input
                 type="date"
                 value={shiftDate === 'month' || shiftDate === 'all' ? '' : shiftDate}
                 onChange={(e) => setShiftDate(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                title="Pilih tanggal spesifik"
               />
 
-              {/* Staff Selector (Only visible for Owner, hidden for Staff) */}
-              {!isStaff ? (
+              {/* Staff Selector (Only visible for Owner) */}
+              {!isStaff && (
                 <select
                   value={shiftStaffId}
                   onChange={(e) => setShiftStaffId(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
-                  <option value="all">Semua Petugas Shift</option>
+                  <option value="all">Semua Petugas</option>
                   {allStaff.map((s: any) => (
                     <option key={s.id} value={s.id}>
-                      {s.full_name} ({s.role === 'owner' ? 'Owner' : 'Staff'})
+                      {s.full_name}
                     </option>
                   ))}
                 </select>
-              ) : (
-                <span className="px-3 py-1.5 bg-indigo-50 text-indigo-900 border border-indigo-200/80 rounded-xl text-xs font-bold inline-flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Petugas: {currentUser?.name || 'Shift Saya'}</span>
-                </span>
               )}
 
               {/* Method Filter */}
               <select
                 value={shiftMethod}
                 onChange={(e) => setShiftMethod(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 <option value="all">Semua Metode</option>
-                <option value="cash">Hanya Tunai (Cash)</option>
-                <option value="transfer">Hanya QRIS / Transfer</option>
+                <option value="cash">💵 Tunai</option>
+                <option value="transfer">💳 QRIS/TF</option>
               </select>
 
-              {/* Copy Shift Report Button */}
+              {/* Salin Rekap Shift Button */}
               <button
                 type="button"
                 onClick={handleCopyShiftReport}
                 className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                title="Salin ringkasan teks untuk dikirim ke WhatsApp"
+                title="Salin laporan teks untuk WhatsApp"
               >
                 {copyFeedback ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-300" />
-                    <span className="text-emerald-200">Tersalin!</span>
+                    <span>Tersalin!</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Salin Rekap Shift</span>
+                    <span>Salin Rekap</span>
                   </>
                 )}
               </button>
