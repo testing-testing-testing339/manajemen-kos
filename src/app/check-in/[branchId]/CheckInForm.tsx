@@ -174,6 +174,26 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     return () => clearInterval(interval)
   }, [])
 
+  // Check if Morning Transit Session is available (00:00 - 10:59 WIB, cut-off at 11:00 WIB)
+  const isMorningSessionAvailable = useMemo(() => {
+    try {
+      const now = new Date()
+      const wibHourStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', hour12: false })
+      const wibHour = parseInt(wibHourStr, 10)
+      return wibHour < 11
+    } catch (e) {
+      const now = new Date()
+      return now.getHours() < 11
+    }
+  }, [dailyRateInfo])
+
+  useEffect(() => {
+    // If morning session has closed (>= 11:00 WIB) and user had selected transit_morning, reset to daily
+    if (!isMorningSessionAvailable && durationType === 'transit_morning') {
+      setDurationType('daily')
+    }
+  }, [isMorningSessionAvailable, durationType])
+
   // Pricing Constants (Ketentuan Graha Aisyah Menteng)
   const PRICE_TRANSIT_MORNING = 100000 // Rp 100.000 (Sesi Pagi s/d 12:00 Siang)
   const BASE_PRICE_PER_DAY = dailyRateInfo.pricePerDay
@@ -1575,31 +1595,33 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               )}
             </div>
 
-            <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 p-1 rounded-2xl transition-all ${
+            <div className={`grid ${isMorningSessionAvailable ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-2 p-1 rounded-2xl transition-all ${
               validationErrors.rental_duration ? 'border-2 border-dashed border-rose-500/80 bg-rose-500/5 p-2 ring-2 ring-rose-500/20' : ''
             }`}>
-              <button
-                type="button"
-                onClick={() => {
-                  setDurationType('transit_morning')
-                  setValidationErrors(prev => {
-                    const next = { ...prev }
-                    delete next.rental_duration
-                    delete next.monthly_package
-                    return next
-                  })
-                }}
-                className={`py-3 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
-                  durationType === 'transit_morning'
-                    ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-400/40 scale-[1.02]'
-                    : validationErrors.rental_duration
-                    ? 'bg-slate-800/80 text-slate-300 border border-rose-500/40 hover:border-amber-500'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
-                }`}
-              >
-                <span>Sesi Pagi</span>
-                <span className="text-[10px] font-normal opacity-90">Rp 100rb (s/d 12:00)</span>
-              </button>
+              {isMorningSessionAvailable && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDurationType('transit_morning')
+                    setValidationErrors(prev => {
+                      const next = { ...prev }
+                      delete next.rental_duration
+                      delete next.monthly_package
+                      return next
+                    })
+                  }}
+                  className={`py-3 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                    durationType === 'transit_morning'
+                      ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-400/40 scale-[1.02]'
+                      : validationErrors.rental_duration
+                      ? 'bg-slate-800/80 text-slate-300 border border-rose-500/40 hover:border-amber-500'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
+                  }`}
+                >
+                  <span>Sesi Pagi</span>
+                  <span className="text-[10px] font-normal opacity-90">Rp 100rb (s/d 12:00)</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1666,6 +1688,15 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 <span className="text-[10px] font-normal opacity-90">Mulai 650rb</span>
               </button>
             </div>
+
+            {!isMorningSessionAvailable && (
+              <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300 animate-in fade-in">
+                <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  <strong>Info:</strong> Paket Sesi Pagi (Rp 100rb) telah ditutup (khusus pkl 00:00 - 11:00 WIB). Untuk sewa saat ini, silakan pilih <strong>Paket Harian</strong> (Menginap s/d Besok 12:00 WIB).
+                </span>
+              </div>
+            )}
 
             {validationErrors.rental_duration && (
               <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1">

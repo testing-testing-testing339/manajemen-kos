@@ -150,6 +150,16 @@ export async function POST(request: Request) {
       }
     }
 
+    // Validate transit_morning cut-off (Available only 00:00 - 10:59 WIB)
+    if (rental_duration === 'transit_morning') {
+      const now = new Date()
+      const wibHourStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', hour12: false })
+      const wibHour = parseInt(wibHourStr, 10)
+      if (wibHour >= 11) {
+        errors.push('Paket Sesi Pagi (Rp 100rb s/d 12:00) hanya tersedia sebelum pukul 11:00 WIB. Silakan pilih Paket Harian.')
+      }
+    }
+
     // Validate files: KTP photo is mandatory for system registration
     if (!id_card_photo || id_card_photo.size === 0) {
       errors.push('Foto KTP wajib diunggah untuk verifikasi identitas')
