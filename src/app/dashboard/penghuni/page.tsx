@@ -92,10 +92,21 @@ export default async function PenghuniPage() {
     }
 
     const isTransition = Boolean(t.status === 'transition' || t.is_transition || t.rental_duration === 'transition')
+    const isOta = Boolean(t.status === 'ota' || t.id_card_url?.startsWith('ota:') || t.id_card_url?.startsWith('ota-'))
+    let otaPlatform = 'reddoorz'
+    let otaBookingCode = ''
+    if (isOta && t.id_card_url) {
+      const parts = t.id_card_url.replace(/^ota[-:]/i, '').split(':')
+      otaPlatform = parts[0] || 'reddoorz'
+      otaBookingCode = parts[1] || ''
+    }
 
     return {
       ...t,
       is_transition: isTransition,
+      is_ota: isOta,
+      ota_platform: otaPlatform,
+      ota_booking_code: otaBookingCode,
       phone: t.phone || cir?.phone || '-',
       email: t.email || cir?.email || '-',
       check_in_date: checkInDate,

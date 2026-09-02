@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { processCheckout, moveTenantRoom, toggleTenantTransition } from './actions'
+import { processCheckout, moveTenantRoom, toggleTenantTransition, createOtaTenant } from './actions'
 import Modal from '@/components/ui/Modal'
 import Table from '@/components/ui/Table'
 import SubmitButton from '@/components/ui/SubmitButton'
@@ -93,9 +93,24 @@ export default function TenantList({
   const [moveNotes, setMoveNotes] = useState<string>('')
   const [moveSuccessToast, setMoveSuccessToast] = useState<string>('')
 
+  // OTA Booking Modal states
+  const [isOtaModalOpen, setIsOtaModalOpen] = useState<boolean>(false)
+  const [otaPlatform, setOtaPlatform] = useState<string>('reddoorz')
+  const [otaRoomId, setOtaRoomId] = useState<string>('')
+  const [otaCheckInDate, setOtaCheckInDate] = useState<string>(() => {
+    const n = new Date()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+  })
+  const [otaDueDate, setOtaDueDate] = useState<string>(() => {
+    const t = new Date()
+    t.setDate(t.getDate() + 1)
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  })
+
   const [checkoutState, checkoutAction] = useActionState(processCheckout, null)
   const [moveState, moveAction] = useActionState(moveTenantRoom, null)
   const [transitionState, transitionAction] = useActionState(toggleTenantTransition, null)
+  const [otaState, otaAction] = useActionState(createOtaTenant, null)
 
   // Helper to extract room condition
   const getRoomCondition = (facilities: string[] = []): string | null => {
@@ -114,8 +129,7 @@ export default function TenantList({
 
   // Group available rooms for tenant by Section / Floor into optgroups
   const availableRoomsBySection = useMemo(() => {
-    if (!moveTenant) return {}
-    const currentBranchId = moveTenant.rooms?.floors?.branch_id
+    const currentBranchId = moveTenant ? moveTenant.rooms?.floors?.branch_id : null
 
     const map: Record<string, any[]> = {
       'VIP Belakang Warkop': [],
@@ -126,7 +140,7 @@ export default function TenantList({
     const otherFloors: Record<string, any[]> = {}
 
     initialAvailableRooms.forEach(room => {
-      if (room.id === moveTenant.room_id) return
+      if (moveTenant && room.id === moveTenant.room_id) return
       if (currentBranchId && room.floors?.branch_id && room.floors.branch_id !== currentBranchId) return
 
       const floorName = room.floors?.name || (room.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Dasar')
@@ -201,6 +215,17 @@ export default function TenantList({
   }, [transitionState, router])
 
   useEffect(() => {
+    if (otaState?.success) {
+      setMoveSuccessToast(otaState.message || 'Tamu OTA berhasil didaftarkan!')
+      setIsOtaModalOpen(false)
+      setOtaRoomId('')
+      router.refresh()
+      const timer = setTimeout(() => setMoveSuccessToast(''), 7000)
+      return () => clearTimeout(timer)
+    }
+  }, [otaState, router])
+
+  useEffect(() => {
     if (moveTenant) {
       setSelectedTargetRoomId('')
       setMoveNotes('')
@@ -222,7 +247,13 @@ export default function TenantList({
       setCheckoutNotes('')
       setAdditionalPaymentMethod('cash')
 
-      const isTrans = Boolean(checkoutTenant.status === 'transition' || checkoutTenant.is_transition || checkoutTenant.rental_duration === 'transition')
+      const isTrans = Boolean(
+        checkoutTenant.status === 'transition' || 
+        checkoutTenant.is_transition || 
+        checkoutTenant.rental_duration === 'transition' ||
+        checkoutTenant.status === 'ota' ||
+        checkoutTenant.is_ota
+      )
       setIsWaiveLateFee(isTrans)
       setCustomLateFee(null)
       setSkipPaymentRecord(isTrans)
@@ -350,8 +381,14 @@ export default function TenantList({
 
       // Due date status filter
       if (selectedStatus !== 'all') {
-        const status = getDueStatus(tenant.payment_due_date)
-        if (status !== selectedStatus) return false
+        if (selectedStatus === 'ota') {
+          if (!tenant.is_ota && tenant.status !== 'ota') return false
+        } else if (selectedStatus === 'transition') {
+          if (!tenant.is_transition && tenant.status !== 'transition') return false
+        } else {
+          const status = getDueStatus(tenant.payment_due_date)
+          if (status !== selectedStatus) return false
+        }
       }
 
       return true
@@ -490,7 +527,22 @@ export default function TenantList({
             <p className="font-bold text-slate-900 text-xs">
               {tenant.full_name}
             </p>
-            {isTransition && (
+            {tenant.is_ota && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-extrabold text-[10px] ${
+                tenant.ota_platform === 'reddoorz'
+                  ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                  : tenant.ota_platform === 'agoda'
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  : tenant.ota_platform === 'booking'
+                  ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                  : tenant.ota_platform === 'traveloka'
+                  ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                  : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+              }`} title="Tamu booking dari OTA / Pihak Ketiga">
+                <span>🏷️ {tenant.ota_platform === 'reddoorz' ? 'RedDoorz' : tenant.ota_platform === 'agoda' ? 'Agoda' : tenant.ota_platform === 'booking' ? 'Booking.com' : tenant.ota_platform === 'traveloka' ? 'Traveloka' : tenant.ota_platform === 'tiket' ? 'Tiket.com' : 'OTA'}</span>
+              </span>
+            )}
+            {isTransition && !tenant.is_ota && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-[10px]" title="Tamu masa transisi manual (Bebas denda & tanpa rekap kas)">
                 <Zap className="w-2.5 h-2.5 text-amber-600 fill-amber-500" />
                 <span>Tamu Transisi</span>
@@ -758,20 +810,28 @@ export default function TenantList({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsOtaModalOpen(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition-all duration-200 cursor-pointer active:scale-95"
+          >
+            <Building2 className="w-4 h-4" />
+            <span>+ Tamu OTA (RedDoorz/Agoda)</span>
+          </button>
           <Link
             href="/dashboard/check-ins"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-md shadow-indigo-500/25 transition-all duration-200"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-md shadow-indigo-500/25 transition-all duration-200"
           >
             <UserCheck className="w-4 h-4" />
-            Permintaan Check-in
+            <span>Permintaan Check-in</span>
           </Link>
           <Link
             href="/dashboard/qr-generator"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all duration-200"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all duration-200"
           >
             <QrCode className="w-4 h-4 text-indigo-600" />
-            QR Check-in
+            <span>QR Check-in</span>
           </Link>
         </div>
       </div>
@@ -936,12 +996,15 @@ export default function TenantList({
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full appearance-none pl-9.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
-                  <option value="all">Semua Status</option>
-                  <option value="active">Status Lancar</option>
-                  <option value="near">Segera Jatuh Tempo (&le; 7 Hari)</option>
-                  <option value="overdue">Menunggak / Melewati Tempo</option>
+                  <option value="all">Semua Status Sewa</option>
+                  <option value="ota">🏷️ Tamu OTA (RedDoorz / Agoda)</option>
+                  <option value="transition">⚡ Tamu Transisi (Manual)</option>
+                  <option value="active">Lancar (&gt; 7 Hari)</option>
+                  <option value="near_due">Jatuh Tempo Segera (&lt; 7 Hari)</option>
+                  <option value="due_today">Jatuh Tempo Hari Ini</option>
+                  <option value="overdue">Menunggak / Telat</option>
                 </select>
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
                   <ChevronDown className="w-4 h-4" />
@@ -1176,14 +1239,18 @@ export default function TenantList({
                   </div>
                 </div>
 
-                {/* Denda & Transisi Section */}
-                {Boolean(checkoutTenant?.status === 'transition' || checkoutTenant?.is_transition || checkoutTenant?.rental_duration === 'transition') ? (
+                {/* Denda & Transisi / OTA Section */}
+                {Boolean(checkoutTenant?.status === 'transition' || checkoutTenant?.is_transition || checkoutTenant?.rental_duration === 'transition' || checkoutTenant?.status === 'ota' || checkoutTenant?.is_ota) ? (
                   <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs">
                     <div className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-amber-600 fill-amber-500 shrink-0" />
                       <div>
-                        <span className="font-bold text-amber-950 block">Tamu Transisi (Manual)</span>
-                        <span className="text-[11px] text-amber-800">Bebas denda & tanpa rekap kas</span>
+                        <span className="font-bold text-amber-950 block">
+                          {checkoutTenant?.is_ota ? `Tamu OTA (${checkoutTenant.ota_platform === 'reddoorz' ? 'RedDoorz' : checkoutTenant.ota_platform === 'agoda' ? 'Agoda' : 'OTA'})` : 'Tamu Transisi (Manual)'}
+                        </span>
+                        <span className="text-[11px] text-amber-800">
+                          Bebas denda & tanpa rekap kas pembayaran kos
+                        </span>
                       </div>
                     </div>
                     <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs border border-emerald-200">
@@ -1736,6 +1803,216 @@ export default function TenantList({
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* =========================================================================
+          MODAL: INPUT TAMU OTA (REDDOORZ / AGODA / DLL)
+      ========================================================================= */}
+      <Modal
+        isOpen={isOtaModalOpen}
+        onClose={() => setIsOtaModalOpen(false)}
+        size="lg"
+      >
+        <form action={otaAction} className="space-y-4">
+          <div>
+            <h2 className="text-lg font-extrabold text-slate-900">
+              Input Tamu OTA (RedDoorz / Agoda / dll)
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Pendataan keterisian kamar untuk tamu dari platform pihak ketiga
+            </p>
+          </div>
+
+          {/* Info Banner */}
+          <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-2xl text-xs text-indigo-950 space-y-1">
+            <div className="flex items-center gap-2 font-bold text-indigo-900">
+              <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>Khusus Pemesanan dari Pihak Ketiga (Aplikasi Luar)</span>
+            </div>
+            <p className="text-[11px] text-indigo-800 leading-relaxed">
+              Data ini <strong>hanya untuk mendata keterisian kamar</strong> (supaya kamar tidak dianggap kosong). 
+              Transaksi ini <strong>TIDAK akan masuk ke menu Pembayaran</strong> ataupun Rekap Kas Shift resepsionis.
+            </p>
+          </div>
+
+          {otaState?.error && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
+              {otaState.error}
+            </div>
+          )}
+
+          {/* Platform Selector */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-800">
+              Platform Pemesanan: <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'reddoorz', label: 'RedDoorz', color: 'border-rose-500 bg-rose-50 text-rose-700 font-black' },
+                { id: 'agoda', label: 'Agoda', color: 'border-emerald-500 bg-emerald-50 text-emerald-700 font-black' },
+                { id: 'booking', label: 'Booking.com', color: 'border-blue-500 bg-blue-50 text-blue-700 font-black' },
+                { id: 'traveloka', label: 'Traveloka', color: 'border-sky-500 bg-sky-50 text-sky-700 font-black' },
+                { id: 'tiket', label: 'Tiket.com', color: 'border-amber-500 bg-amber-50 text-amber-700 font-black' },
+                { id: 'other', label: 'Lainnya', color: 'border-indigo-500 bg-indigo-50 text-indigo-700 font-black' }
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setOtaPlatform(item.id)}
+                  className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                    otaPlatform === item.id 
+                      ? `${item.color} shadow-xs ring-2 ring-indigo-500/20` 
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <input type="hidden" name="ota_platform" value={otaPlatform} />
+          </div>
+
+          {/* Nama Tamu */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-slate-800">
+              Nama Tamu: <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="full_name"
+              required
+              placeholder="Contoh: Budi Santoso"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          {/* Pilih Kamar Kosong */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-slate-800">
+              Pilih Kamar yang Diberikan: <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="room_id"
+              required
+              value={otaRoomId}
+              onChange={(e) => setOtaRoomId(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              <option value="">-- Pilih Kamar Kosong --</option>
+              {Object.entries(availableRoomsBySection).map(([sectionName, rooms]) => {
+                if (!rooms || rooms.length === 0) return null
+                return (
+                  <optgroup 
+                    key={sectionName} 
+                    label={`${sectionName.toUpperCase()} (${rooms.length} Kamar Kosong)`}
+                  >
+                    {rooms.map((r: any) => {
+                      const cond = getRoomCondition(r.facilities)
+                      return (
+                        <option key={r.id} value={r.id}>
+                          Kamar {r.room_number} • {sectionName} {cond ? `(Catatan: ${cond})` : ''}
+                        </option>
+                      )
+                    })}
+                  </optgroup>
+                )
+              })}
+            </select>
+            <p className="text-[10px] text-slate-400">
+              * Menampilkan semua kamar yang saat ini berstatus kosong.
+            </p>
+          </div>
+
+          {/* Periode Check-in & Check-out */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-800">
+                Tanggal Check-in: <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                name="check_in_date"
+                required
+                value={otaCheckInDate}
+                onChange={(e) => setOtaCheckInDate(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-800">
+                Tanggal Check-out: <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                name="payment_due_date"
+                required
+                value={otaDueDate}
+                onChange={(e) => setOtaDueDate(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              />
+            </div>
+          </div>
+
+          {/* Optional Phone & Booking Code */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                Kode Booking OTA (Opsional):
+              </label>
+              <input
+                type="text"
+                name="booking_code"
+                placeholder="Contoh: RDZ-88219"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                No. Telepon / WA (Opsional):
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                placeholder="08xxxxxxxxxx"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Catatan Khusus */}
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-slate-700">
+              Catatan Khusus (Opsional):
+            </label>
+            <input
+              type="text"
+              name="notes"
+              placeholder="Contoh: Lunas via RedDoorz, minta double pillow..."
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          {/* Submit Actions */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsOtaModalOpen(false)}
+              className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 cursor-pointer transition-colors"
+            >
+              Batal
+            </button>
+            <SubmitButton
+              variant="primary"
+              disabled={!otaRoomId}
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white border-none"
+              loadingText="Menyimpan Tamu OTA..."
+            >
+              Simpan & Kunci Kamar
+            </SubmitButton>
+          </div>
+        </form>
       </Modal>
     </div>
   )

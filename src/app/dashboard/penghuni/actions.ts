@@ -58,6 +58,95 @@ export async function createTenant(prevState: any, formData: FormData) {
   return { success: true }
 }
 
+export async function createOtaTenant(prevState: any, formData: FormData) {
+  const room_id = formData.get('room_id') as string
+  const raw_name = (formData.get('full_name') as string || '').trim()
+  const ota_platform = (formData.get('ota_platform') as string) || 'reddoorz'
+  const booking_code = (formData.get('booking_code') as string || '').trim()
+  const check_in_date = (formData.get('check_in_date') as string) || getWIBDateString()
+  const payment_due_date = (formData.get('payment_due_date') as string) || ''
+  const phone = (formData.get('phone') as string || '').trim()
+  const notes = (formData.get('notes') as string || '').trim()
+
+  if (!room_id || !raw_name || !payment_due_date) {
+    return { error: 'Kamar, nama tamu, dan tanggal check-out wajib diisi.' }
+  }
+
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const adminClient = serviceRoleKey 
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    : supabase
+
+  const platformLabels: Record<string, string> = {
+    reddoorz: 'RedDoorz',
+    agoda: 'Agoda',
+    booking: 'Booking.com',
+    traveloka: 'Traveloka',
+    tiket: 'Tiket.com',
+    other: 'OTA / Pihak Ke-3'
+  }
+  const platformName = platformLabels[ota_platform] || 'OTA'
+
+  // Format guest name with clear OTA platform suffix
+  const displayName = raw_name.toLowerCase().includes(platformName.toLowerCase()) 
+    ? raw_name 
+    : `${raw_name} (${platformName})`
+
+  // Store metadata in id_card_url
+  const idCardUrlMeta = `ota:${ota_platform}${booking_code ? `:${booking_code}` : ''}${phone ? `:${phone}` : ''}${notes ? `:${notes}` : ''}`
+
+  // Insert OTA tenant record into database (NO PAYMENT CREATED)
+  const { error: insertError } = await adminClient.from('tenants').insert({
+    room_id,
+    full_name: displayName,
+    id_card_url: idCardUrlMeta,
+    check_in_date,
+    payment_due_date,
+    electricity_meter_start: 0,
+    deposit_amount: 0,
+    rental_duration: 'daily',
+    rental_count: 1,
+    status: 'ota'
+  })
+
+  if (insertError) {
+    return { error: insertError.message }
+  }
+
+  // Update room occupancy to occupied
+  await adminClient.from('rooms').update({ is_occupied: true }).eq('id', room_id)
+
+  revalidatePath('/dashboard/penghuni')
+  revalidatePath('/dashboard/kamar')
+  revalidatePath('/dashboard/properti')
+  revalidatePath('/dashboard')
+
+  return { 
+    success: true, 
+    message: `Tamu OTA ${platformName} (${displayName}) berhasil didaftarkan!` 
+  }
+}
+
 export async function processCheckout(prevState: any, formData: FormData) {
   const id = formData.get('id') as string
   const late_fee = parseFloat(formData.get('late_fee') as string) || 0
@@ -133,9 +222,10 @@ export async function processCheckout(prevState: any, formData: FormData) {
     processedByName = userProfile?.full_name || user.email || 'Resepsionis'
   }
 
-  const isTransitionTenant = Boolean(tenant.is_transition || tenant.rental_duration === 'transition' || (formData.get('skip_payment_record') as string) === 'true')
-  const skip_payment_record = isTransitionTenant
-  const effectiveLateFee = isTransitionTenant ? 0 : late_fee
+  const isOtaTenant = Boolean(tenant.status === 'ota' || tenant.id_card_url?.startsWith('ota:') || tenant.id_card_url?.startsWith('ota-'))
+  const isTransitionTenant = Boolean(tenant.is_transition || tenant.rental_duration === 'transition' || (formData.get('skip_payment_record') as string) === 'true' || isOtaTenant)
+  const skip_payment_record = isTransitionTenant || isOtaTenant
+  const effectiveLateFee = (isTransitionTenant || isOtaTenant) ? 0 : late_fee
 
   const tenantDeposit = tenant.deposit_amount !== undefined && tenant.deposit_amount !== null ? parseFloat(tenant.deposit_amount) : 0
   const totalCharge = effectiveLateFee + damage_fee
@@ -164,7 +254,9 @@ export async function processCheckout(prevState: any, formData: FormData) {
       claimed_deposit: actualClaimedDeposit,
       deposit_refund: actualRefund,
       additional_pay_needed: actualExtraToPay,
-      notes: checkout_notes ? (isTransitionTenant ? `${checkout_notes} [Tamu Transisi (Manual)]` : checkout_notes) : (isTransitionTenant ? '[Tamu Transisi (Manual)]' : null),
+      notes: checkout_notes 
+        ? (isOtaTenant ? `${checkout_notes} [Tamu OTA (RedDoorz/Agoda)]` : (isTransitionTenant ? `${checkout_notes} [Tamu Transisi (Manual)]` : checkout_notes)) 
+        : (isOtaTenant ? '[Tamu OTA (RedDoorz/Agoda)]' : (isTransitionTenant ? '[Tamu Transisi (Manual)]' : null)),
       processed_by: processedByName,
       created_at: timestampStr
     })
