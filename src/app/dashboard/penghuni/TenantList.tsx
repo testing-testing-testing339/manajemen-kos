@@ -1139,63 +1139,62 @@ export default function TenantList({
                   <span>Tamu <strong>Sesi Pagi (Short Stay)</strong> • Wajib Check-out pukul 12:00 siang ini.</span>
                 </div>
               )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Batas Selesai Sewa (Normal):</span>
-                  <p className="text-xs font-extrabold text-slate-800 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>
-                      {checkoutTenant.payment_due_date 
-                        ? new Date(checkoutTenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) 
-                        : '-'} • Pukul 12:00 WIB
-                    </span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Tgl Check-Out:</label>
-                    <input
-                      type="date"
-                      required
-                      value={checkoutDate}
-                      onChange={(e) => setCheckoutDate(e.target.value)}
-                      className="px-2.5 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                    />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Batas Selesai Sewa:</span>
+                    <p className="text-xs font-extrabold text-slate-800 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>
+                        {checkoutTenant.payment_due_date 
+                          ? new Date(checkoutTenant.payment_due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) 
+                          : '-'} • 12:00 WIB
+                      </span>
+                    </p>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Jam:</label>
-                    <input
-                      type="time"
-                      required
-                      value={checkoutTime}
-                      onChange={(e) => setCheckoutTime(e.target.value)}
-                      className="px-2.5 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                    />
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Tgl Check-Out:</label>
+                      <input
+                        type="date"
+                        required
+                        value={checkoutDate}
+                        onChange={(e) => setCheckoutDate(e.target.value)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Jam:</label>
+                      <input
+                        type="time"
+                        required
+                        value={checkoutTime}
+                        onChange={(e) => setCheckoutTime(e.target.value)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
                   </div>
                 </div>
-                {/* Denda & Transisi Rule Section */}
-              {checkoutTenant?.is_transition ? (
-                <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-amber-950 flex items-center gap-1.5">
-                      <Zap className="w-4 h-4 text-amber-600 fill-amber-500" />
-                      Status: Tamu Transisi (Ditandai Owner)
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300">
-                      Bebas Denda (Rp 0)
+
+                {/* Denda & Transisi Section */}
+                {Boolean(checkoutTenant?.status === 'transition' || checkoutTenant?.is_transition || checkoutTenant?.rental_duration === 'transition') ? (
+                  <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-600 fill-amber-500 shrink-0" />
+                      <div>
+                        <span className="font-bold text-amber-950 block">Tamu Transisi (Manual)</span>
+                        <span className="text-[11px] text-amber-800">Bebas denda & tanpa rekap kas</span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-xs border border-emerald-200">
+                      Denda Rp 0
                     </span>
                   </div>
-                  <p className="text-[11px] text-amber-900 leading-relaxed">
-                    Tamu ini diverifikasi oleh Owner sebagai tamu masa transisi manual. Sistem secara otomatis <strong>membebaskan denda keterlambatan (Rp 0)</strong> dan <strong>TIDAK mencatat transaksi ke rekap shift atau kas pembayaran</strong>.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Denda Rule Indicator & Flexible Adjustment */}
-                  <div className="p-3.5 bg-white rounded-xl border border-slate-200 text-xs space-y-2.5">
+                ) : (
+                  <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-600 font-medium">Status Waktu Check-Out:</span>
-                      <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
+                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
                         !isLate
                           ? 'bg-emerald-100 text-emerald-800'
                           : (isWaiveLateFee ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800')
@@ -1210,11 +1209,8 @@ export default function TenantList({
                         <span className={`font-black ${effectiveLateFee > 0 ? 'text-red-600 text-sm' : 'text-emerald-700'}`}>
                           {effectiveLateFee > 0 
                             ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(effectiveLateFee)
-                            : 'Rp 0 (Bebas Denda)'}
+                            : 'Rp 0'}
                         </span>
-                        {isWaiveLateFee && (
-                          <span className="block text-[10px] text-emerald-600 font-semibold">Toleransi / Bebas Denda</span>
-                        )}
                       </div>
                     </div>
 
@@ -1234,7 +1230,7 @@ export default function TenantList({
                           }`}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{isWaiveLateFee ? '✓ Denda Telat Ditiadakan (Rp 0)' : 'Bebaskan Denda (Set Rp 0)'}</span>
+                          <span>{isWaiveLateFee ? '✓ Denda Ditiadakan (Rp 0)' : 'Bebaskan Denda (Rp 0)'}</span>
                         </button>
 
                         {!isWaiveLateFee && (
@@ -1255,39 +1251,8 @@ export default function TenantList({
                         )}
                       </div>
                     )}
-
-                    <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-100">
-                      * Aturan denda standar: Berlaku pada/setelah tanggal jatuh tempo. s/d 15:00 WIB Rp 50.000 | 15:00–17:00 WIB Rp 100.000 | &gt; 17:00 WIB Rp 100.000 (1 hari).
-                    </p>
                   </div>
-
-                  {/* Mode Tamu Transisi (Khusus Owner) */}
-                  {isOwner && (
-                    <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl space-y-1">
-                      <label className="flex items-start gap-2.5 cursor-pointer">
-                        <input 
-                          type="checkbox"
-                          checked={skipPaymentRecord}
-                          onChange={(e) => {
-                            const val = e.target.checked
-                            setSkipPaymentRecord(val)
-                            if (val) {
-                              setIsWaiveLateFee(true)
-                            }
-                          }}
-                          className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
-                        />
-                        <div>
-                          <span className="text-xs font-bold text-amber-950 block">Tamu Transisi / Input Manual (Tanpa Rekap Kas)</span>
-                          <span className="text-[11px] text-amber-800 leading-tight block mt-0.5">
-                            Centang ini jika tamu diinput manual hanya untuk info kamar terisi. Sistem <strong>TIDAK akan memasukkan denda/biaya ke rekap kas dan buku pembayaran</strong>.
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                  )}
-                </>
-              )}
+                )}
               </div>
 
               {/* Input Biaya Kerusakan / Tambahan */}
@@ -1309,7 +1274,6 @@ export default function TenantList({
                   />
                 </div>
               </div>
-            </div>
 
             {/* Rincian Pengembalian & Klaim Deposit / Jaminan KTP */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5 text-xs">
