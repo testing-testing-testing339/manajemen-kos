@@ -326,7 +326,35 @@ export async function processCheckout(prevState: any, formData: FormData) {
       .eq('id', tenant.room_id)
   }
 
-  // 6. Delete tenant record
+  // 6. Lock and preserve tenant name & room number on all past payments for this tenant before deleting
+  try {
+    const { data: tenantPayments } = await adminClient
+      .from('payments')
+      .select('id, notes')
+      .eq('tenant_id', id)
+
+    if (tenantPayments && tenantPayments.length > 0) {
+      for (const p of tenantPayments) {
+        let pNotes = p.notes || ''
+        const hasTamu = pNotes.includes('Tamu:')
+        const hasKamar = pNotes.includes('Kamar:')
+        if (!hasTamu || !hasKamar) {
+          const parts: string[] = []
+          if (!hasTamu) parts.push(`Tamu: ${tenant.full_name}`)
+          if (!hasKamar) parts.push(`Kamar: ${roomNumber}`)
+          pNotes = pNotes ? `${pNotes} | ${parts.join(' | ')}` : parts.join(' | ')
+          await adminClient
+            .from('payments')
+            .update({ notes: pNotes })
+            .eq('id', p.id)
+        }
+      }
+    }
+  } catch (lockErr) {
+    console.warn('Could not lock payment guest info before checkout:', lockErr)
+  }
+
+  // 7. Delete tenant record
   const { error: deleteError } = await adminClient.from('tenants').delete().eq('id', id)
   if (deleteError) return { error: deleteError.message }
 

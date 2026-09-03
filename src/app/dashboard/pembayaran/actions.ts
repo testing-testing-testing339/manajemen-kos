@@ -73,13 +73,36 @@ export async function recordPayment(prevState: any, formData: FormData) {
   // Determine status: auto-confirm for owner/staff, pending for others
   const paymentStatus = (profile?.role === 'owner' || profile?.role === 'staff') ? 'confirmed' : 'pending'
 
+  // Fetch tenant info to guarantee permanent snapshot of name and room number
+  const { data: tenantInfo } = await supabase
+    .from('tenants')
+    .select('full_name, rooms(room_number)')
+    .eq('id', tenant_id)
+    .single()
+
+  const guestName = tenantInfo?.full_name
+  const roomNumber = (tenantInfo?.rooms as any)?.room_number || '-'
+
+  let finalNotes = notes?.trim() || ''
+  const hasTamu = finalNotes.includes('Tamu:')
+  const hasKamar = finalNotes.includes('Kamar:')
+
+  if (guestName) {
+    const metaParts: string[] = []
+    if (!hasTamu) metaParts.push(`Tamu: ${guestName}`)
+    if (!hasKamar) metaParts.push(`Kamar: ${roomNumber}`)
+    if (metaParts.length > 0) {
+      finalNotes = finalNotes ? `${finalNotes} | ${metaParts.join(' | ')}` : metaParts.join(' | ')
+    }
+  }
+
   // Insert payment
   const { error: insertError } = await supabase.from('payments').insert({
     tenant_id,
     amount,
     payment_date,
     payment_method,
-    notes: notes || null,
+    notes: finalNotes || null,
     status: paymentStatus,
     ...(paymentStatus === 'confirmed' ? {
       confirmed_by: user.id,

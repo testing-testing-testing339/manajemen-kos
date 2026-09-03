@@ -218,7 +218,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
   // Check if room is available
   const { data: room } = await supabase
     .from('rooms')
-    .select('id, is_occupied')
+    .select('id, is_occupied, room_number')
     .eq('id', room_id)
     .single()
 
@@ -355,7 +355,7 @@ export async function assignRoom(prevState: any, formData: FormData) {
             status: 'confirmed',
             confirmed_by: user.id,
             confirmed_at: new Date().toISOString(),
-            notes: `${isCash ? 'Pembayaran Tunai di Resepsionis' : 'Pembayaran QRIS GoPay Merchant'} | Tamu: ${checkInData.full_name}`
+            notes: `${isCash ? 'Pembayaran Tunai di Resepsionis' : 'Pembayaran QRIS GoPay Merchant'} | Tamu: ${checkInData.full_name} | Kamar: ${room.room_number || '-'}`
           })
 
         if (paymentError) {
