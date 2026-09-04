@@ -23,10 +23,10 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
   }
 
   // Get tenant name
-  const tenantName = tenant?.full_name || extractedNameFromNotes || checkInRequest?.full_name || 'Tamu / Penghuni'
+  const tenantName = extractedNameFromNotes || tenant?.full_name || checkInRequest?.full_name || 'Tamu / Penghuni'
   
-  // Get room info
-  let roomNumberStr = tenant?.rooms?.room_number?.toString() || extractedRoomFromNotes || checkInRequest?.rooms?.room_number?.toString() || '-'
+  // Get room info (prioritize note snapshot or matched check-in request)
+  let roomNumberStr = extractedRoomFromNotes || checkInRequest?.rooms?.room_number?.toString() || tenant?.rooms?.room_number?.toString() || '-'
   let roomTypeStr = (tenant?.rooms?.room_type === 'vip' || roomNumberStr.toLowerCase().includes('vip')) ? 'VIP' : 'Non-VIP / Standard'
   
   // Get rental duration
@@ -174,31 +174,29 @@ export default function Invoice({ payment, tenant, checkInRequest, confirmedBy }
     : 'Titip KTP Fisik Asli'
 
   // Schedule Check-In & Check-Out
-  const checkInRawDate = tenant?.check_in_date || checkInRequest?.assigned_at || checkInRequest?.created_at || payment.created_at
+  const checkInRawDate = checkInRequest?.assigned_at || checkInRequest?.created_at || tenant?.check_in_date || payment.payment_date || payment.created_at
   const checkInDateObj = new Date(checkInRawDate)
   const checkInScheduleStr = `${checkInDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • ${checkInDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`
 
   let checkOutScheduleStr = '-'
-  if (tenant?.payment_due_date) {
+  const checkOutDateObj = new Date(checkInDateObj)
+  if (durationType === 'transit_morning' || durationType === 'transit') {
+    checkOutScheduleStr = `${checkInDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB (Siang)`
+  } else if (durationType === 'weekly') {
+    const weeks = checkInRequest?.rental_weeks || tenant?.rental_count || 1
+    checkOutDateObj.setDate(checkOutDateObj.getDate() + (weeks * 7))
+    checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
+  } else if (durationType === 'monthly') {
+    const months = checkInRequest?.rental_months || tenant?.rental_count || 1
+    checkOutDateObj.setMonth(checkOutDateObj.getMonth() + months)
+    checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
+  } else if (tenant?.payment_due_date && !checkInRequest) {
     const dueObj = new Date(tenant.payment_due_date)
     checkOutScheduleStr = `${dueObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
   } else {
-    const checkOutDateObj = new Date(checkInDateObj)
-    if (durationType === 'transit_morning' || durationType === 'transit') {
-      checkOutScheduleStr = `${checkInDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB (Siang)`
-    } else if (durationType === 'weekly') {
-      const weeks = checkInRequest?.rental_weeks || tenant?.rental_count || 1
-      checkOutDateObj.setDate(checkOutDateObj.getDate() + (weeks * 7))
-      checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
-    } else if (durationType === 'monthly') {
-      const months = checkInRequest?.rental_months || tenant?.rental_count || 1
-      checkOutDateObj.setMonth(checkOutDateObj.getMonth() + months)
-      checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
-    } else {
-      const days = checkInRequest?.rental_days || tenant?.rental_count || 1
-      checkOutDateObj.setDate(checkOutDateObj.getDate() + days)
-      checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
-    }
+    const days = checkInRequest?.rental_days || tenant?.rental_count || 1
+    checkOutDateObj.setDate(checkOutDateObj.getDate() + days)
+    checkOutScheduleStr = `${checkOutDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • 12:00 WIB`
   }
 
   // Titles & Labels for Invoice vs Penalty Receipt vs Claim

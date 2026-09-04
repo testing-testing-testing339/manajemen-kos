@@ -234,8 +234,8 @@ export default function PaymentList({
       if (roomMatch) extractedRoomFromNotes = roomMatch[1].trim()
     }
 
-    const tenantName = tenant?.full_name || extractedNameFromNotes || checkInRequest?.full_name || 'Tamu Kos'
-    const roomNumber = tenant?.rooms?.room_number || extractedRoomFromNotes || checkInRequest?.rooms?.room_number || '-'
+    const tenantName = extractedNameFromNotes || tenant?.full_name || checkInRequest?.full_name || 'Tamu Kos'
+    const roomNumber = extractedRoomFromNotes || checkInRequest?.rooms?.room_number || tenant?.rooms?.room_number || '-'
     const tenantPhone = tenant?.phone || checkInRequest?.phone || '-'
     const roomType = (tenant?.rooms?.room_type === 'vip' || String(roomNumber).toLowerCase().includes('vip')) ? 'VIP' : 'Standard'
 

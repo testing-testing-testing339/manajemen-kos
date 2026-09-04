@@ -293,23 +293,72 @@ export default async function PembayaranPage() {
 
         let matchedCheckIn: any = null
 
-        // Strictly match check-in request if available by verified room_id or exact full_name
+        // Find best matching check-in request using multi-criteria candidate scoring
         if (checkInRequests && checkInRequests.length > 0) {
-          // 1. Try match by tenant's room_id or tenant's exact full_name
-          if (tenant) {
-            matchedCheckIn = checkInRequests.find((cir: any) => 
-              (!usedCheckInIds.has(cir.id)) && (
-                (cir.assigned_room_id && tenant.room_id && cir.assigned_room_id === tenant.room_id) ||
-                (cir.full_name && tenant.full_name && cir.full_name.toLowerCase().trim() === tenant.full_name.toLowerCase().trim())
-              )
-            )
-          }
+          const availableCheckIns = checkInRequests.filter((cir: any) => !usedCheckInIds.has(cir.id))
+          
+          const candidates = availableCheckIns.map((cir: any) => {
+            let score = 0
+            const cirName = (cir.full_name || '').toLowerCase().trim()
+            const payName = (tenant?.full_name || extractedName || '').toLowerCase().trim()
 
-          // 2. Try match by extracted name from notes (for check-out settlements)
-          if (!matchedCheckIn && extractedName) {
-            matchedCheckIn = checkInRequests.find((cir: any) => 
-              cir.full_name && cir.full_name.toLowerCase().trim() === extractedName?.toLowerCase().trim()
-            )
+            // Name match is baseline requirement if name exists
+            if (payName && cirName) {
+              if (payName === cirName) {
+                score += 100
+              } else {
+                return { cir, score: -9999 }
+              }
+            } else if (!payName && !cirName) {
+              score += 10
+            }
+
+            // Room match
+            const cirRoom = cir.rooms?.room_number ? String(cir.rooms.room_number).toLowerCase().trim() : null
+            const payRoom = (extractedRoom || tenant?.rooms?.room_number || '').toLowerCase().trim()
+            if (cirRoom && payRoom) {
+              if (cirRoom === payRoom) {
+                score += 200
+              } else {
+                score -= 150 // Strong penalty if room does not match
+              }
+            }
+
+            // Amount match
+            const payAmount = Number(payment.amount) || 0
+            const cirAmount = Number(cir.total_amount) || 0
+            if (payAmount > 0 && cirAmount > 0) {
+              if (payAmount === cirAmount) {
+                score += 150
+              } else {
+                const diffRatio = Math.abs(payAmount - cirAmount) / Math.max(payAmount, cirAmount)
+                score -= Math.min(diffRatio * 100, 100)
+              }
+            }
+
+            // Date proximity
+            const payTime = new Date(payment.payment_date || payment.created_at).getTime()
+            const cirTime = new Date(cir.created_at).getTime()
+            if (!isNaN(payTime) && !isNaN(cirTime)) {
+              const hoursDiff = Math.abs(payTime - cirTime) / (1000 * 60 * 60)
+              if (hoursDiff <= 12) {
+                score += 150 // Same day / session
+              } else if (hoursDiff <= 48) {
+                score += 80
+              } else if (hoursDiff <= 168) {
+                score += 20
+              } else {
+                score -= Math.min(hoursDiff / 24, 150)
+              }
+            }
+
+            return { cir, score }
+          })
+
+          const valid = candidates.filter(c => c.score > 0)
+          valid.sort((a, b) => b.score - a.score)
+          if (valid.length > 0) {
+            matchedCheckIn = valid[0].cir
           }
         }
 
@@ -317,7 +366,7 @@ export default async function PembayaranPage() {
           usedCheckInIds.add(matchedCheckIn.id)
         }
 
-        // Construct synthetic tenant data if missing
+        // Construct or align tenant data
         if (!tenant) {
           const finalName = extractedName || matchedCheckIn?.full_name || null
           const finalRoom = extractedRoom || matchedCheckIn?.rooms?.room_number || '-'
@@ -333,6 +382,18 @@ export default async function PembayaranPage() {
                     name: 'Graha Aisyah Menteng'
                   }
                 }
+              }
+            }
+          }
+        } else if (extractedRoom || matchedCheckIn?.rooms?.room_number) {
+          // If payment specifically recorded an older room or matched an older check-in, preserve historical room
+          const historicalRoom = extractedRoom || matchedCheckIn?.rooms?.room_number
+          if (historicalRoom && tenant.rooms && String(tenant.rooms.room_number) !== String(historicalRoom)) {
+            tenant = {
+              ...tenant,
+              rooms: {
+                ...tenant.rooms,
+                room_number: historicalRoom
               }
             }
           }
