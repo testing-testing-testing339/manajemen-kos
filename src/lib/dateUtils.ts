@@ -65,13 +65,53 @@ export function getDailyRentalRate(date: Date | string | number = new Date()): {
   const isMorningTransit = totalMinutes >= 360 && totalMinutes < 720
   const pricePerDay = isMorningTransit ? 150000 : 100000
 
-  return {
+    return {
     pricePerDay,
     isMorningTransit,
     formattedTime: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} WIB`,
     label: isMorningTransit 
       ? 'Tarif Transit Pagi (06:00 - 12:00 WIB)' 
       : 'Tarif Normal (Setelah 12:00 WIB)'
+  }
+}
+
+/**
+ * Calculates total daily rental price taking into account early check-in rules:
+ * - Malam ke-1: Rp 150.000 jika Early Check-In (06:00 - 12:00 WIB), atau Rp 100.000 jika Normal (setelah 12:00 WIB).
+ * - Malam ke-2 dan seterusnya: Rp 100.000 / malam (Tarif normal).
+ * Contoh: Early Check-In 2 hari = Rp 150.000 (malam 1) + Rp 100.000 (malam 2) = Rp 250.000.
+ */
+export function calculateDailyRentTotal(
+  rentalDays: number = 1,
+  isMorningTransit: boolean = false
+): {
+  total: number
+  firstNightPrice: number
+  subsequentNightsPrice: number
+  subsequentDays: number
+  breakdownText: string
+} {
+  const safeDays = Math.max(1, parseInt(String(rentalDays)) || 1)
+  const firstNightPrice = isMorningTransit ? 150000 : 100000
+  const subsequentNightsPrice = 100000
+  const subsequentDays = Math.max(0, safeDays - 1)
+  const total = firstNightPrice + (subsequentDays * subsequentNightsPrice)
+
+  let breakdownText = ''
+  if (isMorningTransit && safeDays > 1) {
+    breakdownText = `Malam 1 (Early Check-In): Rp 150.000 + ${subsequentDays} malam berikutnya: Rp ${(subsequentDays * subsequentNightsPrice).toLocaleString('id-ID')}`
+  } else if (isMorningTransit) {
+    breakdownText = `1 malam (Early Check-In): Rp 150.000`
+  } else {
+    breakdownText = `${safeDays} malam × Rp 100.000: Rp ${total.toLocaleString('id-ID')}`
+  }
+
+  return {
+    total,
+    firstNightPrice,
+    subsequentNightsPrice,
+    subsequentDays,
+    breakdownText
   }
 }
 

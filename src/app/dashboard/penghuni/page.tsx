@@ -185,16 +185,25 @@ export default async function PenghuniPage() {
           const room = roomMap.get(c.assigned_room_id) as any
           const floor = room?.floors || {}
 
-          // Find exact staff who confirmed payment or assigned room
-          const cNameLower = (c.full_name || '').toLowerCase()
-          const matchedPayment = (allPayments || []).find((p: any) => {
+          // Find exact staff and checkout settlement/claim payments for this guest
+          const cNameLower = (c.full_name || '').toLowerCase().trim()
+          
+          // Look first for checkout-specific payments (pelunasan denda / klaim deposit)
+          const checkoutPayment = (allPayments || []).find((p: any) => {
             const notesLower = (p.notes || '').toLowerCase()
-            return notesLower.includes(cNameLower) || (room?.room_number && notesLower.includes(`kamar: ${room.room_number}`))
+            const isCheckoutNote = notesLower.includes('[pelunasan check-out]') || notesLower.includes('[klaim deposit]')
+            return isCheckoutNote && cNameLower && notesLower.includes(cNameLower)
+          })
+
+          // Fallback to any payment specifically for this guest
+          const matchedPayment = checkoutPayment || (allPayments || []).find((p: any) => {
+            const notesLower = (p.notes || '').toLowerCase()
+            return cNameLower && notesLower.includes(cNameLower)
           })
 
           let staffName = 'Staff Graha Aisyah'
-          if (matchedPayment?.confirmed_by && profileMap.has(matchedPayment.confirmed_by)) {
-            staffName = profileMap.get(matchedPayment.confirmed_by)!
+          if (checkoutPayment?.confirmed_by && profileMap.has(checkoutPayment.confirmed_by)) {
+            staffName = profileMap.get(checkoutPayment.confirmed_by)!
           } else if (c.assigned_by && profileMap.has(c.assigned_by)) {
             staffName = profileMap.get(c.assigned_by)!
           } else if (c.verified_by && profileMap.has(c.verified_by)) {
@@ -203,24 +212,40 @@ export default async function PenghuniPage() {
             staffName = profile.full_name
           }
 
-          // Resolve actual checkout timestamp & time
-          const checkoutTimestamp = matchedPayment?.created_at || c.updated_at || c.created_at
-          const checkoutDateObj = new Date(checkoutTimestamp)
-          const checkoutTimeStr = checkoutDateObj.toLocaleTimeString('id-ID', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            timeZone: 'Asia/Jakarta' 
-          })
+          // Calculate actual due date based on check-in duration
+          const dueDateStr = calculateCheckoutDueDate(
+            c.created_at,
+            c.rental_duration || 'daily',
+            c.rental_days || 1,
+            c.rental_weeks || 1,
+            c.rental_months || 1
+          )
 
-          const isLateSettlement = matchedPayment?.notes?.includes('[Pelunasan Check-Out]')
-          const isDepositClaim = matchedPayment?.notes?.includes('[Klaim Deposit]')
-          const lateFeeAmount = isLateSettlement && matchedPayment?.amount ? (parseFloat(matchedPayment.amount) || 0) : 0
-          const claimedDepositAmount = isDepositClaim && matchedPayment?.amount ? (parseFloat(matchedPayment.amount) || 0) : 0
+          // Resolve actual checkout timestamp & time
+          // If a checkout settlement payment exists, use its timestamp.
+          // Otherwise, the guest checked out on-time at their due date (12:00 WIB).
+          const checkoutTimestamp = checkoutPayment?.created_at || null
+          const checkoutDateStr = checkoutTimestamp 
+            ? getWIBDateString(checkoutTimestamp) 
+            : (dueDateStr || getWIBDateString(c.updated_at || c.created_at))
+          
+          const checkoutTimeStr = checkoutTimestamp
+            ? new Date(checkoutTimestamp).toLocaleTimeString('id-ID', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                timeZone: 'Asia/Jakarta' 
+              })
+            : '12:00'
+
+          const isLateSettlement = checkoutPayment?.notes?.includes('[Pelunasan Check-Out]')
+          const isDepositClaim = checkoutPayment?.notes?.includes('[Klaim Deposit]')
+          const lateFeeAmount = isLateSettlement && checkoutPayment?.amount ? (parseFloat(checkoutPayment.amount) || 0) : 0
+          const claimedDepositAmount = isDepositClaim && checkoutPayment?.amount ? (parseFloat(checkoutPayment.amount) || 0) : 0
 
           const initialDeposit = c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0
           const depositRefund = Math.max(0, initialDeposit - claimedDepositAmount)
 
-          const rawNotes = c.payment_destination?.includes('[KTP') ? c.payment_destination : (matchedPayment?.notes || c.payment_destination || 'Check-out selesai diproses')
+          const rawNotes = c.payment_destination?.includes('[KTP') ? c.payment_destination : (checkoutPayment?.notes || c.payment_destination || 'Check-out selesai diproses')
           const isKtpHeld = rawNotes.includes('[KTP DITAHAN')
           let ktpUnpaidAmount = 0
           if (isKtpHeld) {
@@ -241,8 +266,8 @@ export default async function PenghuniPage() {
             floor_name: floor?.name || '-',
             room_type: room?.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room',
             check_in_date: c.created_at ? getWIBDateString(c.created_at) : null,
-            due_date: null,
-            checkout_date: checkoutTimestamp ? getWIBDateString(checkoutTimestamp) : getWIBDateString(),
+            due_date: dueDateStr || null,
+            checkout_date: checkoutDateStr,
             checkout_time: checkoutTimeStr,
             deposit_amount: initialDeposit,
             late_fee: isKtpHeld ? ktpUnpaidAmount : lateFeeAmount,
@@ -252,7 +277,7 @@ export default async function PenghuniPage() {
             additional_pay_needed: finalAdditionalPay,
             notes: finalNotes,
             processed_by: staffName,
-            created_at: checkoutTimestamp
+            created_at: checkoutTimestamp || c.updated_at || c.created_at
           }
         })
       }

@@ -843,7 +843,9 @@ export default function CheckInManager({
                   <p className="text-xs font-black text-slate-900">{formatRentalDuration(selectedCheckIn)}</p>
                   {isEarlyCheckIn(selectedCheckIn) && (
                     <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/15 text-amber-700 border border-amber-500/30 whitespace-nowrap">
-                      Early Check-In (Rp 150rb/mlm)
+                      {(parseInt(selectedCheckIn.rental_days) || 1) > 1 
+                        ? 'Early Check-In (Malam 1: Rp 150rb, berikutnya Rp 100rb)' 
+                        : 'Early Check-In (Rp 150rb/mlm)'}
                     </span>
                   )}
                 </div>

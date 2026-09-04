@@ -16,7 +16,7 @@ import {
   captureVideoFrameToWebP,
   formatFileSize
 } from '@/lib/imageCompressor'
-import { getDailyRentalRate } from '@/lib/dateUtils'
+import { getDailyRentalRate, calculateDailyRentTotal } from '@/lib/dateUtils'
 import { 
   CreditCard, 
   Camera, 
@@ -202,11 +202,16 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const BASE_PRICE_PER_MONTH_NON_AC = 650000 // Rp 650.000 / bulan (Kamar Non-AC / Non-Fasilitas)
   const DEPOSIT_AMOUNT = guaranteeType === 'deposit' ? 100000 : 0 // Rp 100k if deposit option, Rp 0 if KTP guarantee option or unselected
 
+  // Daily rental calculation (Early check-in 150rb applies only to the 1st night; subsequent nights are 100rb)
+  const dailyRentInfo = useMemo(() => {
+    return calculateDailyRentTotal(dailyDays || 1, dailyRateInfo.isMorningTransit)
+  }, [dailyDays, dailyRateInfo.isMorningTransit])
+
   // Calculated Totals
   const rentSubtotal = 
     !durationType ? 0 :
     durationType === 'transit_morning' ? PRICE_TRANSIT_MORNING :
-    durationType === 'daily' ? BASE_PRICE_PER_DAY * (dailyDays || 1) :
+    durationType === 'daily' ? dailyRentInfo.total :
     durationType === 'weekly' ? BASE_PRICE_PER_WEEK * (weeklyWeeks || 1) :
     durationType === 'monthly' ? (
       monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC :
@@ -585,12 +590,19 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         rental_duration: durationType || 'daily',
         monthly_package: durationType === 'monthly' ? (monthlyPackage || 'ac') : undefined,
         price_per_day: durationType === 'transit_morning' ? PRICE_TRANSIT_MORNING : BASE_PRICE_PER_DAY,
+        daily_breakdown: durationType === 'daily' && dailyRateInfo.isMorningTransit && dailyDays > 1 
+          ? dailyRentInfo.breakdownText 
+          : undefined,
         price_per_week: BASE_PRICE_PER_WEEK,
         price_per_month: monthlyPackage === 'non_ac' ? BASE_PRICE_PER_MONTH_NON_AC : BASE_PRICE_PER_MONTH_AC,
         facilities: isVip
           ? ['Parkiran Lebih Luas', 'Kloset Duduk', 'Kamar Mandi Dalam', 'Single Bed', 'AC', 'Lemari Pakaian', 'Meja']
           : ['Kamar Mandi Dalam', 'Single Bed', monthlyPackage === 'non_ac' ? 'Non-AC' : 'AC', 'Lemari Pakaian', 'Meja Belajar'],
-        notes: durationType === 'transit_morning' ? 'Sewa Sesi Pagi (Wajib checkout jam 12:00 siang hari ini)' : ((durationType === 'weekly' || durationType === 'monthly') ? 'No include token PLN, handuk, sprei, dan selimut' : undefined)
+        notes: durationType === 'transit_morning' 
+          ? 'Sewa Sesi Pagi (Wajib checkout jam 12:00 siang hari ini)' 
+          : (durationType === 'daily' && dailyRateInfo.isMorningTransit && dailyDays > 1)
+          ? `Early Check-In: Rp 150rb (malam 1) + ${dailyDays - 1} malam berikutnya @ Rp 100rb`
+          : ((durationType === 'weekly' || durationType === 'monthly') ? 'No include token PLN, handuk, sprei, dan selimut' : undefined)
       }
       submitData.append('selected_room_type', JSON.stringify(roomTypeInfo))
 
@@ -1729,7 +1741,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       <div>
                         <p className="text-xs font-extrabold text-white">Jumlah Malam Menginap</p>
                         <p className="text-[11px] text-indigo-400 font-bold">
-                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)} / malam
+                          {dailyRateInfo.isMorningTransit && (dailyDays || 1) > 1 ? (
+                            <span>Rp 150rb (Malam 1) + Rp 100rb/malam berikutnya</span>
+                          ) : (
+                            <span>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(BASE_PRICE_PER_DAY)} / malam</span>
+                          )}
                         </p>
                       </div>
 
@@ -1783,7 +1799,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                           <Clock className={`w-4 h-4 ${dailyRateInfo.isMorningTransit ? 'text-amber-400' : 'text-emerald-400'}`} />
                           <span>
                             {dailyRateInfo.isMorningTransit 
-                              ? 'Tarif Khusus Check-In Pagi (06:00 – 12:00 WIB): Rp 150.000 / malam' 
+                              ? 'Tarif Early Check-In Pagi (06:00 – 12:00 WIB)' 
                               : 'Tarif Normal (Setelah 12:00 WIB): Rp 100.000 / malam'}
                           </span>
                         </span>
@@ -1791,7 +1807,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       </div>
                       <p className="text-[11px] text-slate-300 leading-relaxed">
                         {dailyRateInfo.isMorningTransit
-                          ? 'Check-in pagi antara pukul 06:00 s/d 12:00 WIB dikenakan tarif Rp 150.000/malam. Setelah pukul 12:00 WIB berlaku tarif normal Rp 100.000/malam.'
+                          ? (
+                            (dailyDays || 1) > 1
+                              ? `Check-in pagi dikenakan tarif Rp 150.000 khusus malam pertama (early check-in). Untuk ${(dailyDays || 1) - 1} malam berikutnya dikenakan tarif normal Rp 100.000/malam. Total sewa ${dailyDays} malam: Rp ${dailyRentInfo.total.toLocaleString('id-ID')}.`
+                              : 'Check-in pagi antara pukul 06:00 s/d 12:00 WIB dikenakan tarif Rp 150.000 untuk malam pertama (early check-in). Malam berikutnya berlaku tarif normal Rp 100.000/malam.'
+                          )
                           : 'Sewa harian setelah pukul 12:00 WIB dikenakan tarif normal Rp 100.000/malam.'}
                       </p>
                     </div>
@@ -2029,19 +2049,26 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             ) : (
               <div className="space-y-2 text-xs">
                 {/* Rent item */}
-                <div className="flex justify-between text-slate-300">
-                  <span className="flex items-center gap-1">
-                    Biaya Sewa ({durationType === 'transit_morning' 
-                      ? 'Sesi Pagi (s/d 12:00 Siang)' 
-                      : durationType === 'daily' 
-                      ? `${dailyDays} Malam (Harian)` 
-                      : durationType === 'weekly' 
-                        ? `${weeklyWeeks} Minggu (@ Rp 500rb)` 
-                        : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC @ Rp 650rb' : 'AC @ Rp 1,35jt'})`}):
-                  </span>
-                  <span className="font-bold text-white font-mono">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentSubtotal)}
-                  </span>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-300">
+                    <span className="flex items-center gap-1">
+                      Biaya Sewa ({durationType === 'transit_morning' 
+                        ? 'Sesi Pagi (s/d 12:00 Siang)' 
+                        : durationType === 'daily' 
+                        ? `${dailyDays} Malam (Harian)` 
+                        : durationType === 'weekly' 
+                          ? `${weeklyWeeks} Minggu (@ Rp 500rb)` 
+                          : `${monthlyMonths} Bulan (${monthlyPackage === 'non_ac' ? 'Non-AC @ Rp 650rb' : 'AC @ Rp 1,35jt'})`}):
+                    </span>
+                    <span className="font-bold text-white font-mono">
+                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(rentSubtotal)}
+                    </span>
+                  </div>
+                  {durationType === 'daily' && dailyRateInfo.isMorningTransit && (dailyDays || 1) > 1 && (
+                    <p className="text-[10px] text-amber-300/90 pl-0.5">
+                      ↳ Malam 1 (Early Check-In): Rp 150.000 + {(dailyDays || 1) - 1} malam berikutnya @ Rp 100.000
+                    </p>
+                  )}
                 </div>
 
                 {/* Deposit item */}
