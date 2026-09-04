@@ -95,7 +95,14 @@ export default function PaymentList({
     return getWIBDateString(y)
   }
 
-  const [shiftDate, setShiftDate] = useState(getTodayStr())
+  const [dateFilterMode, setDateFilterMode] = useState<'preset' | 'single' | 'range'>('preset')
+  const [shiftDate, setShiftDate] = useState('month')
+  const [customSingleDate, setCustomSingleDate] = useState<string>(getTodayStr())
+  const [rangeStartDate, setRangeStartDate] = useState<string>(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  })
+  const [rangeEndDate, setRangeEndDate] = useState<string>(getTodayStr())
   const [shiftStaffId, setShiftStaffId] = useState('all')
   const [shiftMethod, setShiftMethod] = useState('all')
   const [copyFeedback, setCopyFeedback] = useState(false)
@@ -548,7 +555,12 @@ export default function PaymentList({
 
       // Match date
       const pDateStr = payment.payment_date || (payment.created_at ? getWIBDateString(payment.created_at) : '')
-      if (shiftDate && shiftDate !== 'all') {
+      if (dateFilterMode === 'single') {
+        if (customSingleDate && pDateStr !== customSingleDate) return false
+      } else if (dateFilterMode === 'range') {
+        if (rangeStartDate && pDateStr < rangeStartDate) return false
+        if (rangeEndDate && pDateStr > rangeEndDate) return false
+      } else if (shiftDate && shiftDate !== 'all') {
         if (shiftDate === 'month') {
           const pDate = new Date(payment.created_at || payment.payment_date)
           if (pDate.getMonth() !== currentMonth || pDate.getFullYear() !== currentYear) {
@@ -582,7 +594,7 @@ export default function PaymentList({
 
       return true
     })
-  }, [payments, shiftDate, isStaff, currentUser?.id, shiftStaffId, shiftMethod, currentMonth, currentYear])
+  }, [payments, dateFilterMode, customSingleDate, rangeStartDate, rangeEndDate, shiftDate, isStaff, currentUser?.id, shiftStaffId, shiftMethod, currentMonth, currentYear])
 
   // Shift Transactions Detailed Breakdown (Per Guest)
   const shiftBreakdown = useMemo(() => {
@@ -702,7 +714,18 @@ export default function PaymentList({
           : allStaff.find((s: any) => s.id === shiftStaffId)?.full_name || 'Petugas Shift')
     
     let formattedDate = ''
-    if (shiftDate === 'all') {
+    if (dateFilterMode === 'single') {
+      formattedDate = customSingleDate ? new Date(customSingleDate).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }) : 'Tanggal Tertentu'
+    } else if (dateFilterMode === 'range') {
+      const s = rangeStartDate ? new Date(rangeStartDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'
+      const e = rangeEndDate ? new Date(rangeEndDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'
+      formattedDate = `Rentang Tanggal ${s} s/d ${e}`
+    } else if (shiftDate === 'all') {
       formattedDate = 'Semua Riwayat Tanggal'
     } else if (shiftDate === 'month') {
       formattedDate = `Bulan ${today.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`
@@ -1028,25 +1051,36 @@ export default function PaymentList({
 
             {/* Toolbar 3 Menu Sederhana & Lengkap */}
             <div className="flex flex-wrap items-center gap-2.5">
-              {/* Menu 1: Periode & Tanggal */}
+              {/* Menu 1: Periode & Tanggal Dropdown */}
               <div className="relative inline-flex items-center">
                 <select
                   value={
-                    shiftDate === getTodayStr() 
-                      ? 'today' 
-                      : (shiftDate === getYesterdayStr() 
-                          ? 'yesterday' 
-                          : (shiftDate === 'month' 
-                              ? 'month' 
-                              : (shiftDate === 'all' ? 'all' : shiftDate)))
+                    dateFilterMode === 'single'
+                      ? 'single'
+                      : dateFilterMode === 'range'
+                      ? 'range'
+                      : (shiftDate === getTodayStr() 
+                          ? 'today' 
+                          : (shiftDate === getYesterdayStr() 
+                              ? 'yesterday' 
+                              : (shiftDate === 'month' 
+                                  ? 'month' 
+                                  : (shiftDate === 'all' ? 'all' : shiftDate))))
                   }
                   onChange={(e) => {
                     const val = e.target.value
-                    if (val === 'today') setShiftDate(getTodayStr())
-                    else if (val === 'yesterday') setShiftDate(getYesterdayStr())
-                    else if (val === 'month') setShiftDate('month')
-                    else if (val === 'all') setShiftDate('all')
-                    else setShiftDate(val)
+                    if (val === 'single') {
+                      setDateFilterMode('single')
+                    } else if (val === 'range') {
+                      setDateFilterMode('range')
+                    } else {
+                      setDateFilterMode('preset')
+                      if (val === 'today') setShiftDate(getTodayStr())
+                      else if (val === 'yesterday') setShiftDate(getYesterdayStr())
+                      else if (val === 'month') setShiftDate('month')
+                      else if (val === 'all') setShiftDate('all')
+                      else setShiftDate(val)
+                    }
                   }}
                   className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-2xs hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
@@ -1054,11 +1088,48 @@ export default function PaymentList({
                   <option value="yesterday">📅 Kemarin ({(() => { const y = new Date(); y.setDate(y.getDate() - 1); return y.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) })()})</option>
                   <option value="month">📅 Bulan Ini ({new Date().toLocaleDateString('id-ID', { month: 'long' })})</option>
                   <option value="all">📅 Semua Waktu</option>
-                  {shiftDate !== getTodayStr() && shiftDate !== getYesterdayStr() && shiftDate !== 'month' && shiftDate !== 'all' && (
-                    <option value={shiftDate}>📅 Tanggal: {shiftDate}</option>
-                  )}
+                  <option value="single">🗓️ Pilih Tanggal Tertentu (Kalender)...</option>
+                  <option value="range">📆 Pilih Rentang Tanggal...</option>
                 </select>
               </div>
+
+              {/* Sub-picker: Jika Pilih Tanggal Tertentu */}
+              {dateFilterMode === 'single' && (
+                <div className="inline-flex items-center gap-1.5 bg-white border-2 border-indigo-500/50 rounded-xl px-2.5 py-1.5 shadow-2xs animate-in fade-in zoom-in-95 duration-150">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <input
+                    type="date"
+                    value={customSingleDate}
+                    onChange={(e) => setCustomSingleDate(e.target.value)}
+                    className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                  />
+                </div>
+              )}
+
+              {/* Sub-picker: Jika Rentang Tanggal */}
+              {dateFilterMode === 'range' && (
+                <div className="inline-flex items-center gap-2 bg-white border-2 border-indigo-500/50 rounded-xl px-2.5 py-1.5 shadow-2xs animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Dari:</span>
+                    <input
+                      type="date"
+                      value={rangeStartDate}
+                      onChange={(e) => setRangeStartDate(e.target.value)}
+                      className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                    />
+                  </div>
+                  <span className="text-xs font-extrabold text-indigo-500">s/d</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Sampai:</span>
+                    <input
+                      type="date"
+                      value={rangeEndDate}
+                      onChange={(e) => setRangeEndDate(e.target.value)}
+                      className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Menu 2: Filter Kas & Petugas */}
               <select
@@ -2347,7 +2418,15 @@ export default function PaymentList({
                   Rekonsiliasi Kas Shift & Laba Bersih
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  {shiftDate === 'all' ? 'Semua Tanggal' : shiftDate === 'month' ? 'Bulan Ini' : `Tanggal ${new Date(shiftDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                  {dateFilterMode === 'single'
+                    ? `Tanggal ${new Date(customSingleDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                    : dateFilterMode === 'range'
+                    ? `Rentang ${new Date(rangeStartDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} s/d ${new Date(rangeEndDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                    : (shiftDate === 'all' 
+                        ? 'Semua Tanggal' 
+                        : shiftDate === 'month' 
+                        ? `Bulan Ini (${today.toLocaleDateString('id-ID', { month: 'long' })})` 
+                        : `Tanggal ${new Date(shiftDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`)}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
