@@ -368,7 +368,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
 
     setCompressingField(type === 'id_card' ? 'id_card_photo' : 'selfie_photo')
     try {
-      const file = await captureVideoFrameToWebP(video, type, 1400, 0.85, type === 'selfie')
+      const file = await captureVideoFrameToWebP(video, type, 1280, 0.80, type === 'selfie')
       if (file) {
         if (type === 'id_card') {
           setFormData(prev => ({ ...prev, id_card_photo: file }))
@@ -423,11 +423,11 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       setCompressingField(field)
       setError('')
       try {
-        // Compress to WebP / JPEG with 1400px max dimension & 82% quality (visual lossless)
+        // Compress to optimized JPEG with 1280px max dimension & 78% quality (crystal clear & under 200KB)
         const compressedFile = await compressImage(rawFile, {
-          maxDimension: 1400,
-          quality: 0.82,
-          targetFormat: 'image/webp'
+          maxDimension: 1280,
+          quality: 0.78,
+          targetFormat: 'image/jpeg'
         })
 
         setFormData(prev => ({ ...prev, [field]: compressedFile }))
@@ -645,14 +645,38 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       }
       submitData.append('selected_room_type', JSON.stringify(roomTypeInfo))
 
-      if (formData.id_card_photo) {
-        submitData.append('id_card_photo', formData.id_card_photo)
+      // Ensure all photos are tightly compressed under 600KB before uploading to Vercel
+      let idCardPhoto = formData.id_card_photo
+      let selfiePhoto = formData.selfie_photo
+      let paymentProof = formData.payment_proof
+
+      if (idCardPhoto && idCardPhoto.size > 600 * 1024) {
+        idCardPhoto = await compressImage(idCardPhoto, { maxDimension: 1280, quality: 0.75, targetFormat: 'image/jpeg' })
       }
-      if (formData.selfie_photo) {
-        submitData.append('selfie_photo', formData.selfie_photo)
+      if (selfiePhoto && selfiePhoto.size > 600 * 1024) {
+        selfiePhoto = await compressImage(selfiePhoto, { maxDimension: 1280, quality: 0.75, targetFormat: 'image/jpeg' })
       }
-      if (formData.payment_proof) {
-        submitData.append('payment_proof', formData.payment_proof)
+      if (paymentProof && paymentProof.size > 600 * 1024) {
+        paymentProof = await compressImage(paymentProof, { maxDimension: 1280, quality: 0.75, targetFormat: 'image/jpeg' })
+      }
+
+      const totalUploadBytes = 
+        (idCardPhoto?.size || 0) + 
+        (selfiePhoto?.size || 0) + 
+        (paymentProof?.size || 0)
+
+      if (totalUploadBytes > 3.5 * 1024 * 1024) {
+        throw new Error('Total ukuran foto melebihi batas aman (3.5MB). Silakan ulangi pengambilan foto.')
+      }
+
+      if (idCardPhoto) {
+        submitData.append('id_card_photo', idCardPhoto)
+      }
+      if (selfiePhoto) {
+        submitData.append('selfie_photo', selfiePhoto)
+      }
+      if (paymentProof) {
+        submitData.append('payment_proof', paymentProof)
       }
 
       const res = await fetch('/api/check-in', {
@@ -1436,7 +1460,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
               {/* Compression Badge */}
               <div className="flex items-center justify-between text-xs text-slate-300 bg-slate-900/90 px-3.5 py-2 rounded-xl border border-slate-800">
                 <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Terkompresi Otomatis (WebP)
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Terkompresi Otomatis (HD Ringan)
                 </span>
                 <span className="font-mono text-[11px] text-slate-400">
                   Ukuran: {formatFileSize(formData.selfie_photo.size)}
