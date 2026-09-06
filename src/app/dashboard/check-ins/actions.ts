@@ -375,3 +375,191 @@ export async function assignRoom(prevState: any, formData: FormData) {
   }
 }
 
+/**
+ * Delete a check-in request (only allowed for rejected or pending check-ins)
+ */
+export async function deleteCheckInRequest(check_in_id: string) {
+  if (!check_in_id) return { error: 'ID check-in tidak valid' }
+
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, branch_id')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'owner' && profile?.role !== 'staff') {
+    return { error: 'Hanya owner atau staf yang dapat menghapus data' }
+  }
+
+  const { data: checkIn } = await supabase
+    .from('check_in_requests')
+    .select('id, branch_id, status')
+    .eq('id', check_in_id)
+    .single()
+
+  if (!checkIn) {
+    return { error: 'Data check-in tidak ditemukan' }
+  }
+
+  if (profile.role === 'staff' && checkIn.branch_id !== profile.branch_id) {
+    return { error: 'Staf hanya dapat menghapus check-in di cabangnya sendiri' }
+  }
+
+  if (checkIn.status === 'completed') {
+    return { error: 'Data check-in yang sudah selesai menjadi penghuni tidak dapat dihapus dari menu ini' }
+  }
+
+  const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY 
+    ? (await import('@supabase/supabase-js')).createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      )
+    : supabase
+
+  const { error } = await adminClient
+    .from('check_in_requests')
+    .delete()
+    .eq('id', check_in_id)
+
+  if (error) {
+    return { error: error.message || 'Gagal menghapus data check-in' }
+  }
+
+  revalidatePath('/dashboard/check-ins')
+  return { success: true }
+}
+
+/**
+ * Update reservation details (exclusive to Owner role)
+ * Automatically recalculates total_amount and deposit_amount when guarantee_type changes.
+ */
+export async function updateCheckInRequest(prevState: any, formData: FormData) {
+  const check_in_id = formData.get('check_in_id') as string
+  const full_name = (formData.get('full_name') as string)?.trim()
+  const phone = (formData.get('phone') as string)?.trim()
+  const id_card_number = (formData.get('id_card_number') as string)?.trim()
+  const guarantee_type = (formData.get('guarantee_type') as string) || 'deposit'
+
+  if (!check_in_id) return { error: 'ID check-in tidak valid' }
+  if (!full_name || full_name.length < 2) return { error: 'Nama lengkap minimal 2 karakter' }
+  if (!phone || phone.length < 8) return { error: 'Nomor telepon tidak valid' }
+
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'owner') {
+    return { error: 'Hanya akun Owner yang memiliki wewenang mengubah rincian reservasi' }
+  }
+
+  // Fetch current check-in data to calculate exact deposit delta
+  const { data: currentCheckIn, error: fetchErr } = await supabase
+    .from('check_in_requests')
+    .select('*')
+    .eq('id', check_in_id)
+    .single()
+
+  if (fetchErr || !currentCheckIn) {
+    return { error: 'Data reservasi tidak ditemukan' }
+  }
+
+  const currentDeposit = parseFloat(currentCheckIn.deposit_amount || '0')
+  const currentTotal = parseFloat(currentCheckIn.total_amount || '0')
+
+  // Calculate base room rental cost (total without deposit)
+  const roomRentBase = Math.max(0, currentTotal - currentDeposit)
+
+  let newDepositAmount = currentDeposit
+  let newTotalAmount = currentTotal
+
+  if (guarantee_type === 'deposit') {
+    newDepositAmount = 100000
+    newTotalAmount = roomRentBase + 100000
+  } else if (guarantee_type === 'ktp') {
+    newDepositAmount = 0
+    newTotalAmount = roomRentBase // Deduct the deposit, preserving exact room rent
+  }
+
+  const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY 
+    ? (await import('@supabase/supabase-js')).createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      )
+    : supabase
+
+  const { error: updateError } = await adminClient
+    .from('check_in_requests')
+    .update({
+      full_name,
+      phone,
+      id_card_number: id_card_number || currentCheckIn.id_card_number,
+      guarantee_type,
+      deposit_amount: newDepositAmount.toString(),
+      total_amount: newTotalAmount.toString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', check_in_id)
+
+  if (updateError) {
+    return { error: updateError.message || 'Gagal memperbarui data reservasi' }
+  }
+
+  revalidatePath('/dashboard/check-ins')
+  return { 
+    success: true, 
+    updatedData: {
+      id: check_in_id,
+      full_name,
+      phone,
+      id_card_number: id_card_number || currentCheckIn.id_card_number,
+      guarantee_type,
+      deposit_amount: newDepositAmount.toString(),
+      total_amount: newTotalAmount.toString()
+    }
+  }
+}
+

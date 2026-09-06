@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useActionState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { approveCheckIn, rejectCheckIn, assignRoom } from './actions'
+import { approveCheckIn, rejectCheckIn, assignRoom, deleteCheckInRequest, updateCheckInRequest } from './actions'
 import Modal from '@/components/ui/Modal'
 import ImageLightbox from '@/components/ui/ImageLightbox'
 import Table from '@/components/ui/Table'
@@ -35,7 +35,11 @@ import {
   Search,
   Filter,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  Trash2,
+  Edit3,
+  Save,
+  Shield
 } from 'lucide-react'
 
 type TabType = 'active' | 'history' | 'qrcode'
@@ -62,6 +66,17 @@ export default function CheckInManager({
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   
+  // Edit Reservation Modal (Owner Exclusive)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingCheckIn, setEditingCheckIn] = useState<any>(null)
+  const [editFullName, setEditFullName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [editIdCard, setEditIdCard] = useState('')
+  const [editGuaranteeType, setEditGuaranteeType] = useState<'deposit' | 'ktp'>('deposit')
+  const [editSubmitting, setEditSubmitting] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null)
+  
   const [selectedRoomId, setSelectedRoomId] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || '')
@@ -79,6 +94,118 @@ export default function CheckInManager({
   const [approveState, approveAction] = useActionState(approveCheckIn, null)
   const [rejectState, rejectAction] = useActionState(rejectCheckIn, null)
   const [assignState, assignAction] = useActionState(assignRoom, null)
+
+  // Live recalculation for Edit Reservation modal
+  const editOriginalDeposit = editingCheckIn ? parseFloat(editingCheckIn.deposit_amount || '0') : 0
+  const editOriginalTotal = editingCheckIn ? parseFloat(editingCheckIn.total_amount || '0') : 0
+  const editBaseRoomRent = Math.max(0, editOriginalTotal - editOriginalDeposit)
+  const editCalculatedDeposit = editGuaranteeType === 'deposit' ? 100000 : 0
+  const editCalculatedNewTotal = editBaseRoomRent + editCalculatedDeposit
+
+  // Handler: Delete Check-in Request
+  const handleDelete = async (checkInId: string, guestName: string) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus data check-in "${guestName}" secara permanen? Data yang dihapus tidak dapat dikembalikan.`)) {
+      return
+    }
+    setIsDeletingId(checkInId)
+    try {
+      const res = await deleteCheckInRequest(checkInId)
+      if (res.error) {
+        alert(`Gagal menghapus: ${res.error}`)
+      } else {
+        setCheckIns(prev => prev.filter(c => c.id !== checkInId))
+        if (selectedCheckIn?.id === checkInId) {
+          setIsDetailModalOpen(false)
+          setSelectedCheckIn(null)
+        }
+        router.refresh()
+      }
+    } catch (err: any) {
+      alert(`Terjadi kesalahan: ${err.message || err}`)
+    } finally {
+      setIsDeletingId(null)
+    }
+  }
+
+  // Handler: Open Edit Reservation Modal
+  const handleOpenEdit = (checkIn: any) => {
+    setEditingCheckIn(checkIn)
+    setEditFullName(checkIn.full_name || '')
+    setEditPhone(checkIn.phone || '')
+    setEditIdCard(checkIn.id_card_number || '')
+    const currentGuarantee = checkIn.guarantee_type || (parseFloat(checkIn.deposit_amount || '0') > 0 ? 'deposit' : 'ktp')
+    setEditGuaranteeType(currentGuarantee)
+    setEditError('')
+    setIsDetailModalOpen(false)
+    setIsEditModalOpen(true)
+  }
+
+  // Handler: Save Edit Reservation
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingCheckIn) return
+    if (!editFullName.trim() || editFullName.trim().length < 2) {
+      setEditError('Nama lengkap minimal 2 karakter')
+      return
+    }
+    if (!editPhone.trim() || editPhone.trim().length < 8) {
+      setEditError('Nomor telepon minimal 8 digit')
+      return
+    }
+
+    setEditSubmitting(true)
+    setEditError('')
+
+    const formData = new FormData()
+    formData.append('check_in_id', editingCheckIn.id)
+    formData.append('full_name', editFullName.trim())
+    formData.append('phone', editPhone.trim())
+    formData.append('id_card_number', editIdCard.trim() || '-')
+    formData.append('guarantee_type', editGuaranteeType)
+
+    try {
+      const res = await updateCheckInRequest(null, formData)
+      if (res.error) {
+        setEditError(res.error)
+      } else if (res.success && res.updatedData) {
+        // Optimistically update local state
+        setCheckIns(prev => prev.map(c => {
+          if (c.id === editingCheckIn.id) {
+            return {
+              ...c,
+              full_name: res.updatedData.full_name,
+              phone: res.updatedData.phone,
+              id_card_number: res.updatedData.id_card_number,
+              guarantee_type: res.updatedData.guarantee_type,
+              deposit_amount: res.updatedData.deposit_amount,
+              total_amount: res.updatedData.total_amount
+            }
+          }
+          return c
+        }))
+
+        if (selectedCheckIn?.id === editingCheckIn.id) {
+          setSelectedCheckIn((prev: any) => ({
+            ...prev,
+            full_name: res.updatedData.full_name,
+            phone: res.updatedData.phone,
+            id_card_number: res.updatedData.id_card_number,
+            guarantee_type: res.updatedData.guarantee_type,
+            deposit_amount: res.updatedData.deposit_amount,
+            total_amount: res.updatedData.total_amount
+          }))
+        }
+
+        setIsEditModalOpen(false)
+        setEditingCheckIn(null)
+        router.refresh()
+      }
+    } catch (err: any) {
+      setEditError(err.message || 'Terjadi kesalahan saat menyimpan perubahan')
+    } finally {
+      setEditSubmitting(false)
+    }
+  }
 
   useEffect(() => {
     setCheckIns(initialCheckIns)
@@ -448,6 +575,17 @@ export default function CheckInManager({
         >
           Tolak
         </button>
+
+        {userRole === 'owner' && (
+          <button
+            type="button"
+            onClick={() => handleOpenEdit(checkIn)}
+            className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-bold border border-amber-300 transition-colors cursor-pointer shadow-2xs"
+            title="Edit Data Reservasi (Khusus Owner)"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     ]
   })
@@ -520,17 +658,30 @@ export default function CheckInManager({
         {new Date(checkIn.updated_at || checkIn.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
       </span>,
 
-      <button
-        key={`hist-act-${checkIn.id}`}
-        type="button"
-        onClick={() => {
-          setSelectedCheckIn(checkIn)
-          setIsDetailModalOpen(true)
-        }}
-        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-      >
-        Lihat Detail & Foto
-      </button>
+      <div key={`hist-act-${checkIn.id}`} className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedCheckIn(checkIn)
+            setIsDetailModalOpen(true)
+          }}
+          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+        >
+          Lihat Detail & Foto
+        </button>
+
+        {checkIn.status === 'rejected' && (
+          <button
+            type="button"
+            disabled={isDeletingId === checkIn.id}
+            onClick={() => handleDelete(checkIn.id, checkIn.full_name)}
+            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold border border-rose-200 transition-colors cursor-pointer disabled:opacity-50"
+            title="Hapus Riwayat Ini"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
     ]
   })
 
@@ -1024,15 +1175,40 @@ export default function CheckInManager({
 
               {/* Action Buttons Bar */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsDetailModalOpen(false)}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
-                >
-                  Tutup
-                </button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsDetailModalOpen(false)}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+
+                  {(selectedCheckIn.status === 'rejected' || selectedCheckIn.status === 'pending') && (
+                    <button
+                      type="button"
+                      disabled={isDeletingId === selectedCheckIn.id}
+                      onClick={() => handleDelete(selectedCheckIn.id, selectedCheckIn.full_name)}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl border border-rose-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{isDeletingId === selectedCheckIn.id ? 'Menghapus...' : 'Hapus Data'}</span>
+                    </button>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {userRole === 'owner' && selectedCheckIn.status !== 'completed' && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(selectedCheckIn)}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-xl border border-amber-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Reservasi</span>
+                    </button>
+                  )}
+
                   {selectedCheckIn.status === 'pending' && (
                     <>
                       <button
@@ -1258,6 +1434,186 @@ export default function CheckInManager({
             </form>
           )
         })()}
+      </Modal>
+
+      {/* =========================================================================
+          MODAL EDIT RESERVASI (KHUSUS OWNER) DENGAN SINKRONISASI JAMINAN DEPOSIT
+      ========================================================================= */}
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} size="md">
+        {editingCheckIn && (
+          <form onSubmit={handleSaveEdit} className="space-y-4 py-1">
+            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-extrabold text-[10px] uppercase">
+                    Khusus Akun Owner
+                  </span>
+                  <h2 className="text-lg font-extrabold text-slate-900">Edit Data Reservasi</h2>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  ID: <span className="font-mono text-[11px] text-slate-400">{editingCheckIn.id.slice(0, 8)}...</span>
+                </p>
+              </div>
+            </div>
+
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            {/* Nama Lengkap */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nama Lengkap Tamu *
+              </label>
+              <input
+                type="text"
+                required
+                value={editFullName}
+                onChange={(e) => setEditFullName(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                placeholder="Nama lengkap sesuai KTP"
+              />
+            </div>
+
+            {/* Nomor Telepon / WA */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nomor WhatsApp / Telepon *
+              </label>
+              <input
+                type="text"
+                required
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                placeholder="08xxxxxxxxxx"
+              />
+            </div>
+
+            {/* Nomor KTP / NIK */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nomor KTP (NIK)
+              </label>
+              <input
+                type="text"
+                value={editIdCard}
+                onChange={(e) => setEditIdCard(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                placeholder="16 digit NIK"
+              />
+            </div>
+
+            {/* Pilihan Jenis Jaminan (Deposit Tunai vs Titip KTP) */}
+            <div className="pt-2">
+              <label className="block text-xs font-bold text-slate-800 mb-2">
+                Jenis Jaminan Reservasi *
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Opsi 1: Deposit Tunai */}
+                <label 
+                  className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer transition-all ${
+                    editGuaranteeType === 'deposit'
+                      ? 'border-amber-500 bg-amber-50/50 shadow-xs'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="edit_guarantee"
+                    value="deposit"
+                    checked={editGuaranteeType === 'deposit'}
+                    onChange={() => setEditGuaranteeType('deposit')}
+                    className="mt-0.5 text-amber-600 focus:ring-amber-500"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Deposit Rp 100.000</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Uang jaminan tunai (KTP Asli tidak dititip)</p>
+                  </div>
+                </label>
+
+                {/* Opsi 2: Titip KTP Asli */}
+                <label 
+                  className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer transition-all ${
+                    editGuaranteeType === 'ktp'
+                      ? 'border-indigo-500 bg-indigo-50/50 shadow-xs'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="edit_guarantee"
+                    value="ktp"
+                    checked={editGuaranteeType === 'ktp'}
+                    onChange={() => setEditGuaranteeType('ktp')}
+                    className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Titip KTP Asli</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Bebas deposit Rp 0 (KTP Asli ditahan staf)</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* LIVE CALCULATION SINKRONISASI PEMBAYARAN */}
+            <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-2 border border-slate-800 shadow-md">
+              <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800">
+                <span className="text-slate-400">Harga Pokok Sewa Kamar:</span>
+                <span className="font-mono font-bold text-slate-200">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(editBaseRoomRent)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span>Nominal Jaminan Deposit:</span>
+                  {editGuaranteeType === 'deposit' ? (
+                    <span className="text-[10px] text-amber-400 font-bold">(+Rp 100rb)</span>
+                  ) : (
+                    <span className="text-[10px] text-emerald-400 font-bold">(Bebas Deposit)</span>
+                  )}
+                </span>
+                <span className={`font-mono font-bold ${editGuaranteeType === 'deposit' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(editCalculatedDeposit)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wider text-amber-300">Total Tagihan Baru</p>
+                  <p className="text-[10px] text-slate-400">Otomatis disinkronkan ke sistem</p>
+                </div>
+                <p className="text-lg font-mono font-black text-white">
+                  {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(editCalculatedNewTotal)}
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={editSubmitting}
+                onClick={() => setIsEditModalOpen(false)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={editSubmitting}
+                className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>{editSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* =========================================================================
