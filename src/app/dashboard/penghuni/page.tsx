@@ -212,14 +212,28 @@ export default async function PenghuniPage() {
             staffName = profile.full_name
           }
 
+          // Extract effective duration from selected_room_type if available
+          let cirEffectiveDuration = c.rental_duration || 'daily'
+          if (c.selected_room_type) {
+            try {
+              const parsed = typeof c.selected_room_type === 'string'
+                ? JSON.parse(c.selected_room_type)
+                : c.selected_room_type
+              if (parsed?.rental_duration) {
+                cirEffectiveDuration = parsed.rental_duration
+              }
+            } catch (e) {}
+          }
+
           // Calculate actual due date based on check-in duration
           const dueDateStr = calculateCheckoutDueDate(
             c.created_at,
-            c.rental_duration || 'daily',
+            cirEffectiveDuration,
             c.rental_days || 1,
             c.rental_weeks || 1,
             c.rental_months || 1
           )
+
 
           // Resolve actual checkout timestamp & time
           // If a checkout settlement payment exists, use its timestamp.

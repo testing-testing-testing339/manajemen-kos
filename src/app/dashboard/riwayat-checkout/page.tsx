@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CheckoutHistoryList from './CheckoutHistoryList'
-import { getWIBDateString } from '@/lib/dateUtils'
+import { getWIBDateString, calculateCheckoutDueDate } from '@/lib/dateUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -131,14 +131,41 @@ export default async function RiwayatCheckoutPage() {
             staffName = profile.full_name
           }
 
+          // Extract effective duration from selected_room_type if available
+          let cirEffectiveDuration = c.rental_duration || 'daily'
+          if (c.selected_room_type) {
+            try {
+              const parsed = typeof c.selected_room_type === 'string'
+                ? JSON.parse(c.selected_room_type)
+                : c.selected_room_type
+              if (parsed?.rental_duration) {
+                cirEffectiveDuration = parsed.rental_duration
+              }
+            } catch (e) {}
+          }
+
+          // Calculate actual due date based on check-in duration
+          const dueDateStr = calculateCheckoutDueDate(
+            c.created_at,
+            cirEffectiveDuration,
+            c.rental_days || 1,
+            c.rental_weeks || 1,
+            c.rental_months || 1
+          )
+
           // Resolve actual checkout timestamp & time
-          const checkoutTimestamp = matchedPayment?.created_at || c.updated_at || c.created_at
-          const checkoutDateObj = new Date(checkoutTimestamp)
-          const checkoutTimeStr = checkoutDateObj.toLocaleTimeString('id-ID', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            timeZone: 'Asia/Jakarta' 
-          })
+          const checkoutTimestamp = matchedPayment?.created_at || null
+          const checkoutDateStr = checkoutTimestamp 
+            ? getWIBDateString(checkoutTimestamp) 
+            : (dueDateStr || getWIBDateString(c.updated_at || c.created_at))
+          
+          const checkoutTimeStr = checkoutTimestamp
+            ? new Date(checkoutTimestamp).toLocaleTimeString('id-ID', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                timeZone: 'Asia/Jakarta' 
+              })
+            : '12:00'
 
           const isLateSettlement = matchedPayment?.notes?.includes('[Pelunasan Check-Out]')
           const isDepositClaim = matchedPayment?.notes?.includes('[Klaim Deposit]')
@@ -169,8 +196,8 @@ export default async function RiwayatCheckoutPage() {
             floor_name: floor?.name || '-',
             room_type: room?.room_type === 'vip' ? 'VIP Belakang Warkop' : 'Standard Room',
             check_in_date: c.created_at ? getWIBDateString(c.created_at) : null,
-            due_date: null,
-            checkout_date: checkoutTimestamp ? getWIBDateString(checkoutTimestamp) : getWIBDateString(),
+            due_date: dueDateStr,
+            checkout_date: checkoutDateStr,
             checkout_time: checkoutTimeStr,
             deposit_amount: initialDeposit,
             late_fee: isKtpHeld ? ktpUnpaidAmount : lateFeeAmount,
@@ -180,7 +207,7 @@ export default async function RiwayatCheckoutPage() {
             additional_pay_needed: finalAdditionalPay,
             notes: finalNotes,
             processed_by: staffName,
-            created_at: checkoutTimestamp
+            created_at: checkoutTimestamp || c.updated_at || c.created_at
           }
         })
       }
