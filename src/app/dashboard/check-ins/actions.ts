@@ -408,8 +408,8 @@ export async function deleteCheckInRequest(check_in_id: string) {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'owner' && profile?.role !== 'staff') {
-    return { error: 'Hanya owner atau staf yang dapat menghapus data' }
+  if (profile?.role !== 'owner') {
+    return { error: 'Hanya akun Owner yang memiliki wewenang untuk menghapus data reservasi' }
   }
 
   const { data: checkIn } = await supabase
@@ -420,10 +420,6 @@ export async function deleteCheckInRequest(check_in_id: string) {
 
   if (!checkIn) {
     return { error: 'Data check-in tidak ditemukan' }
-  }
-
-  if (profile.role === 'staff' && checkIn.branch_id !== profile.branch_id) {
-    return { error: 'Staf hanya dapat menghapus check-in di cabangnya sendiri' }
   }
 
   if (checkIn.status === 'completed') {

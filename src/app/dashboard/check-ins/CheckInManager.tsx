@@ -670,13 +670,13 @@ export default function CheckInManager({
           Lihat Detail & Foto
         </button>
 
-        {checkIn.status === 'rejected' && (
+        {userRole === 'owner' && checkIn.status === 'rejected' && (
           <button
             type="button"
             disabled={isDeletingId === checkIn.id}
             onClick={() => handleDelete(checkIn.id, checkIn.full_name)}
             className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold border border-rose-200 transition-colors cursor-pointer disabled:opacity-50"
-            title="Hapus Riwayat Ini"
+            title="Hapus Riwayat Ini (Khusus Owner)"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -1184,15 +1184,16 @@ export default function CheckInManager({
                     Tutup
                   </button>
 
-                  {(selectedCheckIn.status === 'rejected' || selectedCheckIn.status === 'pending') && (
+                  {userRole === 'owner' && (selectedCheckIn.status === 'rejected' || selectedCheckIn.status === 'pending') && (
                     <button
                       type="button"
                       disabled={isDeletingId === selectedCheckIn.id}
                       onClick={() => handleDelete(selectedCheckIn.id, selectedCheckIn.full_name)}
                       className="w-full sm:w-auto px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl border border-rose-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                      title="Hapus Data Reservasi (Khusus Owner)"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>{isDeletingId === selectedCheckIn.id ? 'Menghapus...' : 'Hapus Data'}</span>
+                      <span>{isDeletingId === selectedCheckIn.id ? 'Menghapus...' : 'Hapus Data (Owner)'}</span>
                     </button>
                   )}
                 </div>
