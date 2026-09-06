@@ -229,6 +229,41 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
   const [compressingField, setCompressingField] = useState<'id_card_photo' | 'selfie_photo' | 'payment_proof' | null>(null)
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
 
+  // Object preview URLs with automatic cleanup on unmount/change to prevent iOS memory bloat
+  const [idCardPreview, setIdCardPreview] = useState<string | null>(null)
+  const [selfiePreview, setSelfiePreview] = useState<string | null>(null)
+  const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (formData.id_card_photo) {
+      const url = URL.createObjectURL(formData.id_card_photo)
+      setIdCardPreview(url)
+      return () => URL.revokeObjectURL(url)
+    } else {
+      setIdCardPreview(null)
+    }
+  }, [formData.id_card_photo])
+
+  useEffect(() => {
+    if (formData.selfie_photo) {
+      const url = URL.createObjectURL(formData.selfie_photo)
+      setSelfiePreview(url)
+      return () => URL.revokeObjectURL(url)
+    } else {
+      setSelfiePreview(null)
+    }
+  }, [formData.selfie_photo])
+
+  useEffect(() => {
+    if (formData.payment_proof) {
+      const url = URL.createObjectURL(formData.payment_proof)
+      setPaymentProofPreview(url)
+      return () => URL.revokeObjectURL(url)
+    } else {
+      setPaymentProofPreview(null)
+    }
+  }, [formData.payment_proof])
+
   const idCardVideoRef = useRef<HTMLVideoElement>(null)
   const selfieVideoRef = useRef<HTMLVideoElement>(null)
   const idCardStreamRef = useRef<MediaStream | null>(null)
@@ -378,7 +413,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
     const inputElement = e.target
     if (inputElement.files && inputElement.files[0]) {
       const rawFile = inputElement.files[0]
-      const validation = validateFile(rawFile, ['image/'], 20) // Accept up to 20MB raw, since we compress it down to ~150KB
+      const validation = validateFile(rawFile, ['image/'], 25) // Accept up to 25MB raw, since we compress it down to ~150KB
       if (!validation.valid) {
         setError(validation.error || 'File tidak valid')
         inputElement.value = ''
@@ -388,7 +423,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
       setCompressingField(field)
       setError('')
       try {
-        // Compress to WebP with 1400px max dimension & 82% quality (visual lossless)
+        // Compress to WebP / JPEG with 1400px max dimension & 82% quality (visual lossless)
         const compressedFile = await compressImage(rawFile, {
           maxDimension: 1400,
           quality: 0.82,
@@ -401,14 +436,18 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
           delete next[field]
           return next
         })
-      } catch (compErr) {
-        console.warn('Compression error, using raw file as fallback:', compErr)
-        setFormData(prev => ({ ...prev, [field]: rawFile }))
-        setValidationErrors(prev => {
-          const next = { ...prev }
-          delete next[field]
-          return next
-        })
+      } catch (compErr: any) {
+        console.warn('Compression warning, attempting fallback:', compErr)
+        if (rawFile.size <= 2 * 1024 * 1024) {
+          setFormData(prev => ({ ...prev, [field]: rawFile }))
+          setValidationErrors(prev => {
+            const next = { ...prev }
+            delete next[field]
+            return next
+          })
+        } else {
+          setError('Ukuran foto terlalu besar untuk diproses browser. Silakan coba ambil foto ulang.')
+        }
       } finally {
         setCompressingField(null)
         inputElement.value = ''
@@ -621,9 +660,21 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
         body: submitData,
       })
 
-      const resData = await res.json()
+      const responseText = await res.text()
+      let resData: any = null
+      try {
+        resData = JSON.parse(responseText)
+      } catch {
+        if (res.status === 413) {
+          throw new Error('Ukuran foto terlalu besar untuk server. Silakan coba upload foto dengan ukuran lebih ringan.')
+        }
+        if (!res.ok) {
+          throw new Error(`Server mengalami kendala (Kode ${res.status}). Silakan coba sesaat lagi.`)
+        }
+      }
+
       if (!res.ok) {
-        throw new Error(resData.error || 'Gagal mengirim pendaftaran check-in')
+        throw new Error(resData?.error || 'Gagal mengirim pendaftaran check-in')
       }
 
       setSuccess(true)
@@ -1204,7 +1255,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       <input
                         id="id_card_photo_input"
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp"
                         className="sr-only"
                         onChange={(e) => handleFileUpload(e, 'id_card_photo')}
                       />
@@ -1218,7 +1269,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div className="max-w-md mx-auto space-y-3">
               <div className="relative aspect-[1.58/1] rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-xl">
                 <img
-                  src={URL.createObjectURL(formData.id_card_photo)}
+                  src={idCardPreview || ''}
                   alt="KTP Preview"
                   className="w-full h-full object-cover"
                 />
@@ -1376,7 +1427,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
             <div className="max-w-xs mx-auto space-y-3">
               <div className="relative aspect-square rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-xl">
                 <img
-                  src={URL.createObjectURL(formData.selfie_photo)}
+                  src={selfiePreview || ''}
                   alt="Selfie Preview"
                   className="w-full h-full object-cover"
                 />
@@ -2386,23 +2437,23 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 ) : formData.payment_proof ? (
                   <div className="p-3 bg-slate-900 border border-emerald-500/40 rounded-2xl flex items-center justify-between gap-3 shadow-md">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-950 border border-slate-700 shrink-0">
+                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-800 shrink-0 border border-slate-700">
                         <img
-                          src={URL.createObjectURL(formData.payment_proof)}
+                          src={paymentProofPreview || ''}
                           alt="Bukti Transfer"
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1 text-emerald-400 text-xs font-bold truncate">
-                          <Check className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">Bukti Pembayaran Siap</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 font-mono truncate max-w-[170px] sm:max-w-xs">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 truncate">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>Bukti Transfer Terlampir</span>
+                        </p>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
                           {formData.payment_proof.name}
                         </p>
-                        <p className="text-[10px] text-indigo-300 font-medium">
-                          {formatFileSize(formData.payment_proof.size)}
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          Ukuran: {formatFileSize(formData.payment_proof.size)}
                         </p>
                       </div>
                     </div>
@@ -2417,14 +2468,17 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                         <input
                           id="qris_payment_proof_change"
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp"
                           onChange={(e) => handleFileUpload(e, 'payment_proof')}
                           className="sr-only"
                         />
                       </label>
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, payment_proof: null }))}
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, payment_proof: null }))
+                          setPaymentProofPreview(null)
+                        }}
                         className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-[11px] font-bold rounded-xl border border-rose-500/30 cursor-pointer transition-colors"
                         title="Hapus File"
                       >
@@ -2451,7 +2505,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     <input
                       id="qris_payment_proof"
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       onChange={(e) => handleFileUpload(e, 'payment_proof')}
                       className="sr-only"
                     />
@@ -2505,23 +2559,23 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                 ) : formData.payment_proof ? (
                   <div className="p-3 bg-slate-900 border border-emerald-500/40 rounded-2xl flex items-center justify-between gap-3 shadow-md">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-950 border border-slate-700 shrink-0">
+                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-800 shrink-0 border border-slate-700">
                         <img
-                          src={URL.createObjectURL(formData.payment_proof)}
+                          src={paymentProofPreview || ''}
                           alt="Foto Serah Terima"
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1 text-emerald-400 text-xs font-bold truncate">
-                          <Check className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">Foto Serah Terima Terlampir</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 font-mono truncate max-w-[170px] sm:max-w-xs">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 truncate">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>Foto Bukti Uang Tunai Terlampir</span>
+                        </p>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
                           {formData.payment_proof.name}
                         </p>
-                        <p className="text-[10px] text-emerald-300 font-medium">
-                          {formatFileSize(formData.payment_proof.size)}
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          Ukuran: {formatFileSize(formData.payment_proof.size)}
                         </p>
                       </div>
                     </div>
@@ -2536,7 +2590,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                         <input
                           id="cash_payment_proof_change"
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp"
                           capture="environment"
                           onChange={(e) => handleFileUpload(e, 'payment_proof')}
                           className="sr-only"
@@ -2544,7 +2598,10 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                       </label>
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, payment_proof: null }))}
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, payment_proof: null }))
+                          setPaymentProofPreview(null)
+                        }}
                         className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-[11px] font-bold rounded-xl border border-rose-500/30 cursor-pointer transition-colors"
                         title="Hapus Foto"
                       >
@@ -2571,7 +2628,7 @@ export default function CheckInForm({ branchId, branchName }: CheckInFormProps) 
                     <input
                       id="cash_payment_proof"
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       capture="environment"
                       onChange={(e) => handleFileUpload(e, 'payment_proof')}
                       className="sr-only"

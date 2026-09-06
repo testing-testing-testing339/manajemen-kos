@@ -274,7 +274,7 @@ export default function UserProfileMenu({ user, profile, logoutAction }: UserPro
                       <span>Pilih Foto Baru</span>
                       <input 
                         type="file" 
-                        accept="image/*" 
+                        accept="image/jpeg,image/png,image/webp" 
                         onChange={handlePhotoSelect} 
                         className="hidden" 
                       />
