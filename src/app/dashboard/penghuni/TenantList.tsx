@@ -815,7 +815,7 @@ export default function TenantList({
 
       <div key={`hist-proc-${item.id}`}>
         <p className="text-xs font-semibold text-slate-800">
-          {item.processed_by || 'Resepsionis'}
+          {item.processed_by && item.processed_by !== '-' ? item.processed_by : '-'}
         </p>
         {item.notes && (
           <p className="text-[10px] text-slate-500 max-w-[130px] truncate" title={item.notes}>

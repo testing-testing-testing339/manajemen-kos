@@ -312,7 +312,7 @@ export default function CheckoutHistoryList({
       // 6. Processor
       <div key={`proc-${item.id}`}>
         <p className="text-xs font-semibold text-slate-800">
-          {item.processed_by || 'Resepsionis'}
+          {item.processed_by && item.processed_by !== '-' ? item.processed_by : '-'}
         </p>
         {item.notes && (
           <p className="text-[10px] text-slate-500 max-w-[140px] truncate" title={item.notes}>

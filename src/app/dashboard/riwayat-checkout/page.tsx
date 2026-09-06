@@ -113,22 +113,19 @@ export default async function RiwayatCheckoutPage() {
           const room = roomMap.get(c.assigned_room_id) as any
           const floor = room?.floors || {}
 
-          // Find exact staff who confirmed payment or assigned room
-          const cNameLower = (c.full_name || '').toLowerCase()
-          const matchedPayment = (allPayments || []).find((p: any) => {
+          // Find exact checkout settlement/claim payments for this guest
+          const cNameLower = (c.full_name || '').toLowerCase().trim()
+          const checkoutPayment = (allPayments || []).find((p: any) => {
             const notesLower = (p.notes || '').toLowerCase()
-            return notesLower.includes(cNameLower) || (room?.room_number && notesLower.includes(`kamar: ${room.room_number}`))
+            const isCheckoutNote = notesLower.includes('[pelunasan check-out]') || notesLower.includes('[klaim deposit]')
+            return isCheckoutNote && cNameLower && notesLower.includes(cNameLower)
           })
 
-          let staffName = 'Staff Graha Aisyah'
-          if (matchedPayment?.confirmed_by && profileMap.has(matchedPayment.confirmed_by)) {
-            staffName = profileMap.get(matchedPayment.confirmed_by)!
-          } else if (c.assigned_by && profileMap.has(c.assigned_by)) {
-            staffName = profileMap.get(c.assigned_by)!
-          } else if (c.verified_by && profileMap.has(c.verified_by)) {
-            staffName = profileMap.get(c.verified_by)!
-          } else if (profile?.full_name) {
-            staffName = profile.full_name
+          // Staff attribution: ONLY show staff if there is an explicit checkout payment/action.
+          // NEVER fallback to check-in receptionists (c.assigned_by / c.verified_by) to prevent false attribution.
+          let staffName = '-'
+          if (checkoutPayment?.confirmed_by && profileMap.has(checkoutPayment.confirmed_by)) {
+            staffName = profileMap.get(checkoutPayment.confirmed_by)!
           }
 
           // Extract effective duration from selected_room_type if available
@@ -154,28 +151,50 @@ export default async function RiwayatCheckoutPage() {
           )
 
           // Resolve actual checkout timestamp & time
-          const checkoutTimestamp = matchedPayment?.created_at || null
-          const checkoutDateStr = checkoutTimestamp 
-            ? getWIBDateString(checkoutTimestamp) 
-            : (dueDateStr || getWIBDateString(c.updated_at || c.created_at))
-          
-          const checkoutTimeStr = checkoutTimestamp
-            ? new Date(checkoutTimestamp).toLocaleTimeString('id-ID', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                timeZone: 'Asia/Jakarta' 
-              })
-            : '12:00'
+          // Prevent checkout dates in the future!
+          const checkoutTimestamp = checkoutPayment?.created_at || null
+          const todayWIBStr = getWIBDateString()
+          let checkoutDateStr = todayWIBStr
+          let checkoutTimeStr = '-'
 
-          const isLateSettlement = matchedPayment?.notes?.includes('[Pelunasan Check-Out]')
-          const isDepositClaim = matchedPayment?.notes?.includes('[Klaim Deposit]')
-          const lateFeeAmount = isLateSettlement && matchedPayment?.amount ? (parseFloat(matchedPayment.amount) || 0) : 0
-          const claimedDepositAmount = isDepositClaim && matchedPayment?.amount ? (parseFloat(matchedPayment.amount) || 0) : 0
+          if (checkoutTimestamp) {
+            checkoutDateStr = getWIBDateString(checkoutTimestamp)
+            checkoutTimeStr = new Date(checkoutTimestamp).toLocaleTimeString('id-ID', {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: 'Asia/Jakarta'
+            })
+          } else {
+            const updatedDateStr = c.updated_at ? getWIBDateString(c.updated_at) : null
+            if (updatedDateStr && updatedDateStr <= todayWIBStr) {
+              checkoutDateStr = updatedDateStr
+              checkoutTimeStr = new Date(c.updated_at).toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Asia/Jakarta'
+              })
+            } else if (dueDateStr && dueDateStr <= todayWIBStr) {
+              checkoutDateStr = dueDateStr
+              checkoutTimeStr = '12:00'
+            } else {
+              checkoutDateStr = todayWIBStr
+              checkoutTimeStr = c.updated_at ? new Date(c.updated_at).toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Asia/Jakarta'
+              }) : '-'
+            }
+          }
+
+          const isLateSettlement = checkoutPayment?.notes?.includes('[Pelunasan Check-Out]')
+          const isDepositClaim = checkoutPayment?.notes?.includes('[Klaim Deposit]')
+          const lateFeeAmount = isLateSettlement && checkoutPayment?.amount ? (parseFloat(checkoutPayment.amount) || 0) : 0
+          const claimedDepositAmount = isDepositClaim && checkoutPayment?.amount ? (parseFloat(checkoutPayment.amount) || 0) : 0
 
           const initialDeposit = c.deposit_amount !== undefined && c.deposit_amount !== null ? parseFloat(c.deposit_amount) : 0
           const depositRefund = Math.max(0, initialDeposit - claimedDepositAmount)
 
-          const rawNotes = c.payment_destination?.includes('[KTP') ? c.payment_destination : (matchedPayment?.notes || c.payment_destination || 'Check-out selesai diproses')
+          const rawNotes = c.payment_destination?.includes('[KTP') ? c.payment_destination : (checkoutPayment?.notes || c.payment_destination || 'Check-out selesai diproses')
           const isKtpHeld = rawNotes.includes('[KTP DITAHAN')
           let ktpUnpaidAmount = 0
           if (isKtpHeld) {

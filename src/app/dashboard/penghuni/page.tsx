@@ -201,15 +201,11 @@ export default async function PenghuniPage() {
             return cNameLower && notesLower.includes(cNameLower)
           })
 
-          let staffName = 'Staff Graha Aisyah'
+          // Staff attribution: ONLY show staff if there is an explicit checkout payment/action.
+          // NEVER fallback to check-in receptionists (c.assigned_by / c.verified_by) to prevent false attribution.
+          let staffName = '-'
           if (checkoutPayment?.confirmed_by && profileMap.has(checkoutPayment.confirmed_by)) {
             staffName = profileMap.get(checkoutPayment.confirmed_by)!
-          } else if (c.assigned_by && profileMap.has(c.assigned_by)) {
-            staffName = profileMap.get(c.assigned_by)!
-          } else if (c.verified_by && profileMap.has(c.verified_by)) {
-            staffName = profileMap.get(c.verified_by)!
-          } else if (profile?.full_name) {
-            staffName = profile.full_name
           }
 
           // Extract effective duration from selected_room_type if available
@@ -234,22 +230,41 @@ export default async function PenghuniPage() {
             c.rental_months || 1
           )
 
-
           // Resolve actual checkout timestamp & time
-          // If a checkout settlement payment exists, use its timestamp.
-          // Otherwise, the guest checked out on-time at their due date (12:00 WIB).
+          // Prevent checkout dates in the future!
           const checkoutTimestamp = checkoutPayment?.created_at || null
-          const checkoutDateStr = checkoutTimestamp 
-            ? getWIBDateString(checkoutTimestamp) 
-            : (dueDateStr || getWIBDateString(c.updated_at || c.created_at))
-          
-          const checkoutTimeStr = checkoutTimestamp
-            ? new Date(checkoutTimestamp).toLocaleTimeString('id-ID', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                timeZone: 'Asia/Jakarta' 
+          const todayWIBStr = getWIBDateString()
+          let checkoutDateStr = todayWIBStr
+          let checkoutTimeStr = '-'
+
+          if (checkoutTimestamp) {
+            checkoutDateStr = getWIBDateString(checkoutTimestamp)
+            checkoutTimeStr = new Date(checkoutTimestamp).toLocaleTimeString('id-ID', {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: 'Asia/Jakarta'
+            })
+          } else {
+            const updatedDateStr = c.updated_at ? getWIBDateString(c.updated_at) : null
+            if (updatedDateStr && updatedDateStr <= todayWIBStr) {
+              checkoutDateStr = updatedDateStr
+              checkoutTimeStr = new Date(c.updated_at).toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Asia/Jakarta'
               })
-            : '12:00'
+            } else if (dueDateStr && dueDateStr <= todayWIBStr) {
+              checkoutDateStr = dueDateStr
+              checkoutTimeStr = '12:00'
+            } else {
+              checkoutDateStr = todayWIBStr
+              checkoutTimeStr = c.updated_at ? new Date(c.updated_at).toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Asia/Jakarta'
+              }) : '-'
+            }
+          }
 
           const isLateSettlement = checkoutPayment?.notes?.includes('[Pelunasan Check-Out]')
           const isDepositClaim = checkoutPayment?.notes?.includes('[Klaim Deposit]')
